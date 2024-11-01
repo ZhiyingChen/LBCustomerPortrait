@@ -73,7 +73,7 @@ def get_filename(path1, purpose='autoScheduling'):
         file_dict[name] = [forecast_file, history_file, drop_file]
     else:
         # For Forecast Project
-        regions = ['LB_LCT', 'CNS', 'Longkou', 'CNCE', 'CNNW' ]
+        regions = ['LB_LCT', 'CNS', 'CNCE', 'CNNW' ]
         path2 = os.path.join(path1, 'ForecastingInputOutput')
         for region in regions:
             file_dict[region] = []
