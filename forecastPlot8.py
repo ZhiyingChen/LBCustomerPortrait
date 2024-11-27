@@ -1373,6 +1373,11 @@ def detail_info_label(framename):
     lb19.grid(row=9, column=0, padx=6, pady=pad_y)
     lb20 = tk.Label(framename, text='')
     lb20.grid(row=9, column=1, padx=6, pady=pad_y)
+    # lb21 = tk.Label(framename, text='MaxPayload')
+    # lb21.grid(row=10, column=0, padx=6, pady=pad_y)
+    # lb22 = tk.Label(framename, text='')
+    # lb22.grid(row=10, column=1, padx=6, pady=pad_y)
+
 
 
 def manual_input_label(framename, lock):
@@ -1391,7 +1396,7 @@ def manual_input_label(framename, lock):
                               command=lambda: calculate_by_manual(cur, conn, root, lock))
     btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
     btn_reset = tk.Button(framename, text='Reset', width=15,
-                          command=lambda: reset_manual(root, conn))
+                          command=lambda: reset_manual(root, conn, lock))
     btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
     lb_assess = tk.Label(framename, text='Feedback: ')
     lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
@@ -1511,11 +1516,11 @@ def calculate_by_manual(cur, conn, root, lock):
     manual_plot = False
 
 
-def reset_manual(root, conn):
+def reset_manual(root, conn, lock):
     box_kg.delete(0, 'end')
     box_cm.delete(0, 'end')
     event = None
-    plot(event, root, conn)
+    plot(event, root, conn, lock)
 
 
 def treeView_design(framename, width, height, row, column, y_scroll):
