@@ -173,6 +173,17 @@ def get_beforeReading(conn, shipto):
     df = df.sort_values('ReadingDate')
     return df.beforeKG.values
 
+def get_max_payload_by_ship2(
+        conn,
+        ship2: str,
+):
+
+    sql_statement = \
+        ("SELECT CorporateIdn, LicenseFill "
+         "FROM odbc_MaxPayloadByShip2 "
+         "WHERE ToLocNum = '{}' ").format(ship2)
+    result_df = pd.read_sql(sql_statement, conn)
+    return result_df
 
 def get_manualForecast(shipto, fromTime, toTime, conn):
     '''get manually calculated data'''
@@ -286,12 +297,15 @@ def weight_length_factor(uom):
 
 def clean_detailed_info():
     '''before fill in the info, we need to clean the previous text'''
-    lable_list = [lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20]
+    lable_list = [lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb22]
     for lb_Temp in lable_list:
         lb_Temp.config(text='')
 
 
-def show_info(custName, TR_time, Risk_time, RO_time, full, TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe):
+def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
+              Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
+              primary_dt, max_payload
+              ):
     '''显示客户的充装的详细信息'''
     # 20220624 we need to clean the previous info first
     clean_detailed_info()
@@ -338,6 +352,9 @@ def show_info(custName, TR_time, Risk_time, RO_time, full, TR, Risk, RO, ts_fore
             lb17.config(text='')
             lb18.config(text='')
         lb20.config(text=fe)
+        lb21.config(text='{} MaxPayload'.format(primary_dt))
+        payload = int(max_payload) if isinstance(max_payload, float) else max_payload
+        lb22.config(text=payload)
 
 
 def time_validate_check(conn, shipto):
@@ -548,7 +565,7 @@ def hover_disappear(event):
 def main_plot(root, conn, lock):
     '''作图主函数'''
     custName = listbox_customer.get(listbox_customer.curselection()[0])
-    print(custName)
+    print('Customer: {}'.format(custName))
     # 检查 From time 和 to time 是否正确
     if custName not in df_name_forecast.index:
         messagebox.showinfo(parent=root, title='Warning', message='No Data To Show!')
@@ -602,10 +619,21 @@ def main_plot(root, conn, lock):
             df_forecastBeforeTrip = get_forecastBeforeTrip(shipto, fromTime, toTime, conn)
             # print(df_history.head())
             df_forecast = get_forecastReading(shipto, fromTime, toTime, conn)
+            df_max_payload = get_max_payload_by_ship2(
+                conn=conn,
+                ship2=str(shipto),
+            )
             # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
             if len(df_forecast) > 0:
                 if df_forecast.Forecasted_Reading.values[0] in [777777, 888888, 999999]:
                     df_forecast.Forecasted_Reading = None
+
+            current_primary_dt = '__'
+            current_max_payload = 'unknown'
+            for i, row in df_max_payload.iterrows():
+                if not pd.isna( row['LicenseFill'] ):
+                    current_max_payload = row['LicenseFill']
+                current_primary_dt = row['CorporateIdn']
 
             # print(df_forecast.head())
             # print(df_info.columns)
@@ -763,7 +791,8 @@ def main_plot(root, conn, lock):
             # 点击作图时,同时显示客户的充装的详细信息
             fe = get_forecastError(shipto, conn)
             show_info(custName, TR_time, Risk_time, RO_time, full,
-                      TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe)
+                      TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
+                      primary_dt=current_primary_dt, max_payload=current_max_payload)
             # 显示历史液位
             treeview_data(conn, shipto, reading_tree, 'reading')
             # 显示送货窗口
@@ -1332,52 +1361,52 @@ def send_feedback(event, root, conn, lock):
 
 def detail_info_label(framename):
     '''show detailed information about tank and forecast'''
-    global lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20
+    global lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb21, lb22
     pad_y = 0
     lb1 = tk.Label(framename, text='CustName')
     lb1.grid(row=0, column=0, padx=6, pady=pad_y)
     lb2 = tk.Label(framename, text='')
     lb2.grid(row=0, column=1, padx=6, pady=pad_y)
     lb3 = tk.Label(framename, text='TargetTime')
-    lb3.grid(row=1, column=0, padx=6, pady=pad_y)
+    lb3.grid(row=2, column=0, padx=6, pady=pad_y)
     lb4 = tk.Label(framename, text='')
-    lb4.grid(row=1, column=1, padx=6, pady=pad_y)
+    lb4.grid(row=2, column=1, padx=6, pady=pad_y)
     lb5 = tk.Label(framename, text='RiskTime')
-    lb5.grid(row=2, column=0, padx=6, pady=pad_y)
+    lb5.grid(row=3, column=0, padx=6, pady=pad_y)
     lb6 = tk.Label(framename, text='')
-    lb6.grid(row=2, column=1, padx=6, pady=pad_y)
+    lb6.grid(row=3, column=1, padx=6, pady=pad_y)
     lb7 = tk.Label(framename, text='RunOutTime')
-    lb7.grid(row=3, column=0, padx=6, pady=pad_y)
+    lb7.grid(row=4, column=0, padx=6, pady=pad_y)
     lb8 = tk.Label(framename, text='')
-    lb8.grid(row=3, column=1, padx=6, pady=pad_y)
+    lb8.grid(row=4, column=1, padx=6, pady=pad_y)
     lb9 = tk.Label(framename, text='FullTrycock')
-    lb9.grid(row=4, column=0, padx=6, pady=pad_y)
+    lb9.grid(row=5, column=0, padx=6, pady=pad_y)
     lb10 = tk.Label(framename, text='')
-    lb10.grid(row=4, column=1, padx=6, pady=pad_y)
+    lb10.grid(row=5, column=1, padx=6, pady=pad_y)
     lb11 = tk.Label(framename, text='TargetRefill')
-    lb11.grid(row=5, column=0, padx=6, pady=pad_y)
+    lb11.grid(row=6, column=0, padx=6, pady=pad_y)
     lb12 = tk.Label(framename, text='')
-    lb12.grid(row=5, column=1, padx=6, pady=pad_y)
+    lb12.grid(row=6, column=1, padx=6, pady=pad_y)
     lb13 = tk.Label(framename, text='Risk')
-    lb13.grid(row=6, column=0, padx=6, pady=pad_y)
+    lb13.grid(row=7, column=0, padx=6, pady=pad_y)
     lb14 = tk.Label(framename, text='')
-    lb14.grid(row=6, column=1, padx=6, pady=pad_y)
+    lb14.grid(row=7, column=1, padx=6, pady=pad_y)
     lb15 = tk.Label(framename, text='Runout')
-    lb15.grid(row=7, column=0, padx=6, pady=pad_y)
+    lb15.grid(row=8, column=0, padx=6, pady=pad_y)
     lb16 = tk.Label(framename, text='')
-    lb16.grid(row=7, column=1, padx=6, pady=pad_y)
+    lb16.grid(row=8, column=1, padx=6, pady=pad_y)
     lb17 = tk.Label(framename, text='')
-    lb17.grid(row=8, column=0, padx=6, pady=pad_y)
+    lb17.grid(row=9, column=0, padx=6, pady=pad_y)
     lb18 = tk.Label(framename, text='')
-    lb18.grid(row=8, column=1, padx=6, pady=pad_y)
+    lb18.grid(row=9, column=1, padx=6, pady=pad_y)
     lb19 = tk.Label(framename, text='ForecastError')
-    lb19.grid(row=9, column=0, padx=6, pady=pad_y)
+    lb19.grid(row=10, column=0, padx=6, pady=pad_y)
     lb20 = tk.Label(framename, text='')
-    lb20.grid(row=9, column=1, padx=6, pady=pad_y)
-    # lb21 = tk.Label(framename, text='MaxPayload')
-    # lb21.grid(row=10, column=0, padx=6, pady=pad_y)
-    # lb22 = tk.Label(framename, text='')
-    # lb22.grid(row=10, column=1, padx=6, pady=pad_y)
+    lb20.grid(row=10, column=1, padx=6, pady=pad_y)
+    lb21 = tk.Label(framename, text='__MaxPayload')
+    lb21.grid(row=1, column=0, padx=6, pady=pad_y)
+    lb22 = tk.Label(framename, text='')
+    lb22.grid(row=1, column=1, padx=6, pady=pad_y)
 
 
 
