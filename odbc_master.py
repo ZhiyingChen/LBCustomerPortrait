@@ -206,7 +206,7 @@ def sharepoint_equipment_list():
     # 51 或者 52 为大车
     equipment_list_df = equipment_list_df[
         (equipment_list_df['EquipClass'] == 51) | (equipment_list_df['EquipClass'] == 52)]
-    equipment_list_df.rename_axis(columns={
+    equipment_list_df = equipment_list_df.rename(columns={
         'CorporateID': 'CorporateIdn', 'Product': 'ProductClass'
     })
     print('Equipment List data is ready.')
