@@ -137,24 +137,26 @@ def odbc_segment():
     last_fiscal_year_start_date = get_last_fiscal_year_start_date()
 
     sql = '''
-        SELECT 
-        ToLocNum, 
-        ProductClass, 
-        CorporateIdn
-        FROM (
-            SELECT 
-                Seg.ToLocNum, 
-                Seg.ProductClass, 
-                Seg.CorporateIdn, 
-                COUNT(*) AS count,
-                ROW_NUMBER() OVER (PARTITION BY Seg.ToLocNum, Seg.ProductClass ORDER BY COUNT(*) DESC) AS rn
-            FROM Segment Seg
-            INNER JOIN LBCustProfile LBCP
-            ON LBCP.LocNum = Seg.ToLocNum
-            WHERE ActualDepartTime > '{}'
-            GROUP BY Seg.ToLocNum, Seg.ProductClass, Seg.CorporateIdn
-        ) subquery
-        WHERE rn = 1
+       SELECT subquery2.ToLocNum, CP.ProductClass, subquery2.CorporateIdn
+        FROM
+            (SELECT 
+                    ToLocNum, 
+                    CorporateIdn
+                    FROM (
+                        SELECT 
+                            Seg.ToLocNum, 
+                            Seg.CorporateIdn, 
+                            COUNT(*) AS count,
+                            ROW_NUMBER() OVER (PARTITION BY Seg.ToLocNum ORDER BY COUNT(*) DESC) AS rn
+                        FROM Segment Seg
+                        INNER JOIN LBCustProfile CP
+                        ON CP.LocNum = Seg.ToLocNum
+                        WHERE ActualDepartTime > '2023-10-1' AND CP.State = 'CN'
+                        GROUP BY Seg.ToLocNum, Seg.CorporateIdn
+                    ) subquery
+            WHERE rn = 1) AS subquery2
+        LEFT JOIN LBCustProfile CP
+        ON CP.LocNum = subquery2.ToLocNum
     '''.format(
         last_fiscal_year_start_date.strftime('%Y-%m-%d')
     )
@@ -182,7 +184,8 @@ def sharepoint_equipment_list():
     sql = '''
         SELECT CorporateID, Product, MAX(LicenseFill) AS MaxLicenseFill
         FROM Equipment1
-        WHERE EquipClass = 51 OR EquipClass = 52
+        WHERE (EquipClass = 51 OR EquipClass = 52)
+        AND Status = 'A'
         GROUP BY CorporateID, Product
     '''
     table, _ = oConn.Execute(sql)
