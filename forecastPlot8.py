@@ -1,6 +1,7 @@
 from Email_forecast import send_email
 from matplotlib.lines import Line2D
-from odbc_master import refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading
+from odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
+                         refresh_max_payload_by_ship2)
 from datetime import datetime
 from datetime import timedelta
 import matplotlib.pylab as pylab
@@ -1766,46 +1767,62 @@ def forecaster_run(root, path1, cur, conn):
     log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
     logConnection(log_file, 'opened')
 
+def check_refresh(table_name: str, cur):
+    sql = '''select refresh_date from {}'''.format(table_name)
+    cur.execute(sql)
+    refresh_time = pd.to_datetime(cur.fetchone()[0])
+    if refresh_time.date() == datetime.now().date() and refresh_time.hour > 6:
+        print('今日{}已刷新！'.format(table_name))
+        return True
+    return False
 
-if __name__ == '__main__':
+def refresh_odbc_data(conn, cur):
+    try:
+        if check_refresh(table_name='odbc_master', cur=cur):
+            print('今日 Master 已刷新！')
+        else:
+            refresh_odbcMasterData(cur, conn)
+    except Exception as e:
+        print(e)
+        refresh_odbcMasterData(cur, conn)
+
+    try:
+        if check_refresh(table_name='beforeReading', cur=cur):
+            print('今日 before 已刷新！')
+        else:
+            refresh_beforeReading(conn)
+    except Exception as e:
+        print(e)
+        refresh_beforeReading(conn)
+
+    try:
+        if check_refresh(table_name='odbc_MaxPayloadByShip2', cur=cur):
+            print('今日 MaxPayloadByShip2 已刷新！')
+        else:
+            refresh_max_payload_by_ship2(cur=cur, conn=conn)
+    except Exception as e:
+        print(e)
+        refresh_max_payload_by_ship2(cur=cur, conn=conn)
+
+
+def update_font():
     # font
     font_path = os.path.join('./', 'SimHei.ttf')
     try:
         from matplotlib.font_manager import fontManager
         fontManager.addfont(font_path)
         matplotlib.rc('font', family='SimHei')
-    except Exception:
-        pass
+    except Exception as e:
+        print(e)
+
+if __name__ == '__main__':
+    update_font()
+
     # 刷新 ODBC Master Data
     db_name = 'AutoSchedule.sqlite'
     conn = connect_sqlite(db_name)
     cur = conn.cursor()
-    try:
-        # 检查 ODBC master
-        table_name = 'odbc_master'
-        sql = '''select refresh_date from {}'''.format(table_name)
-        cur.execute(sql)
-        refresh_time = pd.to_datetime(cur.fetchone()[0])
-        if (refresh_time.date() == datetime.now().date() and refresh_time.hour > 6):
-            print('今日 Master 已刷新！')
-            # refresh_odbcMasterData(cur, conn)
-        else:
-            refresh_odbcMasterData(cur, conn)
-        # 检查 ODBC before    
-        table_name = 'beforeReading'
-        sql = '''select refresh_date from {}'''.format(table_name)
-        cur.execute(sql)
-        refresh_time = pd.to_datetime(cur.fetchone()[0])
-        if (refresh_time.date() == datetime.now().date() and refresh_time.hour > 6):
-            print('今日 before 已刷新！')
-            # refresh_beforeReading(conn)
-        else:
-            # 2024-04-18 新增司机输入液位
-            refresh_beforeReading(conn)
-    except Exception as e:
-        print(e)
-        refresh_odbcMasterData(cur, conn)
-        refresh_beforeReading(conn)
+    refresh_odbc_data(conn, cur)
 
     path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
     # 建立窗口
