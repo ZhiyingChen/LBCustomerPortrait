@@ -178,7 +178,13 @@ def sharepoint_equipment_list():
     oConn.Open()
 
     # 执行查询
-    sql = "SELECT * FROM Equipment1"
+    # EquipClass 51 或者 52 为大车
+    sql = '''
+        SELECT CorporateID, Product, MAX(LicenseFill) AS MaxLicenseFill
+        FROM Equipment1
+        WHERE EquipClass = 51 OR EquipClass = 52
+        GROUP BY CorporateID, Product
+    '''
     table, _ = oConn.Execute(sql)
 
     # 获取列名
@@ -200,14 +206,10 @@ def sharepoint_equipment_list():
     del oConn
 
     # 转换为DataFrame
-    SP_list = pd.DataFrame(contentsList, columns=colsName)
-    equipment_list_df = SP_list[
-        ['CorporateID', 'Product', 'EquipClass', 'LicenseFill']]
-    # 51 或者 52 为大车
-    equipment_list_df = equipment_list_df[
-        (equipment_list_df['EquipClass'] == 51) | (equipment_list_df['EquipClass'] == 52)]
+    equipment_list_df = pd.DataFrame(contentsList, columns=colsName)
+
     equipment_list_df = equipment_list_df.rename(columns={
-        'CorporateID': 'CorporateIdn', 'Product': 'ProductClass'
+        'CorporateID': 'CorporateIdn', 'Product': 'ProductClass', 'MaxLicenseFill': 'LicenseFill'
     })
     print('Equipment List data is ready.')
     return equipment_list_df
