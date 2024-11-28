@@ -2,6 +2,8 @@ import pandas as pd
 import pyodbc
 from datetime import datetime
 from datetime import timedelta
+from win32com.client import Dispatch
+import pywintypes
 # 连接ODBC
 
 
@@ -108,6 +110,108 @@ def odbc_DeliveryWindow():
     return df
 
 
+def get_last_fiscal_year_start_date(current_date=None):
+    if current_date is None:
+        current_date = datetime.now()
+
+    # 财年从10月1日开始
+    fiscal_year_start_month = 10
+    fiscal_year_start_day = 1
+
+    # 如果当前日期在10月1日之前，则当前财年从上一年的10月1日开始
+    if (current_date.month < fiscal_year_start_month) or \
+            (current_date.month == fiscal_year_start_month and current_date.day < fiscal_year_start_day):
+        last_fiscal_year_start = datetime(current_date.year - 1, fiscal_year_start_month, fiscal_year_start_day)
+    else:
+        last_fiscal_year_start = datetime(current_date.year - 1, fiscal_year_start_month,
+                                          fiscal_year_start_day)
+
+    return pd.to_datetime(last_fiscal_year_start)
+
+def odbc_segment():
+    # odbc 基础数据
+    server = 'LRPSQP05\\LRPSQP05'
+    database = 'EU_LBLogist_RPT'
+    cnxn = connect_odbc(server, database)
+
+    last_fiscal_year_start_date = get_last_fiscal_year_start_date()
+
+    sql = '''
+        SELECT 
+        ToLocNum, 
+        ProductClass, 
+        CorporateIdn
+        FROM (
+            SELECT 
+                Seg.ToLocNum, 
+                Seg.ProductClass, 
+                Seg.CorporateIdn, 
+                COUNT(*) AS count,
+                ROW_NUMBER() OVER (PARTITION BY Seg.ToLocNum, Seg.ProductClass ORDER BY COUNT(*) DESC) AS rn
+            FROM Segment Seg
+            INNER JOIN LBCustProfile LBCP
+            ON LBCP.LocNum = Seg.ToLocNum
+            WHERE ActualDepartTime > '{}'
+            GROUP BY Seg.ToLocNum, Seg.ProductClass, Seg.CorporateIdn
+        ) subquery
+        WHERE rn = 1
+    '''.format(
+        last_fiscal_year_start_date.strftime('%Y-%m-%d')
+    )
+    df = pd.read_sql(sql, cnxn)
+    return df
+
+
+def sharepoint_equipment_list():
+    # 定义常量
+    SERVERUrl = "https://approd.sharepoint.com/sites/CN_IG_Fleet"
+    list_name = "{3b03a9a2-1a4d-4438-93f7-8ed5db3838cb}"  # 你需要替换为实际的List GUID
+
+    # 连接到SharePoint
+    oConn = Dispatch('ADODB.Connection')
+    oConn.ConnectionString = f'''
+        Provider=Microsoft.ACE.OLEDB.16.0;
+        WSS;IMEX=0;RetrieveIds=Yes;
+        DATABASE={SERVERUrl};
+        LIST={list_name}
+    '''
+    oConn.Open()
+
+    # 执行查询
+    sql = "SELECT * FROM Equipment1"
+    table, _ = oConn.Execute(sql)
+
+    # 获取列名
+    colsName = [table.Fields(i).Name for i in range(len(table.Fields))]
+
+    # 读取数据
+    contentsList = []
+    while not table.EOF:
+        item_temp = [table.Fields(i).Value for i in range(len(table.Fields))]
+        item_temp1 = [
+            datetime.fromisoformat(str(pd.to_datetime(v.ctime())))
+            if isinstance(v, pywintypes.TimeType) else v for v in
+            item_temp]
+        contentsList.append(item_temp1)
+        table.MoveNext()
+
+    # 关闭连接
+    oConn.Close()
+    del oConn
+
+    # 转换为DataFrame
+    SP_list = pd.DataFrame(contentsList, columns=colsName)
+    equipment_list_df = SP_list[
+        ['CorporateID', 'Product', 'EquipClass', 'LicenseFill']]
+    # 51 或者 52 为大车
+    equipment_list_df = equipment_list_df[
+        (equipment_list_df['EquipClass'] == 51) | (equipment_list_df['EquipClass'] == 52)]
+    equipment_list_df.rename_axis(columns={
+        'CorporateID': 'CorporateIdn', 'Product': 'ProductClass'
+    })
+    print('Equipment List data is ready.')
+    return equipment_list_df
+
 def refresh_odbcMasterData(cur, conn):
     '''上传 odbc 的数据到 sqlite'''
     df = odbc_masterData()
@@ -140,6 +244,23 @@ def refresh_DeliveryWindow(cur, conn):
     df.to_sql(table_name, con=conn, if_exists='replace', index=False)
     print('ODBC DeliveryWindow data is ready.')
 
+
+def refresh_max_payload_by_ship2(cur, conn):
+    # 获取 odbc 中 segment 的数据
+    segment_df = odbc_segment()
+
+    # 获取sharepointList中 equipmentList 的数据
+    equipment_list_df = sharepoint_equipment_list()
+    merged_df = pd.merge(segment_df, equipment_list_df, on=['CorporateIdn', 'ProductClass'], how='left')
+    now = datetime.now()
+    merged_df['refresh_date'] = now
+
+    table_name = 'odbc_MaxPayloadByShip2'
+    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+    conn.commit()
+    # 导入数据
+    merged_df.to_sql(table_name, con=conn, if_exists='replace', index=False)
+    print('ODBC max_payload_by_ship2 data is ready.')
 
 def get_LB_TeleShiptos(cnxn):
     '''查询所有 LB 远控 shiptos'''
