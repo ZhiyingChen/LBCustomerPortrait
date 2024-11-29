@@ -137,32 +137,36 @@ def odbc_segment():
     last_fiscal_year_start_date = get_last_fiscal_year_start_date()
 
     sql = '''
-       SELECT subquery2.ToLocNum, CP.ProductClass, subquery2.CorporateIdn
-        FROM
-            (SELECT 
-                    ToLocNum, 
-                    CorporateIdn
-                    FROM (
-                        SELECT 
-                            Seg.ToLocNum, 
-                            Seg.CorporateIdn, 
-                            COUNT(*) AS count,
-                            ROW_NUMBER() OVER (PARTITION BY Seg.ToLocNum ORDER BY COUNT(*) DESC) AS rn
-                        FROM Segment Seg
-                        INNER JOIN LBCustProfile CP
-                        ON CP.LocNum = Seg.ToLocNum
-                        WHERE ActualDepartTime > '2023-10-1' AND CP.State = 'CN'
-                        GROUP BY Seg.ToLocNum, Seg.CorporateIdn
-                    ) subquery
-            WHERE rn = 1) AS subquery2
+       SELECT Segment.ToLocNum, CP.ProductClass, Segment.CorporateIdn, Segment.AssignedTrailerIdn
+        FROM Segment
+        RIGHT JOIN 
+        (
+            SELECT 
+                ToLocNum, 
+                CorporateIdn
+                FROM (
+                    SELECT 
+                        Seg.ToLocNum, 
+                        Seg.CorporateIdn, 
+                        COUNT(*) AS count,
+                        ROW_NUMBER() OVER (PARTITION BY Seg.ToLocNum ORDER BY COUNT(*) DESC) AS rn
+                    FROM Segment Seg
+                    INNER JOIN LBCustProfile CP
+                    ON CP.LocNum = Seg.ToLocNum
+                    WHERE ActualDepartTime > '{}' AND CP.State = 'CN'
+                    GROUP BY Seg.ToLocNum, Seg.CorporateIdn
+                ) subquery
+            WHERE rn = 1
+        ) subquery2
+        ON subquery2.ToLocNum = Segment.ToLocNum AND subquery2.CorporateIdn = Segment.CorporateIdn
         LEFT JOIN LBCustProfile CP
-        ON CP.LocNum = subquery2.ToLocNum
+        ON CP.LocNum = Segment.ToLocNum
+        WHERE Segment.AssignedTrailerIdn != 'NULL'
     '''.format(
         last_fiscal_year_start_date.strftime('%Y-%m-%d')
     )
     df = pd.read_sql(sql, cnxn)
     return df
-
 
 def sharepoint_equipment_list():
     # 定义常量
@@ -182,11 +186,11 @@ def sharepoint_equipment_list():
     # 执行查询
     # EquipClass 51 或者 52 为大车
     sql = '''
-        SELECT CorporateID, Product, MAX(LicenseFill) AS MaxLicenseFill
+        SELECT LBID, Product, LicenseFill
         FROM Equipment1
         WHERE (EquipClass = 51 OR EquipClass = 52)
         AND Status = 'A'
-        GROUP BY CorporateID, Product
+        AND CarrierID = 'APEP'
     '''
     table, _ = oConn.Execute(sql)
 
@@ -212,7 +216,7 @@ def sharepoint_equipment_list():
     equipment_list_df = pd.DataFrame(contentsList, columns=colsName)
 
     equipment_list_df = equipment_list_df.rename(columns={
-        'CorporateID': 'CorporateIdn', 'Product': 'ProductClass', 'MaxLicenseFill': 'LicenseFill'
+        'LBID': 'AssignedTrailerIdn', 'Product': 'ProductClass',
     })
     print('Equipment List data is ready.')
     return equipment_list_df
@@ -256,15 +260,23 @@ def refresh_max_payload_by_ship2(cur, conn):
 
     # 获取sharepointList中 equipmentList 的数据
     equipment_list_df = sharepoint_equipment_list()
-    merged_df = pd.merge(segment_df, equipment_list_df, on=['CorporateIdn', 'ProductClass'], how='left')
+
+    merged_df = pd.merge(segment_df, equipment_list_df,
+                         on=['AssignedTrailerIdn', 'ProductClass'], how='left')
+    merged_df['LicenseFill'] = merged_df['LicenseFill'].fillna(0)
+    # 按 ToLocNum, ProductClass, CorporateIdn 分组，找到每组中 LicenseFill 最大的索引
+    idx = merged_df.groupby(['ToLocNum', 'ProductClass', 'CorporateIdn'])['LicenseFill'].idxmax()
+
+    # 使用这些索引从原 DataFrame 中提取相应的记录
+    new_df = merged_df.loc[idx].reset_index(drop=True)
     now = datetime.now()
-    merged_df['refresh_date'] = now
+    new_df['refresh_date'] = now
 
     table_name = 'odbc_MaxPayloadByShip2'
     cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
     conn.commit()
     # 导入数据
-    merged_df.to_sql(table_name, con=conn, if_exists='replace', index=False)
+    new_df.to_sql(table_name, con=conn, if_exists='replace', index=False)
     print('ODBC max_payload_by_ship2 data is ready.')
 
 def get_LB_TeleShiptos(cnxn):

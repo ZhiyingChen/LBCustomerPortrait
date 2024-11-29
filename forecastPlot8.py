@@ -631,7 +631,7 @@ def main_plot(root, conn, lock):
             current_primary_dt = '__'
             current_max_payload = 'unknown'
             for i, row in df_max_payload.iterrows():
-                if not pd.isna( row['LicenseFill'] ):
+                if not pd.isna( row['LicenseFill'] ) and row['LicenseFill'] > 0:
                     current_max_payload = row['LicenseFill']
                 current_primary_dt = row['CorporateIdn']
 
