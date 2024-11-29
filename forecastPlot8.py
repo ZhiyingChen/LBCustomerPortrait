@@ -1811,26 +1811,21 @@ def refresh_odbc_data(conn, cur):
             print('今日 Master 已刷新！')
         else:
             refresh_odbcMasterData(cur, conn)
-    except Exception as e:
-        print(e)
-        refresh_odbcMasterData(cur, conn)
 
-    try:
         if check_refresh(table_name='beforeReading', cur=cur):
             print('今日 before 已刷新！')
         else:
             refresh_beforeReading(conn)
-    except Exception as e:
-        print(e)
-        refresh_beforeReading(conn)
 
-    try:
         if check_refresh(table_name='odbc_MaxPayloadByShip2', cur=cur):
             print('今日 MaxPayloadByShip2 已刷新！')
         else:
             refresh_max_payload_by_ship2(cur=cur, conn=conn)
+
     except Exception as e:
         print(e)
+        refresh_odbcMasterData(cur, conn)
+        refresh_beforeReading(conn)
         refresh_max_payload_by_ship2(cur=cur, conn=conn)
 
 
