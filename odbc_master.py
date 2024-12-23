@@ -285,7 +285,7 @@ def refresh_max_payload_by_ship2(cur, conn):
 
     # 重置索引
     new_df.reset_index(drop=True, inplace=True)
-
+    new_df['ToLocNum'] = new_df['ToLocNum'].astype(str)
     now = datetime.now()
     new_df['refresh_date'] = now
 
