@@ -186,11 +186,11 @@ def sharepoint_equipment_list():
     # 执行查询
     # EquipClass 51 或者 52 为大车
     sql = '''
-        SELECT LBID, Product, LicenseFill
+        SELECT LBID, Product, LicenseFill, CarrierID
         FROM Equipment1
         WHERE (EquipClass = 51 OR EquipClass = 52)
         AND Status = 'A'
-        AND CarrierID = 'APEP'
+        AND (CarrierID = 'APEP' OR (CarrierID <> 'APEP' AND LBID LIKE '%QL%'))
     '''
     table, _ = oConn.Execute(sql)
 
@@ -264,11 +264,28 @@ def refresh_max_payload_by_ship2(cur, conn):
     merged_df = pd.merge(segment_df, equipment_list_df,
                          on=['AssignedTrailerIdn', 'ProductClass'], how='left')
     merged_df['LicenseFill'] = merged_df['LicenseFill'].fillna(0)
-    # 按 ToLocNum, ProductClass, CorporateIdn 分组，找到每组中 LicenseFill 最大的索引
-    idx = merged_df.groupby(['ToLocNum', 'ProductClass', 'CorporateIdn'])['LicenseFill'].idxmax()
 
-    # 使用这些索引从原 DataFrame 中提取相应的记录
-    new_df = merged_df.loc[idx].reset_index(drop=True)
+    # 创建一个空的 DataFrame 来存储结果
+    new_df = pd.DataFrame()
+    # 遍历每组 ['ToLocNum', 'ProductClass', 'CorporateIdn']
+    for key, group in merged_df.groupby(['ToLocNum', 'ProductClass', 'CorporateIdn']):
+        # 检查是否存在 APEP 车
+        apep_group = group[group['CarrierID'] == 'APEP']
+        if not apep_group.empty:
+            # 取 APEP 车中 LicenseFill 最大的
+            max_apep = apep_group.loc[apep_group['LicenseFill'].idxmax()]
+            new_df = pd.concat([new_df, max_apep.to_frame().T], ignore_index=True)
+        else:
+            # 筛选出 LBID 包含 'QL' 的车
+            ql_group = group[group['AssignedTrailerIdn'].str.contains('QL')]
+            if not ql_group.empty:
+                # 取 LBID 包含 'QL' 的车中 LicenseFill 最大的
+                max_ql = ql_group.loc[ql_group['LicenseFill'].idxmax()]
+                new_df = pd.concat([new_df, max_ql.to_frame().T], ignore_index=True)
+
+    # 重置索引
+    new_df.reset_index(drop=True, inplace=True)
+
     now = datetime.now()
     new_df['refresh_date'] = now
 
