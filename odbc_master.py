@@ -353,3 +353,43 @@ def refresh_beforeReading(conn):
     table_name = 'beforeReading'
     df[use_cols].to_sql(table_name, con=conn, if_exists='replace', index=False)
     print('ODBC Before Reading is ready.')
+
+def load_t6_info():
+    t6_info_df = pd.read_excel(
+        r'\\shangnt\lbshell\PUAPI\PU_program\automation\telemetry\BeforeToRoTime\program\t6_info.xlsx')
+
+    # 使用正则表达式过滤 beforeToRoHours 列，保留纯数字的值
+    t6_info_df = t6_info_df[t6_info_df['beforeToRoHours'].astype(str).str.match(r'^\d+$')]
+
+    # 将 beforeToRoHours 转换为数值类型
+    t6_info_df['beforeToRoHours'] = t6_info_df['beforeToRoHours'].astype(float)
+
+    # 将 ro_time 转换为日期时间格式
+    t6_info_df['ro_time'] = pd.to_datetime(t6_info_df['ro_time'])
+
+    # 按 LocNum 和 ro_time 排序
+    t6_info_df = t6_info_df.sort_values(by=['LocNum', 'ro_time'], ascending=[True, False])
+
+    return t6_info_df
+
+def refresh_t4_t6_data(cur, conn):
+
+    t6_info_df = load_t6_info()
+
+    # 计算每个 LocNum 最近三次 ro_time 的 beforeToRoHours 的均值
+    t6_info_df['beforeToRoHours_rolling_mean'] = t6_info_df.groupby('LocNum')['beforeToRoHours'].transform(
+        lambda x: x.rolling(window=3).mean())
+    t6_info_df = t6_info_df.dropna(subset=['beforeToRoHours_rolling_mean'])
+    # 只保留每个 LocNum 的最近一次记录
+    t6_info_df = t6_info_df.drop_duplicates(subset='LocNum', keep='first')
+
+    # 保留需要的列
+    t6_info_df = t6_info_df[['LocNum', 'beforeToRoHours_rolling_mean']]
+
+
+    table_name = 'odbc_t4_t6'
+    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+    conn.commit()
+    # 导入数据
+    t6_info_df.to_sql(table_name, con=conn, if_exists='replace', index=False)
+    print('ODBC odbc_t4_t6 data is ready.')

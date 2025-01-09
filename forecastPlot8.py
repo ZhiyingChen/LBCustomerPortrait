@@ -1,7 +1,7 @@
 from Email_forecast import send_email
 from matplotlib.lines import Line2D
 from odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
-                         refresh_max_payload_by_ship2)
+                         refresh_max_payload_by_ship2, refresh_t4_t6_data)
 from datetime import datetime
 from datetime import timedelta
 import matplotlib.pylab as pylab
@@ -1822,11 +1822,17 @@ def refresh_odbc_data(conn, cur):
         else:
             refresh_max_payload_by_ship2(cur=cur, conn=conn)
 
+        if check_refresh(table_name='t4_t6_data', cur=cur):
+            print('今日 t4_t6 已刷新')
+        else:
+            refresh_t4_t6_data(cur=cur, conn=conn)
+
     except Exception as e:
         print(e)
         refresh_odbcMasterData(cur, conn)
         refresh_beforeReading(conn)
         refresh_max_payload_by_ship2(cur=cur, conn=conn)
+        refresh_t4_t6_data(cur=cur, conn=conn)
 
 
 def update_font():
