@@ -385,9 +385,10 @@ def refresh_t4_t6_data(cur, conn):
 
     # 保留需要的列
     t6_info_df = t6_info_df[['LocNum', 'beforeToRoHours_rolling_mean']]
+    now = datetime.now()
+    t6_info_df['refresh_date'] = now
 
-
-    table_name = 'odbc_t4_t6'
+    table_name = 't4_t6_data'
     cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
     conn.commit()
     # 导入数据
