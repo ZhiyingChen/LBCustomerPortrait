@@ -282,6 +282,17 @@ def get_forecastError(shipto, conn):
         fe = str(round(df.AverageError.values[0]*100)) + '%'
     return fe
 
+def get_t4_t6_value(shipto, conn):
+
+    table_name = "t4_t6_data"
+    sql = '''SELECT * FROM {} WHERE LocNum = {}'''.format(table_name, shipto)
+    df = pd.read_sql(sql, conn)
+    t4_t6_val = "unknown"
+
+    for i, row in df.iterrows():
+        t4_t6_val = round(row['beforeToRoHours_rolling_mean'],1)
+    return t4_t6_val
+
 
 
 def weight_length_factor(uom):
@@ -297,14 +308,14 @@ def weight_length_factor(uom):
 
 def clean_detailed_info():
     '''before fill in the info, we need to clean the previous text'''
-    lable_list = [lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb22]
+    lable_list = [lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb22, t4_t6_value_label]
     for lb_Temp in lable_list:
         lb_Temp.config(text='')
 
 
 def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
               Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-              primary_dt, max_payload
+              primary_dt, max_payload,t4_t6_value
               ):
     '''显示客户的充装的详细信息'''
     # 20220624 we need to clean the previous info first
@@ -351,10 +362,12 @@ def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
         else:
             lb17.config(text='')
             lb18.config(text='')
-        lb20.config(text=fe)
-        lb21.config(text='{} MaxPayload'.format(primary_dt))
-        payload = int(max_payload) if isinstance(max_payload, float) else max_payload
-        lb22.config(text=payload)
+
+    lb20.config(text=fe)
+    lb21.config(text='{} MaxPayload'.format(primary_dt))
+    payload = int(max_payload) if isinstance(max_payload, float) else max_payload
+    lb22.config(text=payload)
+    t4_t6_value_label.config(text=t4_t6_value)
 
 
 def time_validate_check(conn, shipto):
@@ -790,9 +803,11 @@ def main_plot(root, conn, lock):
                 # print(222)
             # 点击作图时,同时显示客户的充装的详细信息
             fe = get_forecastError(shipto, conn)
+            t4_t6_value = get_t4_t6_value(shipto, conn)
             show_info(custName, TR_time, Risk_time, RO_time, full,
                       TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-                      primary_dt=current_primary_dt, max_payload=current_max_payload)
+                      primary_dt=current_primary_dt, max_payload=current_max_payload,
+                      t4_t6_value =t4_t6_value)
             # 显示历史液位
             treeview_data(conn, shipto, reading_tree, 'reading')
             # 显示送货窗口
@@ -1408,6 +1423,15 @@ def detail_info_label(framename):
     lb22 = tk.Label(framename, text='')
     lb22.grid(row=1, column=1, padx=6, pady=pad_y)
 
+def frame_warning_label(framename):
+    global t4_t6_value_label
+
+    # 添加一个标签作为示例
+    t4_t6_label = tk.Label(framename, text="T6-T4 recent 3-time average (h): ")
+    t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
+
+    t4_t6_value_label = tk.Label(framename, text="")
+    t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
 
 
 def manual_input_label(framename, lock):
@@ -1778,9 +1802,18 @@ def forecaster_run(root, path1, cur, conn):
     frame_detail.grid(row=0, column=1, padx=10, pady=2)
     # 输入 起始日期
     detail_info_label(frame_detail)
+
+    second_col_frame =  tk.LabelFrame(par_frame)
+    second_col_frame.grid(row=0, column=2, padx=10, pady=2)
+
+    frame_warning = tk.LabelFrame(second_col_frame, text='Warning')
+    frame_warning.grid(row=0, column=0, padx=10, pady=2)
+
+    frame_warning_label(frame_warning)
+
     # 重新排版,建立 frame_detail
-    frame_manual = tk.LabelFrame(par_frame, text='Manual Input')
-    frame_manual.grid(row=0, column=2, padx=10, pady=2)
+    frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
+    frame_manual.grid(row=1, column=0, padx=10, pady=2)
     # 输入 起始日期
     manual_input_label(frame_manual, lock)
     # 新增两个 Treeview
