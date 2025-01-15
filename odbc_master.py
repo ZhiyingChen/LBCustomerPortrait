@@ -378,7 +378,7 @@ def refresh_t4_t6_data(cur, conn):
 
     # 计算每个 LocNum 最近三次 ro_time 的 beforeToRoHours 的均值
     t6_info_df['beforeToRoHours_rolling_mean'] = t6_info_df.groupby('LocNum')['beforeToRoHours'].transform(
-        lambda x: x.rolling(window=3).mean())
+        lambda x: x.rolling(window=3, min_periods=1).mean())
     t6_info_df = t6_info_df.dropna(subset=['beforeToRoHours_rolling_mean'])
     # 只保留每个 LocNum 的最近一次记录
     t6_info_df = t6_info_df.drop_duplicates(subset='LocNum', keep='first')
