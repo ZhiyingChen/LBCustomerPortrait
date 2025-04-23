@@ -1870,7 +1870,7 @@ def refresh_odbc_data(conn, cur):
 
 def update_font():
     # font
-    font_path = os.path.join('../../', 'SimHei.ttf')
+    font_path = os.path.join('./', 'SimHei.ttf')
     try:
         from matplotlib.font_manager import fontManager
         fontManager.addfont(font_path)

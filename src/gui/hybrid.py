@@ -51,8 +51,8 @@ class HybridApp(tk.Tk):
 
         ttk.Button(control_bar, text="预测界面",
                    command=self.show_legacy).pack(side='left', padx=10)
-        ttk.Button(control_bar, text="新界面",
-                   command=self.show_new_interface).pack(side='left', padx=10)
+        # ttk.Button(control_bar, text="新界面",
+        #            command=self.show_new_interface).pack(side='left', padx=10)
 
     def show_new_interface(self):
         """显示新界面"""
