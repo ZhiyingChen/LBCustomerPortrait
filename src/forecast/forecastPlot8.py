@@ -1,6 +1,6 @@
-from Email_forecast import send_email
+from .Email_forecast import send_email
 from matplotlib.lines import Line2D
-from odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
+from .odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
                          refresh_max_payload_by_ship2, refresh_t4_t6_data)
 from datetime import datetime
 from datetime import timedelta
@@ -25,8 +25,8 @@ import matplotlib
 import time
 import threading
 from tkinter import scrolledtext
-from dol_api import updateDOL
-from lct_api import updateLCT
+from .dol_api import updateDOL
+from .lct_api import updateLCT
 
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
@@ -1434,7 +1434,7 @@ def frame_warning_label(framename):
     t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
 
 
-def manual_input_label(framename, lock):
+def manual_input_label(framename, lock, cur, conn):
     '''for schedulers manually input their estimation about hourly usage'''
     pad_y = 0
     lb_cm = tk.Label(framename, text='CM Hourly')
@@ -1668,7 +1668,7 @@ def treeview_data(conn, shipto, treename, purpose):
     treename.pack()
 
 
-def check_refresh_deliveryWindow():
+def check_refresh_deliveryWindow(cur, conn):
     '''检查并刷新 odbc_DeliveryWindow'''
     table_name = 'odbc_DeliveryWindow'
     sql = '''select refresh_date from {}'''.format(table_name)
@@ -1704,7 +1704,7 @@ def forecaster_run(root, path1, cur, conn):
     # 启动的时候就进行第一次刷新数据。
     # 刷新 delivery window
     print('start check_refresh_deliveryWindow')
-    check_refresh_deliveryWindow()
+    check_refresh_deliveryWindow(cur=cur, conn=conn)
     print('finish check_refresh_deliveryWindow')
     global file_dict
     # 刷新预测数据
@@ -1815,7 +1815,7 @@ def forecaster_run(root, path1, cur, conn):
     frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
     frame_manual.grid(row=1, column=0, padx=10, pady=2)
     # 输入 起始日期
-    manual_input_label(frame_manual, lock)
+    manual_input_label(frame_manual, lock, cur, conn)
     # 新增两个 Treeview
     frame_tree = tk.LabelFrame(par_frame)
     frame_tree.grid(row=0, column=3, padx=5, pady=1)
@@ -1870,7 +1870,7 @@ def refresh_odbc_data(conn, cur):
 
 def update_font():
     # font
-    font_path = os.path.join('./', 'SimHei.ttf')
+    font_path = os.path.join('../../', 'SimHei.ttf')
     try:
         from matplotlib.font_manager import fontManager
         fontManager.addfont(font_path)
