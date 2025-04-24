@@ -1874,16 +1874,30 @@ def update_font():
     except Exception as e:
         print(e)
 
+def copyfile(dbname: str, to_dir: str, from_dir: str):
+    import shutil
+    to_delivery_file = os.path.join(to_dir, dbname)
+    from_file = os.path.join(from_dir, dbname)
+    try:
+        if os.path.isfile(from_file):
+            shutil.copyfile(from_file, to_delivery_file)
+        info = "DATABASE TRANSFER SUCCESS"
+        print(info)
+    except Exception as e:
+        info = "DATABASE TRANSFER FAILURE"
+        print(info, e)
+
+
 if __name__ == '__main__':
     update_font()
 
     # 刷新 ODBC Master Data
+    path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
+
     db_name = 'AutoSchedule.sqlite'
     conn = connect_sqlite(db_name)
     cur = conn.cursor()
     refresh_odbc_data(conn, cur)
-
-    path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
     # 建立窗口
     root = tk.Tk()
     root.wm_title("Air Products Forecasting Viz")
