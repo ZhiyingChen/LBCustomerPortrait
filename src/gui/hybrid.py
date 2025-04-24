@@ -2,8 +2,11 @@ import tkinter as tk
 from tkinter import ttk
 from ..forecast.forecastPlot8 import update_font, connect_sqlite, refresh_odbc_data, forecaster_run, copyfile
 from .new import NewInterface
+from ..utils.decorator import record_time_decorator
 
 class HybridApp(tk.Tk):
+
+    @record_time_decorator("加载数据以及初始化界面")
     def __init__(self):
         super().__init__()
 
@@ -32,6 +35,7 @@ class HybridApp(tk.Tk):
         # 保持窗口设置
         self.wm_title("Air Products Forecasting Viz")
         self.iconbitmap('./csl.ico')
+        self.geometry("1200x800")
 
     def _create_interface_container(self):
         """创建界面容器"""

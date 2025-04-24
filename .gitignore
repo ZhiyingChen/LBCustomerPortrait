@@ -3,5 +3,6 @@
 __pycache__
 *.sqlite
 *.spec
-dist
-build
+dist/
+build/
+test/

@@ -1676,7 +1676,6 @@ def check_refresh_deliveryWindow(cur, conn):
         refresh_time = pd.to_datetime(cur.fetchone()[0])
         if (refresh_time.date() == datetime.now().date() and refresh_time.hour > 6):
             print('今日 odbc_DeliveryWindow 已刷新！')
-            # refresh_odbcMasterData(cur, conn)
         else:
             refresh_DeliveryWindow(cur, conn)
         # print(x, type(x))
@@ -1688,20 +1687,7 @@ def forecaster_run(root, path1, cur, conn):
     # 补丁
     global plot_flag
     plot_flag = True
-    # global longkou_shipto, longkou_api_sh
-    # longkou_shipto = [11254166,  1876854,  1876856,  1876858,  1876851,  1876850,
-    #                   1876862,  1876863,  1876864,  1876853,  1876849,  1876852,
-    #                   1876857,  1876773,  1876801,  1876806,  1876794,  1876768,
-    #                   1887004,  1876777,  1876789, 11194050,  1876774,  1876775,
-    #                   1876776,  2021731,  1919447,  1876796, 11182921,  1876896,
-    #                   60003783,  1876803,  1876787,  1876786,  1876788,  1876805,
-    #                   1876772,  1881059,  1876797,  1876799,  1876880,  1876888,
-    #                   1876883,  1876881,  1876884,  1876879,  1876878,  1876886,
-    #                   11290271, 11291782, 11291783,  1876821,  1876822,  1876825]
-    # sql = '''select LocNum from odbc_master Where PrimaryTerminal = 'XZ2';'''
-    # longkou_api_sh = pd.read_sql(sql, conn).LocNum.tolist()
-    # 启动的时候就进行第一次刷新数据。
-    # 刷新 delivery window
+
     print('start check_refresh_deliveryWindow')
     check_refresh_deliveryWindow(cur=cur, conn=conn)
     print('finish check_refresh_deliveryWindow')
@@ -1739,35 +1725,16 @@ def forecaster_run(root, path1, cur, conn):
     pic_frame.columnconfigure(0, weight=1)
     global fig, ax, ax_histy, canvas, toolbar, annot
     fig, ax, ax_histy, canvas, toolbar = get_plot_basic(pic_frame)
-    # 获取作图框架
-    # group1 = tk.LabelFrame(plot_frame, text="Text Box", padx=5, pady=5)
-    # group1.grid(row=0, column=1, padx=10, pady=10, sticky=tk.E+tk.W+tk.N+tk.S)
-    # txtbox = scrolledtext.ScrolledText(group1, width=40, height=10)
-    # txtbox.grid(row=0, column=0,   sticky=tk.E+tk.W+tk.N+tk.S)
-    # plot_frame.rowconfigure(0, weight=1)
-    # plot_frame.columnconfigure(1, weight=1)
-    # group1.rowconfigure(0, weight=1)
-    # group1.columnconfigure(0, weight=1)
+
     annot = None
-    # canvas.mpl_connect("pick_event", onpick)
-    # global mutex
+
     lock = threading.Lock()
     canvas.mpl_connect("motion_notify_event", hover)
-    # canvas.mpl_connect("motion_notify_event", lambda event: threading.Thread(
-    #     target=hover_disappear, args=(event, )).start())
-    # fig, ax, canvas = get_plot_basic(root)
-    # 构建窗口的诸要素
-    # 新增 输入要素的Frame
+
     # 最大的frame：par_frame
     par_frame = tk.LabelFrame(root)
     par_frame.pack(fill='x', expand=True, padx=20, pady=1)
-    # 建立第一模块
-    # create boxlist
-    # filter_frame = info_fiter_frame(par_frame)
-    # subRegion_boxlist(filter_frame)
-    # terminal_boxlist(filter_frame)
-    # products_boxlist(filter_frame)
-    # 建立第二模块
+
     cust_frame = info_cust_frame(par_frame)
     customer_query(cust_frame)
     global btn_query
@@ -1779,21 +1746,15 @@ def forecaster_run(root, path1, cur, conn):
     manual_plot = False
     global unitOfLength_dict
     unitOfLength_dict = {1: 'CM', 2: 'Inch', 3: 'M', 4: 'MM', 5: 'Percent', 6: 'Liters'}
-    # 重要！ bind
-    # entry_name.bind("<Button-1>", click_entry_name)
-    # entry_name.bind("<Leave>", leave_entry_name)
+
     listbox_subRegion.bind("<<ListboxSelect>>", show_list_terminal_product_FO)
     listbox_terminal.bind("<<ListboxSelect>>", show_list_cust)
     listbox_products.bind("<<ListboxSelect>>", show_list_cust)
     listbox_demandType.bind("<<ListboxSelect>>", show_list_cust)
-    # listbox_customer.bind("<<ListboxSelect>>", lambda event: plot(
-    #     event, root, conn, lock))
+
     listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
         target=plot, args=(event, root, conn, lock)).start())
-    # shipto_list = df_shipto.LocNum.unique()
-    # btn_plot = tk.Button(frame_input, text='Plot', command=lambda: plot(
-    #     root, from_box, to_box, conn))
-    # btn_plot.grid(row=2, column=1, padx=10, pady=10)
+
     # 重新排版,建立 frame_detail
     frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
     frame_detail.grid(row=0, column=1, padx=10, pady=2)
