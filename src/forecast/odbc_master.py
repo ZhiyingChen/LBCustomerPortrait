@@ -6,6 +6,29 @@ from win32com.client import Dispatch
 import pywintypes
 # 连接ODBC
 
+def check_refresh(table_name: str, cur):
+    sql = '''select refresh_date from {}'''.format(table_name)
+    cur.execute(sql)
+    refresh_time = pd.to_datetime(cur.fetchone()[0])
+    if refresh_time.date() == datetime.now().date() and refresh_time.hour > 6:
+        print('今日{}已刷新！'.format(table_name))
+        return True
+    return False
+
+def check_refresh_deliveryWindow(cur, conn):
+    '''检查并刷新 odbc_DeliveryWindow'''
+    table_name = 'odbc_DeliveryWindow'
+    sql = '''select refresh_date from {}'''.format(table_name)
+    try:
+        cur.execute(sql)
+        refresh_time = pd.to_datetime(cur.fetchone()[0])
+        if (refresh_time.date() == datetime.now().date() and refresh_time.hour > 6):
+            print('今日 odbc_DeliveryWindow 已刷新！')
+        else:
+            refresh_DeliveryWindow(cur, conn)
+        # print(x, type(x))
+    except Exception:
+        refresh_DeliveryWindow(cur, conn)
 
 def connect_odbc(server, database):
     # cnxn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER='+server +
@@ -394,3 +417,4 @@ def refresh_t4_t6_data(cur, conn):
     # 导入数据
     t6_info_df.to_sql(table_name, con=conn, if_exists='replace', index=False)
     print('ODBC odbc_t4_t6 data is ready.')
+

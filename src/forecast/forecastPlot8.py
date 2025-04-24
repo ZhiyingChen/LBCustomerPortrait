@@ -1,7 +1,6 @@
 from .Email_forecast import send_email
 from matplotlib.lines import Line2D
-from .odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
-                         refresh_max_payload_by_ship2, refresh_t4_t6_data)
+from .odbc_master import check_refresh_deliveryWindow
 from ..utils import decorator
 from datetime import datetime
 from datetime import timedelta
@@ -1667,20 +1666,6 @@ def treeview_data(conn, shipto, treename, purpose):
     treename.pack()
 
 
-def check_refresh_deliveryWindow(cur, conn):
-    '''检查并刷新 odbc_DeliveryWindow'''
-    table_name = 'odbc_DeliveryWindow'
-    sql = '''select refresh_date from {}'''.format(table_name)
-    try:
-        cur.execute(sql)
-        refresh_time = pd.to_datetime(cur.fetchone()[0])
-        if (refresh_time.date() == datetime.now().date() and refresh_time.hour > 6):
-            print('今日 odbc_DeliveryWindow 已刷新！')
-        else:
-            refresh_DeliveryWindow(cur, conn)
-        # print(x, type(x))
-    except Exception:
-        refresh_DeliveryWindow(cur, conn)
 
 
 def forecaster_run(root, path1, cur, conn):
@@ -1787,44 +1772,6 @@ def forecaster_run(root, path1, cur, conn):
     log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
     logConnection(log_file, 'opened')
 
-def check_refresh(table_name: str, cur):
-    sql = '''select refresh_date from {}'''.format(table_name)
-    cur.execute(sql)
-    refresh_time = pd.to_datetime(cur.fetchone()[0])
-    if refresh_time.date() == datetime.now().date() and refresh_time.hour > 6:
-        print('今日{}已刷新！'.format(table_name))
-        return True
-    return False
-
-def refresh_odbc_data(conn, cur):
-    try:
-        if check_refresh(table_name='odbc_master', cur=cur):
-            print('今日 Master 已刷新！')
-        else:
-            refresh_odbcMasterData(cur, conn)
-
-        if check_refresh(table_name='beforeReading', cur=cur):
-            print('今日 before 已刷新！')
-        else:
-            refresh_beforeReading(conn)
-
-        if check_refresh(table_name='odbc_MaxPayloadByShip2', cur=cur):
-            print('今日 MaxPayloadByShip2 已刷新！')
-        else:
-            refresh_max_payload_by_ship2(cur=cur, conn=conn)
-
-        if check_refresh(table_name='t4_t6_data', cur=cur):
-            print('今日 t4_t6 已刷新')
-        else:
-            refresh_t4_t6_data(cur=cur, conn=conn)
-
-    except Exception as e:
-        print(e)
-        refresh_odbcMasterData(cur, conn)
-        refresh_beforeReading(conn)
-        refresh_max_payload_by_ship2(cur=cur, conn=conn)
-        refresh_t4_t6_data(cur=cur, conn=conn)
-
 
 def update_font():
     # font
@@ -1852,6 +1799,7 @@ def copyfile(dbname: str, to_dir: str, from_dir: str):
 
 
 if __name__ == '__main__':
+    from src.forecast.daily_data_refresh import DataRefresh
     update_font()
 
     # 刷新 ODBC Master Data
@@ -1860,7 +1808,10 @@ if __name__ == '__main__':
     db_name = 'AutoSchedule.sqlite'
     conn = connect_sqlite(db_name)
     cur = conn.cursor()
-    refresh_odbc_data(conn, cur)
+
+    daily_refresh = DataRefresh(local_cur=cur, local_conn=conn)
+    daily_refresh.refresh_earliest_part_data()
+
     # 建立窗口
     root = tk.Tk()
     root.wm_title("Air Products Forecasting Viz")

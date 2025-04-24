@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from ..forecast.forecastPlot8 import update_font, connect_sqlite, refresh_odbc_data, forecaster_run, copyfile
+from ..forecast.forecastPlot8 import update_font, connect_sqlite, forecaster_run, copyfile
+from ..forecast.daily_data_refresh import DataRefresh
 from .new import NewInterface
 from ..utils.decorator import record_time_decorator
 
@@ -30,7 +31,9 @@ class HybridApp(tk.Tk):
         copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
         self.conn = connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
-        refresh_odbc_data(self.conn, self.cur)
+
+        daily_refresh = DataRefresh(local_cur=self.cur, local_conn=self.conn)
+        daily_refresh.refresh_earliest_part_data()
 
         # 保持窗口设置
         self.wm_title("Air Products Forecasting Viz")
