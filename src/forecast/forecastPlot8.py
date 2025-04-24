@@ -2,6 +2,7 @@ from .Email_forecast import send_email
 from matplotlib.lines import Line2D
 from .odbc_master import (refresh_odbcMasterData, refresh_DeliveryWindow, refresh_beforeReading,
                          refresh_max_payload_by_ship2, refresh_t4_t6_data)
+from ..utils import decorator
 from datetime import datetime
 from datetime import timedelta
 import matplotlib.pylab as pylab
@@ -1064,7 +1065,7 @@ def info_cust_frame(par_frame):
     return frame_name
 
 
-def input_framework(framename, file_dict):
+def input_framework(framename, cur, conn, file_dict):
     # 输入 起始日期
     lb_fromtime = tk.Label(framename, text='from time')
     lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
@@ -1730,7 +1731,7 @@ def forecaster_run(root, path1, cur, conn):
     # 重新排版,建立 frame_input
     frame_input = tk.LabelFrame(plot_frame, text='input')
     frame_input.grid(row=1, column=0, padx=10, pady=5)
-    input_framework(frame_input, file_dict=file_dict)
+    input_framework(frame_input, cur=cur, conn=conn, file_dict=file_dict)
     pic_frame = tk.LabelFrame(plot_frame)
     # pic_frame.grid(row=0, column=1, padx=5, pady=5)
     pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E+tk.W+tk.N+tk.S)
@@ -1874,6 +1875,7 @@ def update_font():
     except Exception as e:
         print(e)
 
+@decorator.record_time_decorator("拷贝数据库")
 def copyfile(dbname: str, to_dir: str, from_dir: str):
     import shutil
     to_delivery_file = os.path.join(to_dir, dbname)

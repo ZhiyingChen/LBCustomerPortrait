@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from ..forecast.forecastPlot8 import update_font, connect_sqlite, refresh_odbc_data, forecaster_run
+from ..forecast.forecastPlot8 import update_font, connect_sqlite, refresh_odbc_data, forecaster_run, copyfile
 from .new import NewInterface
 
 class HybridApp(tk.Tk):
@@ -22,12 +22,14 @@ class HybridApp(tk.Tk):
 
         # 保持数据库连接
         self.db_name = 'AutoSchedule.sqlite'
-        self.conn = connect_sqlite(self.db_name)
+        self.path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
+
+        copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
+        self.conn = connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
         refresh_odbc_data(self.conn, self.cur)
 
         # 保持窗口设置
-        self.path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
         self.wm_title("Air Products Forecasting Viz")
         self.iconbitmap('./csl.ico')
 
