@@ -913,12 +913,10 @@ def refresh_history_data(cur, conn, file_dict):
                     # 说明数据正在写,有缺失
                     print('file {} is missing data, use backup.'.format(filename))
                     df_temp = pd.read_csv(filename_back)
-            except Exception:
-                print('cannot read file {} , use backup.'.format(filename))
-                # print('*****', filename_back, '*****')
+            except Exception as e:
+                print('cannot read file {} , use backup.'.format(filename), e)
                 df_temp = pd.read_csv(filename_back)
             # 20220622 modify
-            # df_history = df_history.append(df_temp)
             if len(df_temp) > 0:
                 df_history = pd.concat([df_history, df_temp], ignore_index=True)
     end_time = time.time()
@@ -1040,16 +1038,16 @@ def refresh_fe(cur, conn):
     df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
 
 
-def refresh_data(root, cur, conn):
+def refresh_data(cur, conn, file_dict):
     try:
         refresh_history_data(cur, conn, file_dict)
         refresh_forecast_data(cur, conn, file_dict)
         refresh_forecastBeforeTrip_data(cur, conn, file_dict)
         refresh_fe(cur, conn)
         logConnection(log_file, 'refreshed')
-        messagebox.showinfo(parent=root, title='success', message='data to sqlite success!')
+        messagebox.showinfo(title='success', message='data to sqlite success!')
     except Exception:
-        messagebox.showinfo(parent=root, title='failure', message='failure, please check!')
+        messagebox.showinfo(title='failure', message='failure, please check!')
 
 
 def info_fiter_frame(par_frame):
@@ -1066,7 +1064,7 @@ def info_cust_frame(par_frame):
     return frame_name
 
 
-def input_framework(framename):
+def input_framework(framename, file_dict):
     # 输入 起始日期
     lb_fromtime = tk.Label(framename, text='from time')
     lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
@@ -1086,7 +1084,7 @@ def input_framework(framename):
     to_box.grid(row=1, column=1, padx=10, pady=5)
     # 设置刷新按钮
     btn_refresh = tk.Button(framename, text='Refresh data',
-                            command=lambda: refresh_data(root, cur, conn))
+                            command=lambda: refresh_data(cur, conn, file_dict))
     btn_refresh.grid(row=2, column=0, padx=10, pady=10)
     # 设置是否需要 从DOL API 下载数据
     global var_TELE
@@ -1706,8 +1704,6 @@ def forecaster_run(root, path1, cur, conn):
     print('start check_refresh_deliveryWindow')
     check_refresh_deliveryWindow(cur=cur, conn=conn)
     print('finish check_refresh_deliveryWindow')
-    global file_dict
-    # 刷新预测数据
 
     file_dict = get_filename(path1, purpose='LB_CNS')
     print('start refresh sharefolder')
@@ -1734,7 +1730,7 @@ def forecaster_run(root, path1, cur, conn):
     # 重新排版,建立 frame_input
     frame_input = tk.LabelFrame(plot_frame, text='input')
     frame_input.grid(row=1, column=0, padx=10, pady=5)
-    input_framework(frame_input)
+    input_framework(frame_input, file_dict=file_dict)
     pic_frame = tk.LabelFrame(plot_frame)
     # pic_frame.grid(row=0, column=1, padx=5, pady=5)
     pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E+tk.W+tk.N+tk.S)
