@@ -10,6 +10,7 @@ import pywintypes
 from multiprocessing import  Process, Queue
 import multiprocessing
 import os
+import re
 
 
 class DataRefresh:
@@ -153,7 +154,7 @@ class DataRefresh:
         logging.info('updated')
 
     @staticmethod
-    def get_dtd_sharepoint_df(queue):
+    def output_dtd_sharepoint_df(queue):
 
         # 定义常量
         SERVERUrl = "https://approd.sharepoint.com/sites/tripinfor"
@@ -200,16 +201,36 @@ class DataRefresh:
 
         # 转换为DataFrame
         dtd_sharepoint_df = pd.DataFrame(contentsList, columns=colsName)
+
+        def clean_string(text: str):
+            if not isinstance(text, str):
+                return pd.NA
+            # 删除 Terminal/Source/customer（不区分大小写）
+            text = re.sub(r'(terminal|source|customer)', '', text, flags=re.IGNORECASE)
+            # 删除所有中文字符（Unicode范围）
+            text = re.sub(r'[\u4e00-\u9fff]+', '', text)
+            # 检查是否为空或纯空格
+            stripped_text = text.strip()
+            return pd.NA if len(stripped_text) == 0 else stripped_text
+
+        dtd_sharepoint_df['FromName'] = dtd_sharepoint_df['FromName'].apply(
+            lambda x: clean_string(x)
+        )
+        dtd_sharepoint_df['ToName'] = dtd_sharepoint_df['ToName'].apply(
+            lambda x: clean_string(x)
+        )
+        dtd_sharepoint_df = dtd_sharepoint_df.dropna()
+        dtd_sharepoint_df.reset_index(drop=True, inplace=True)
         dtd_sharepoint_df.to_feather(
             os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME)
         )
+
         queue.put(0)
 
-
-    def refresh_dtd_data(self):
+    def get_dtd_sharepoint_df(self):
         queue = Queue()
         multiprocessing.freeze_support()
-        p1 = Process(target=self.get_dtd_sharepoint_df, args=(queue,))
+        p1 = Process(target=self.output_dtd_sharepoint_df, args=(queue,))
         p1.start()
         p1.join()
         s = queue.get()
@@ -217,6 +238,11 @@ class DataRefresh:
 
         dtd_sharepoint_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME))
         return dtd_sharepoint_df
+
+    def refresh_dtd_data(self):
+        dtd_sharepoint_df = self.get_dtd_sharepoint_df()
+
+
 
 
     def refresh_cluster_data(self):
