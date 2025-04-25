@@ -173,8 +173,8 @@ class DataRefresh:
         # 执行查询
         sql = '''
            SELECT 
-                LEFT(FromToName, InStr(FromToName, '-') - 1) AS FromName,
-                Mid(FromToName, InStr(FromToName, '-') + 1) AS ToName,
+                LEFT(FromToName, InStr(FromToName, '-') - 1) AS FromLoc,
+                Mid(FromToName, InStr(FromToName, '-') + 1) AS ToLoc,
                 MileKMs,
                 TimeHours
             FROM DTDRecords;
@@ -213,10 +213,10 @@ class DataRefresh:
             stripped_text = text.strip()
             return pd.NA if len(stripped_text) == 0 else stripped_text
 
-        dtd_sharepoint_df['FromName'] = dtd_sharepoint_df['FromName'].apply(
+        dtd_sharepoint_df['FromLoc'] = dtd_sharepoint_df['FromLoc'].apply(
             lambda x: clean_string(x)
         )
-        dtd_sharepoint_df['ToName'] = dtd_sharepoint_df['ToName'].apply(
+        dtd_sharepoint_df['ToLoc'] = dtd_sharepoint_df['ToLoc'].apply(
             lambda x: clean_string(x)
         )
         dtd_sharepoint_df = dtd_sharepoint_df.dropna()
