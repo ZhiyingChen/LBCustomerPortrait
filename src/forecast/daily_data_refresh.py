@@ -1,6 +1,9 @@
 from . import odbc_master
+from .. import domain_object as do
 import pyodbc
-
+import pandas as pd
+import logging
+from sqlalchemy import create_engine
 
 
 class DataRefresh:
@@ -12,10 +15,13 @@ class DataRefresh:
         self.local_cur = local_cur
         self.local_conn = local_conn
 
+        # 使用 SQLAlchemy 创建连接
         server = 'LRPSQP05\\LRPSQP05'
         database = 'EU_LBLogist_RPT'
+        odbc_conn_string = f'DRIVER={{SQL Server}};SERVER={server};DATABASE={database}'
+        self.odbc_conn = create_engine(f'mssql+pyodbc:///?odbc_connect={odbc_conn_string}')
 
-        self.odbc_conn = pyodbc.connect('DRIVER={SQL Server};SERVER=' + server + ';DATABASE=' + database + '')
+        self.dtd_shipto_dict: Dict[str, do.DTDShipto] = dict()
 
     def refresh_earliest_part_data(
             self,
@@ -52,9 +58,110 @@ class DataRefresh:
             odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
             odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
 
+    def get_lb_tele_shipto_dataframe(self):
+        sql_line = '''
+            Select CustomerProfile.LocNum, CustomerProfile.CustAcronym, DemandTypesinfo.DemandType, CustomerProfile.PrimaryTerminal
+            FROM CustomerProfile
+            LEFT JOIN DemandTypesinfo
+            ON CustomerProfile.LocNum=DemandTypesinfo.LocNum
+            LEFT JOIN CustomerTelemetry
+            ON CustomerProfile.LocNum=CustomerTelemetry.LocNum
+            WHERE
+            CustomerProfile.State='CN' AND
+            (CustomerProfile.Dlvrystatus='A' OR CustomerProfile.Dlvrystatus='T') AND
+            ((CustomerTelemetry.Subscriber=3) OR
+            (CustomerTelemetry.Subscriber=7) OR
+            (CustomerProfile.PrimaryTerminal='XZ2' AND CustomerProfile.TelemetryFlag='True'))
+        '''
+        df_shipto = pd.read_sql(sql_line, self.odbc_conn)
+        df_shipto['LocNum'] = df_shipto['LocNum'].astype(str)
+        return df_shipto
+
+    def generate_initial_dtd_shipto_dict(self):
+        df_shipto = self.get_lb_tele_shipto_dataframe()
+
+        for idx, row in df_shipto.iterrows():
+            dtd_shipto = do.DTDShipto(
+                shipto=row['LocNum'],
+                shipto_name=row['CustAcronym']
+            )
+            primary_terminal_info = do.PrimaryDTInfo(
+                primary_terminal=row['PrimaryTerminal']
+            )
+            dtd_shipto.primary_terminal_info = primary_terminal_info
+            self.dtd_shipto_dict[row['LocNum']] = dtd_shipto
+        logging.info('loaded: {}'.format(len(self.dtd_shipto_dict)))
+
+    def get_source_terminal_info_for_shipto_dataframe(self):
+        shipto_list = list(self.dtd_shipto_dict.keys())
+        sql_line = '''
+            WITH GroupedData AS (
+                SELECT 
+                    ToLocNum,
+                    SourceOfProduct,
+                    COUNT(*) AS Frequency
+                FROM Segment
+                WHERE 
+                    ToLocNum IN {}
+                    AND ActualArrivalTime >= DATEADD(year, -1, GETDATE()) 
+                GROUP BY 
+                    ToLocNum, 
+                    SourceOfProduct
+            )
+            SELECT 
+                ToLocNum,
+                SourceOfProduct,
+                Frequency,
+                Rank
+            FROM (
+                SELECT 
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY ToLocNum 
+                        ORDER BY Frequency DESC
+                    ) AS Rank
+                FROM GroupedData
+            ) AS RankedData
+            WHERE Rank <= 5
+            ORDER BY 
+                ToLocNum, 
+                Frequency DESC;
+        '''.format(tuple(shipto_list))
+
+        df_source_terminal = pd.read_sql(sql_line, self.odbc_conn)
+        df_source_terminal['ToLocNum'] = df_source_terminal['ToLocNum'].astype(str)
+        return df_source_terminal
+
+    def generate_source_terminal_info_for_shipto(self):
+        df_source_terminal = self.get_source_terminal_info_for_shipto_dataframe()
+
+        for idx, row in df_source_terminal.iterrows():
+            if row['ToLocNum'] in self.dtd_shipto_dict:
+                dtd_shipto = self.dtd_shipto_dict[row['ToLocNum']]
+                sourcing_terminal_info = do.SourcingDTInfo(
+                    sourcing_terminal=row['SourceOfProduct'],
+                    rank=row['Rank'],
+                    frequency=row['Frequency']
+                )
+                dtd_shipto.sourcing_terminal_info_dict[row['SourceOfProduct']] = sourcing_terminal_info
+        logging.info('updated')
+
+
     def refresh_dtd_data(self):
+        pass
+
+
+
+    def refresh_cluster_data(self):
         pass
 
 
     def refresh_all(self):
         self.refresh_earliest_part_data()
+
+        self.generate_initial_dtd_shipto_dict()
+        self.generate_source_terminal_info_for_shipto()
+
+
+        self.refresh_dtd_data()
+        self.refresh_cluster_data()
