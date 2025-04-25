@@ -146,10 +146,61 @@ class DataRefresh:
                 dtd_shipto.sourcing_terminal_info_dict[row['SourceOfProduct']] = sourcing_terminal_info
         logging.info('updated')
 
+    @staticmethod
+    def get_dtd_sharepoint_df():
+        from win32com.client import Dispatch
+        import pywintypes
+
+        # 定义常量
+        SERVERUrl = "https://approd.sharepoint.com/sites/tripinfor"
+        list_name = "{77a6c173-402b-4154-b5aa-562175941b2c}"
+
+        # 连接到SharePoint
+        oConn = Dispatch('ADODB.Connection')
+        oConn.ConnectionString = f'''
+            Provider=Microsoft.ACE.OLEDB.16.0;
+            WSS;IMEX=0;RetrieveIds=Yes;
+            DATABASE={SERVERUrl};
+            LIST={list_name}
+        '''
+        oConn.Open()
+
+        # 执行查询
+        sql = '''
+           SELECT 
+                LEFT(FromToName, InStr(FromToName, '-') - 1) AS FromName,
+                Mid(FromToName, InStr(FromToName, '-') + 1) AS ToName,
+                MileKMs,
+                TimeHours
+            FROM DTDRecords;
+        '''
+        table, _ = oConn.Execute(sql)
+
+        # 获取列名
+        colsName = [table.Fields(i).Name for i in range(len(table.Fields))]
+
+        # 读取数据
+        contentsList = []
+        while not table.EOF:
+            item_temp = [table.Fields(i).Value for i in range(len(table.Fields))]
+            item_temp1 = [
+                datetime.fromisoformat(str(pd.to_datetime(v.ctime())))
+                if isinstance(v, pywintypes.TimeType) else v for v in
+                item_temp]
+            contentsList.append(item_temp1)
+            table.MoveNext()
+
+        # 关闭连接
+        oConn.Close()
+        del oConn
+
+        # 转换为DataFrame
+        dtd_sharepoint_df = pd.DataFrame(contentsList, columns=colsName)
+
+        return dtd_sharepoint_df
 
     def refresh_dtd_data(self):
-        pass
-
+        dtd_sharepoint_df = self.get_dtd_sharepoint_df()
 
 
     def refresh_cluster_data(self):
@@ -161,7 +212,6 @@ class DataRefresh:
 
         self.generate_initial_dtd_shipto_dict()
         self.generate_source_terminal_info_for_shipto()
-
 
         self.refresh_dtd_data()
         self.refresh_cluster_data()
