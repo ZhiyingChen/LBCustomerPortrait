@@ -1,9 +1,15 @@
 from . import odbc_master
 from .. import domain_object as do
+from ..utils import field as fd
 import pyodbc
 import pandas as pd
 import logging
 from sqlalchemy import create_engine
+from win32com.client import Dispatch
+import pywintypes
+from multiprocessing import  Process, Queue
+import multiprocessing
+import os
 
 
 class DataRefresh:
@@ -147,9 +153,7 @@ class DataRefresh:
         logging.info('updated')
 
     @staticmethod
-    def get_dtd_sharepoint_df():
-        from win32com.client import Dispatch
-        import pywintypes
+    def get_dtd_sharepoint_df(queue):
 
         # 定义常量
         SERVERUrl = "https://approd.sharepoint.com/sites/tripinfor"
@@ -196,11 +200,23 @@ class DataRefresh:
 
         # 转换为DataFrame
         dtd_sharepoint_df = pd.DataFrame(contentsList, columns=colsName)
+        dtd_sharepoint_df.to_feather(
+            os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME)
+        )
+        queue.put(0)
 
-        return dtd_sharepoint_df
 
     def refresh_dtd_data(self):
-        dtd_sharepoint_df = self.get_dtd_sharepoint_df()
+        queue = Queue()
+        multiprocessing.freeze_support()
+        p1 = Process(target=self.get_dtd_sharepoint_df, args=(queue,))
+        p1.start()
+        p1.join()
+        s = queue.get()
+        print('dtd_sharepoint_df refresh success: {}'.format(s))
+
+        dtd_sharepoint_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME))
+        return dtd_sharepoint_df
 
 
     def refresh_cluster_data(self):

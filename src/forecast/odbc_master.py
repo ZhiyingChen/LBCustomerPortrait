@@ -4,6 +4,11 @@ from datetime import datetime
 from datetime import timedelta
 from win32com.client import Dispatch
 import pywintypes
+from multiprocessing import  Process, Queue
+import multiprocessing
+import os
+from ..utils import field as fd
+
 # 连接ODBC
 
 def check_refresh(table_name: str, cur):
@@ -191,58 +196,68 @@ def odbc_segment():
     df = pd.read_sql(sql, cnxn)
     return df
 
-def sharepoint_equipment_list():
-    # 定义常量
-    SERVERUrl = "https://approd.sharepoint.com/sites/CN_IG_Fleet"
-    list_name = "{3b03a9a2-1a4d-4438-93f7-8ed5db3838cb}"  # 你需要替换为实际的List GUID
+def sharepoint_equipment_list(queue):
+   try:
+        # 定义常量
+        SERVERUrl = "https://approd.sharepoint.com/sites/CN_IG_Fleet"
+        list_name = "{3b03a9a2-1a4d-4438-93f7-8ed5db3838cb}"  # 你需要替换为实际的List GUID
 
-    # 连接到SharePoint
-    oConn = Dispatch('ADODB.Connection')
-    oConn.ConnectionString = f'''
-        Provider=Microsoft.ACE.OLEDB.16.0;
-        WSS;IMEX=0;RetrieveIds=Yes;
-        DATABASE={SERVERUrl};
-        LIST={list_name}
-    '''
-    oConn.Open()
+        # 连接到SharePoint
+        oConn = Dispatch('ADODB.Connection')
+        oConn.ConnectionString = f'''
+            Provider=Microsoft.ACE.OLEDB.16.0;
+            WSS;IMEX=0;RetrieveIds=Yes;
+            DATABASE={SERVERUrl};
+            LIST={list_name}
+        '''
+        oConn.Open()
 
-    # 执行查询
-    # EquipClass 51 或者 52 为大车
-    sql = '''
-        SELECT LBID, Product, LicenseFill, CarrierID
-        FROM Equipment1
-        WHERE (EquipClass = 51 OR EquipClass = 52)
-        AND Status = 'A'
-        AND (CarrierID = 'APEP' OR (CarrierID <> 'APEP' AND LBID LIKE '%QL%'))
-    '''
-    table, _ = oConn.Execute(sql)
+        # 执行查询
+        # EquipClass 51 或者 52 为大车
+        sql = '''
+            SELECT LBID, Product, LicenseFill, CarrierID
+            FROM Equipment1
+            WHERE (EquipClass = 51 OR EquipClass = 52)
+            AND Status = 'A'
+            AND (CarrierID = 'APEP' OR (CarrierID <> 'APEP' AND LBID LIKE '%QL%'))
+        '''
+        table, _ = oConn.Execute(sql)
 
-    # 获取列名
-    colsName = [table.Fields(i).Name for i in range(len(table.Fields))]
+        # 获取列名
+        colsName = [table.Fields(i).Name for i in range(len(table.Fields))]
 
-    # 读取数据
-    contentsList = []
-    while not table.EOF:
-        item_temp = [table.Fields(i).Value for i in range(len(table.Fields))]
-        item_temp1 = [
-            datetime.fromisoformat(str(pd.to_datetime(v.ctime())))
-            if isinstance(v, pywintypes.TimeType) else v for v in
-            item_temp]
-        contentsList.append(item_temp1)
-        table.MoveNext()
+        # 读取数据
+        contentsList = []
+        while not table.EOF:
+            item_temp = [table.Fields(i).Value for i in range(len(table.Fields))]
+            item_temp1 = [
+                datetime.fromisoformat(str(pd.to_datetime(v.ctime())))
+                if isinstance(v, pywintypes.TimeType) else v for v in
+                item_temp]
+            contentsList.append(item_temp1)
+            table.MoveNext()
 
-    # 关闭连接
-    oConn.Close()
-    del oConn
+        # 关闭连接
+        oConn.Close()
+        del oConn
 
-    # 转换为DataFrame
-    equipment_list_df = pd.DataFrame(contentsList, columns=colsName)
+        # 转换为DataFrame
+        equipment_list_df = pd.DataFrame(contentsList, columns=colsName)
 
-    equipment_list_df = equipment_list_df.rename(columns={
-        'LBID': 'AssignedTrailerIdn', 'Product': 'ProductClass',
-    })
-    print('Equipment List data is ready.')
-    return equipment_list_df
+        equipment_list_df = equipment_list_df.rename(columns={
+            'LBID': 'AssignedTrailerIdn', 'Product': 'ProductClass',
+        })
+        equipment_list_df.to_feather(
+            os.path.join(
+                fd.SHAREPOINT_TEMP_DIRECTORY, fd.EQUIPMENT_FILE_NAME
+            )
+        )
+        print('Equipment List data is ready.')
+        queue.put(0)
+   except Exception as e:
+        print(e)
+        queue.put(1)
+
 
 def refresh_odbcMasterData(cur, conn):
     '''上传 odbc 的数据到 sqlite'''
@@ -282,7 +297,16 @@ def refresh_max_payload_by_ship2(cur, conn):
     segment_df = odbc_segment()
 
     # 获取sharepointList中 equipmentList 的数据
-    equipment_list_df = sharepoint_equipment_list()
+    queue = Queue()
+    multiprocessing.freeze_support()
+
+    p1 = Process(target=sharepoint_equipment_list, args=(queue, ))  # 实例化进程对象
+    p1.start()
+    p1.join()  # 等待进程完成
+    s = queue.get()
+    print('equipment update: {}'.format(s))
+
+    equipment_list_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.EQUIPMENT_FILE_NAME))
 
     merged_df = pd.merge(segment_df, equipment_list_df,
                          on=['AssignedTrailerIdn', 'ProductClass'], how='left')
