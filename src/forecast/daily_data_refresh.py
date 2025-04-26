@@ -1,10 +1,11 @@
 from . import odbc_master
 from .. import domain_object as do
 from ..utils import field as fd
+from ..utils import decorator
 import pyodbc
 import pandas as pd
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from win32com.client import Dispatch
 import pywintypes
 from multiprocessing import  Process, Queue
@@ -227,6 +228,7 @@ class DataRefresh:
 
         queue.put(0)
 
+    @decorator.record_time_decorator('从SharePoint获取数据')
     def get_dtd_sharepoint_df(self):
         queue = Queue()
         multiprocessing.freeze_support()
@@ -237,17 +239,184 @@ class DataRefresh:
         print('dtd_sharepoint_df refresh success: {}'.format(s))
 
         dtd_sharepoint_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME))
-        return dtd_sharepoint_df
+
+        table_name = 'DTDRecords'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        self.local_conn.commit()
+        # 导入数据
+        dtd_sharepoint_df.to_sql(table_name, con=self.local_conn, if_exists='replace', index=False)
+
+    @decorator.record_time_decorator('从ODBC PointToPoint 表获取数据')
+    def get_dtd_odbc_df(self):
+        # Step 1: 先把你需要的所有 (FromLoc, ToLoc) 组合做成DataFrame
+        data = []
+        for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            to_loc = shipto_id
+            primary_from = dtd_shipto.primary_terminal_info.primary_terminal
+            data.append({'FromLoc': primary_from, 'ToLoc': to_loc})
+
+            for sourcing_terminal in dtd_shipto.sourcing_terminal_info_dict:
+                data.append({'FromLoc': sourcing_terminal, 'ToLoc': to_loc})
+
+        df_pairs = pd.DataFrame(data).drop_duplicates()
+
+        # Step 2: 从数据库提取清洗后的PointToPoint数据
+        sql = f'''
+        SELECT 
+            CASE 
+                WHEN LEFT(FromLoc, 1) = '0' THEN SUBSTRING(FromLoc, 2, LEN(FromLoc) - 1)
+                WHEN LEFT(FromLoc, 1) = '2' THEN LTRIM(SUBSTRING(FromLoc, 10, LEN(FromLoc) - 9))
+                ELSE FromLoc
+            END AS FromLoc,
+
+            CASE 
+                WHEN LEFT(ToLoc, 1) = '0' THEN SUBSTRING(ToLoc, 2, LEN(ToLoc) - 1)
+                WHEN LEFT(ToLoc, 1) = '2' THEN LTRIM(SUBSTRING(ToLoc, 10, LEN(ToLoc) - 9))
+                ELSE ToLoc
+            END AS ToLoc,
+
+            TravelMatrixDefaultDuration AS duration,
+            TravelMatrixDefaultDistance AS distance
+
+        FROM PointToPoint
+        WHERE (TravelMatrixDefaultDuration IS NOT NULL OR TravelMatrixDefaultDistance IS NOT NULL)
+        '''
+
+        df_point_to_point = pd.read_sql(sql, self.odbc_conn)
+
+        # Step 3: 内连接，只保留需要的组合
+        df_result = pd.merge(df_pairs, df_point_to_point, on=['FromLoc', 'ToLoc'], how='left')
+
+        # Step 4: drop table if exists
+        table_name = 'PointToPoint'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        self.local_conn.commit()
+
+        # Step 5: 保存到本地数据库
+        df_result.to_sql(table_name, con=self.local_conn, if_exists='replace', index=False)
+
+        return df_result
+
+    def get_distance_and_duration_from_sharepoint(self, from_loc: str, to_loc: str):
+        sql_line = '''
+            SELECT 
+                MileKMs,
+                TimeHours
+            FROM DTDRecords
+            WHERE FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%';
+        '''.format(from_loc, to_loc)
+        self.local_cur.execute(sql_line)
+
+        results = self.local_cur.fetchall()
+        for (mile_kms, time_hours) in results:
+            return mile_kms, time_hours
+        return None, None
+
+    def get_distance_and_duration_from_local_p2p(self, from_loc: str, to_loc: str):
+        sql_line = '''
+                    SELECT 
+                        duration,
+                        distance
+                    FROM PointToPoint
+                    WHERE FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%';
+                '''.format(from_loc, to_loc)
+        self.local_cur.execute(sql_line)
+
+        results = self.local_cur.fetchall()
+        for (mile_kms, time_hours) in results:
+            return mile_kms, time_hours
+        return None, None
+
+    @decorator.record_time_decorator('设置primary和source terminal的距离和时间')
+    def set_distance_and_duration_of_primary_and_source_terminal(self):
+        for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            # 补充信息给 primary terminal
+            from_loc = dtd_shipto.primary_terminal_info.primary_terminal
+            to_loc = shipto_id
+
+            # 从 dtd_sharepoint_df 中获取数据
+            dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
+                self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
+            if (dtd_shipto.primary_terminal_info.distance_km is None or
+                    dtd_shipto.primary_terminal_info.duration_hours is None):
+                # 从 odbc 的 PointToPoint 表中获取数据
+                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
+                    self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+
+            # 补充信息给 sourcing terminal
+            for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
+                from_loc = sourcing_terminal
+                to_loc = shipto_id
+
+                # 从 dtd_sharepoint_df 中获取数据
+                sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
+                    self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
+                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
+                    # 从 odbc 的 PointToPoint 表中获取数据
+                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
+                        self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+
+    def output_primary_and_source_dtd_df(self):
+        cols = ['LocNum', 'CustAcronym', 'DTType', 'DT', 'Distance', 'Duration', 'Rank', 'Frequency']
+        record_lt = []
+        for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            primary_record = {
+                    'LocNum': shipto_id,
+                    'CustAcronym': dtd_shipto.shipto_name,
+                    'DTType': 'Primary',
+                    'DT': dtd_shipto.primary_terminal_info.primary_terminal,
+                    'Distance': dtd_shipto.primary_terminal_info.distance_km
+                    if dtd_shipto.primary_terminal_info.distance_km is not None else 'unknown',
+                    'Duration': dtd_shipto.primary_terminal_info.duration_hours
+                    if dtd_shipto.primary_terminal_info.duration_hours is not None else 'unknown',
+                }
+            record_lt.append(primary_record)
+
+            for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
+                source_record = {
+                    'LocNum': shipto_id,
+                    'CustAcronym': dtd_shipto.shipto_name,
+                    'DTType': 'Sourcing',
+                    'DT': sourcing_terminal,
+                    'Distance': sourcing_terminal_info.distance_km
+                    if sourcing_terminal_info.distance_km is not None else 'unknown',
+                    'Duration': sourcing_terminal_info.duration_hours
+                    if sourcing_terminal_info.duration_hours is not None else 'unknown',
+                    'Rank': int(sourcing_terminal_info.rank),
+                    'Frequency': int(sourcing_terminal_info.frequency)
+                }
+                record_lt.append(source_record)
+
+        df_dtd = pd.DataFrame(record_lt, columns=cols)
+
+        table_name = 'DTDInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        self.local_conn.commit()
+
+        df_dtd.to_sql(
+            'DTDInfo',
+            self.local_conn,
+            if_exists='replace',
+            index=False
+        )
 
     def refresh_dtd_data(self):
-        dtd_sharepoint_df = self.get_dtd_sharepoint_df()
-
-
-
+        self.get_dtd_sharepoint_df()
+        self.get_dtd_odbc_df()
+        self.set_distance_and_duration_of_primary_and_source_terminal()
+        self.output_primary_and_source_dtd_df()
 
     def refresh_cluster_data(self):
         pass
 
+    def drop_local_table(self, table_name: str):
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        self.local_conn.commit()
+
+    def drop_local_tables(self):
+        table_names = ['PointToPoint', 'DTDRecords']
+        for table_name in table_names:
+            self.drop_local_table(table_name)
 
     def refresh_all(self):
         self.refresh_earliest_part_data()
@@ -257,3 +426,7 @@ class DataRefresh:
 
         self.refresh_dtd_data()
         self.refresh_cluster_data()
+
+        self.drop_local_tables()
+
+
