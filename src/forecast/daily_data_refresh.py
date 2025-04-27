@@ -68,12 +68,15 @@ class DataRefresh:
 
     def get_lb_tele_shipto_dataframe(self):
         sql_line = '''
-            Select CustomerProfile.LocNum, CustomerProfile.CustAcronym, DemandTypesinfo.DemandType, CustomerProfile.PrimaryTerminal
+            Select CustomerProfile.LocNum, CustomerProfile.CustAcronym, CustomerProfile.PrimaryTerminal,
+            (CustomerProfile.FullTrycockGals - LBCustProfile.TargetGalsUser) AS TRA
             FROM CustomerProfile
             LEFT JOIN DemandTypesinfo
             ON CustomerProfile.LocNum=DemandTypesinfo.LocNum
             LEFT JOIN CustomerTelemetry
             ON CustomerProfile.LocNum=CustomerTelemetry.LocNum
+            LEFT JOIN LBCustProfile
+            ON CustomerProfile.LocNum = LBCustProfile.LocNum
             WHERE
             CustomerProfile.State='CN' AND
             (CustomerProfile.Dlvrystatus='A' OR CustomerProfile.Dlvrystatus='T') AND
@@ -85,13 +88,32 @@ class DataRefresh:
         df_shipto['LocNum'] = df_shipto['LocNum'].astype(str)
         return df_shipto
 
+    def get_max_payload_by_ship2(self, shipto: str):
+        sql_line = f'''
+            SELECT 
+                ToLocNum,
+                LicenseFill
+            FROM 
+                odbc_MaxPayloadByShip2
+            WHERE 
+                ToLocNum = '{shipto}'
+            '''
+        self.local_cur.execute(sql_line)
+
+        results = self.local_cur.fetchall()
+        for (loc_num, max_payload) in results:
+            return max_payload
+        return 0
+    
     def generate_initial_dtd_shipto_dict(self):
         df_shipto = self.get_lb_tele_shipto_dataframe()
 
         for idx, row in df_shipto.iterrows():
             dtd_shipto = do.DTDShipto(
                 shipto=row['LocNum'],
-                shipto_name=row['CustAcronym']
+                shipto_name=row['CustAcronym'],
+                tra=row['TRA'],
+                max_payload=self.get_max_payload_by_ship2(row['LocNum']),
             )
             primary_terminal_info = do.PrimaryDTInfo(
                 primary_terminal=row['PrimaryTerminal']
@@ -388,6 +410,9 @@ class DataRefresh:
                 record_lt.append(source_record)
 
         df_dtd = pd.DataFrame(record_lt, columns=cols)
+
+        now = datetime.now()
+        df_dtd['refresh_date'] = now
 
         table_name = 'DTDInfo'
         self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))

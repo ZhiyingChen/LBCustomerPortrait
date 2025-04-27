@@ -56,12 +56,23 @@ class DTDShipto:
             self,
             shipto: str,
             shipto_name: str,
+            tra: float,
+            max_payload: float,
     ):
         self.shipto = shipto
         self.shipto_name = shipto_name
+        self.tra = tra
+        self.max_payload = max_payload
         self.primary_terminal_info: PrimaryDTInfo = None
         self.sourcing_terminal_info_dict: Dict[str, SourcingDTInfo] = dict()
         self.nearby_shipto_info_dict: Dict[str, NearbyShipToInfo] = dict()
 
     def __str__(self):
-        return f"DTDShipto(shipto={self.shipto}, name={self.shipto_name})"
+        return f"DTDShipto(shipto={self.shipto}, name={self.shipto_name}, is_full_load={self.is_full_load})"
+
+    @property
+    def is_full_load(self):
+        if self.tra < self.max_payload:
+            return False
+        else:
+            return True
