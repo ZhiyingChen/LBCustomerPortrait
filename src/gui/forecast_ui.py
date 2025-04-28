@@ -1429,7 +1429,7 @@ def frame_warning_label(framename):
     t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
 
 
-def manual_input_label(framename, lock, cur, conn):
+def manual_input_label(framename, root, lock, cur, conn):
     '''for schedulers manually input their estimation about hourly usage'''
     pad_y = 0
     lb_cm = tk.Label(framename, text='CM Hourly')
@@ -1755,7 +1755,7 @@ def forecaster_run(root, path1, cur, conn):
     frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
     frame_manual.grid(row=1, column=0, padx=10, pady=2)
     # 输入 起始日期
-    manual_input_label(frame_manual, lock, cur, conn)
+    manual_input_label(frame_manual, root, lock, cur, conn)
     # 新增两个 Treeview
     frame_tree = tk.LabelFrame(par_frame)
     frame_tree.grid(row=0, column=3, padx=5, pady=1)
