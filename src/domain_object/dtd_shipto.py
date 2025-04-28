@@ -42,13 +42,15 @@ class NearbyShipToInfo:
             self,
             nearby_shipto: str,
             shipto_name: str,
-            distance_km: float,
             dder: float,
             rank: int,
+            distance_km: float = None,
+            duration_hours: float = None
     ):
         self.nearby_shipto = nearby_shipto
         self.shipto_name = shipto_name
         self.distance_km = distance_km
+        self.duration_hours = duration_hours
         self.dder = dder
         self.rank = rank
 

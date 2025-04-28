@@ -12,6 +12,8 @@ from multiprocessing import  Process, Queue
 import multiprocessing
 import os
 import re
+import datetime
+from typing import Dict
 
 
 class DataRefresh:
@@ -176,6 +178,26 @@ class DataRefresh:
                 dtd_shipto.sourcing_terminal_info_dict[row['SourceOfProduct']] = sourcing_terminal_info
         logging.info('updated')
 
+    def generate_nearby_shipto_info_for_shipto(self):
+        df_nearby_shipto = self.get_nearby_shipto_odbc_df()
+
+        for shipto_id, df_shipto in df_nearby_shipto.groupby('LocNum'):
+            for idx, row in df_shipto.iterrows():
+                dtd_shipto = self.dtd_shipto_dict[row['LocNum']]
+                nearby_shipto_info = do.NearbyShipToInfo(
+                    nearby_shipto=row['ToLocNum'],
+                    shipto_name=row['ToCustAcronym'],
+                    dder=row['DDER'],
+                    rank=row['Rank']
+                )
+                dtd_shipto.nearby_shipto_info_dict[row['ToLocNum']] = nearby_shipto_info
+        logging.info('updated')
+
+    def generate_shipto_info(self):
+        self.generate_initial_dtd_shipto_dict()
+        self.generate_source_terminal_info_for_shipto()
+        self.generate_nearby_shipto_info_for_shipto()
+
     @staticmethod
     def output_dtd_sharepoint_df(queue):
 
@@ -250,7 +272,7 @@ class DataRefresh:
 
         queue.put(0)
 
-    @decorator.record_time_decorator('从SharePoint获取数据')
+    @decorator.record_time_decorator('从SharePoint获取DTD数据')
     def get_dtd_sharepoint_df(self):
         queue = Queue()
         multiprocessing.freeze_support()
@@ -280,6 +302,9 @@ class DataRefresh:
             for sourcing_terminal in dtd_shipto.sourcing_terminal_info_dict:
                 data.append({'FromLoc': sourcing_terminal, 'ToLoc': to_loc})
 
+            for nearby_shipto in dtd_shipto.nearby_shipto_info_dict:
+                data.append({'FromLoc': shipto_id, 'ToLoc': nearby_shipto})
+                data.append({'FromLoc': nearby_shipto, 'ToLoc': shipto_id})
         df_pairs = pd.DataFrame(data).drop_duplicates()
 
         # Step 2: 从数据库提取清洗后的PointToPoint数据
@@ -340,8 +365,9 @@ class DataRefresh:
                         duration,
                         distance
                     FROM PointToPoint
-                    WHERE FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%';
-                '''.format(from_loc, to_loc)
+                    WHERE (FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%') 
+                    OR (ToLoc LIKE '%{}%' AND FromLoc LIKE '%{}%');
+                '''.format(from_loc, to_loc, to_loc, from_loc)
         self.local_cur.execute(sql_line)
 
         results = self.local_cur.fetchall()
@@ -411,7 +437,7 @@ class DataRefresh:
 
         df_dtd = pd.DataFrame(record_lt, columns=cols)
 
-        now = datetime.now()
+        now = datetime.datetime.now()
         df_dtd['refresh_date'] = now
 
         table_name = 'DTDInfo'
@@ -425,14 +451,157 @@ class DataRefresh:
             index=False
         )
 
-    def refresh_dtd_data(self):
+    def prepare_dtd_data(self):
         self.get_dtd_sharepoint_df()
         self.get_dtd_odbc_df()
+
+    def refresh_dtd_data(self):
         self.set_distance_and_duration_of_primary_and_source_terminal()
         self.output_primary_and_source_dtd_df()
 
+    @decorator.record_time_decorator('从ODBC Segment 表获取 NearbyShipTo 数据')
+    def get_nearby_shipto_odbc_df(self):
+        non_full_load_shiptos = [
+            s for s, dtd_shipto in self.dtd_shipto_dict.items()
+            if not dtd_shipto.is_full_load
+        ]
+        sql_line = '''
+        WITH TripsWithTargetLoc AS (
+            SELECT DISTINCT
+                s.CorporateIdn,
+                s.TripIdn,
+                s.ToLocNum AS LocNum
+            FROM 
+                Segment s
+            WHERE 
+                s.ToLocNum IN {}  -- <<<<<< 多个 LocNum
+                AND s.ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
+        ),
+        TripsWithTwoDelv AS (
+            SELECT 
+                s.CorporateIdn,
+                s.TripIdn
+            FROM 
+                Segment s
+            WHERE 
+                s.ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
+            GROUP BY 
+                s.CorporateIdn,
+                s.TripIdn
+            HAVING 
+                SUM(CASE WHEN s.StopType = '0' THEN 1 ELSE 0 END) = 2
+        ),
+        TripDetails AS (
+            SELECT 
+                t.CorporateIdn,
+                t.TripIdn,
+                tl.LocNum,
+                s.ToLocNum,
+                1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) AS DDER,
+                ROW_NUMBER() OVER (PARTITION BY s.ToLocNum ORDER BY 
+                    1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) DESC
+                ) AS rn
+            FROM 
+                Trip t
+            INNER JOIN 
+                TripsWithTargetLoc tl
+                ON t.CorporateIdn = tl.CorporateIdn
+                AND t.TripIdn = tl.TripIdn
+            INNER JOIN 
+                TripsWithTwoDelv td
+                ON t.CorporateIdn = td.CorporateIdn
+                AND t.TripIdn = td.TripIdn
+            INNER JOIN 
+                Segment AS s
+                ON t.CorporateIdn = s.CorporateIdn 
+                AND t.TripIdn = s.TripIdn
+            WHERE 
+                s.StopType = '0' 
+                AND tl.LocNum != s.ToLocNum
+        ),
+        RankedTrips AS (
+            SELECT 
+                CorporateIdn,
+                TripIdn,
+                LocNum,
+                ToLocNum,
+                DDER,
+                ROW_NUMBER() OVER (PARTITION BY LocNum ORDER BY DDER DESC) AS Rank
+            FROM 
+                TripDetails
+            WHERE 
+                rn = 1
+        )
+        SELECT 
+            RankedTrips.CorporateIdn,
+            RankedTrips.TripIdn,
+            RankedTrips.LocNum,
+            RankedTrips.ToLocNum,
+            CustomerProfile.CustAcronym AS ToCustAcronym,
+            RankedTrips.DDER,
+            RankedTrips.Rank
+        FROM 
+            RankedTrips
+        LEFT JOIN CustomerProfile
+        ON RankedTrips.ToLocNum = CustomerProfile.LocNum
+        WHERE 
+            Rank <= 3
+        ORDER BY 
+            LocNum, Rank;
+        '''.format(tuple(non_full_load_shiptos))
+        df_nearby_shipto = pd.read_sql(sql_line, self.odbc_conn)
+        df_nearby_shipto['LocNum'] = df_nearby_shipto['LocNum'].astype(str)
+        df_nearby_shipto['ToLocNum'] = df_nearby_shipto['ToLocNum'].astype(str)
+        return df_nearby_shipto
+
+    @decorator.record_time_decorator('设置每个客户nearby shipto的距离')
+    def set_nearby_shipto_distance_for_shipto(self):
+        for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            if dtd_shipto.is_full_load:
+                continue
+
+            for nearby_shipto_id in dtd_shipto.nearby_shipto_info_dict:
+                nearby_shipto_info = dtd_shipto.nearby_shipto_info_dict[nearby_shipto_id]
+
+                mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
+                if mile_kms is None or time_hours is None:
+                    mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
+                if mile_kms is None or time_hours is None:
+                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
+                if mile_kms is None or time_hours is None:
+                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
+                nearby_shipto_info.distance_km = mile_kms
+
+    def output_cluster_df(self):
+        record_lt = []
+        cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'Rank']
+        for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            for to_loc_num, nearby_shipto_info in dtd_shipto.nearby_shipto_info_dict.items():
+                record = {
+                    'LocNum': shipto_id,
+                    'CustAcronym': dtd_shipto.shipto_name,
+                    'ToLocNum': to_loc_num,
+                    'ToCustAcronym': nearby_shipto_info.shipto_name,
+                    'distanceKM': nearby_shipto_info.distance_km,
+                    'DDER': nearby_shipto_info.dder,
+                    'Rank': nearby_shipto_info.rank,
+                }
+                record_lt.append(record)
+        df_cluster = pd.DataFrame(record_lt, columns=cols)
+
+        now = datetime.datetime.now()
+        df_cluster['refresh_date'] = now
+        table_name = 'ClusterInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        self.local_conn.commit()
+
+        df_cluster.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+
+
     def refresh_cluster_data(self):
-        pass
+        self.set_nearby_shipto_distance_for_shipto()
+        self.output_cluster_df()
 
     def drop_local_table(self, table_name: str):
         self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -446,12 +615,19 @@ class DataRefresh:
     def refresh_all(self):
         self.refresh_earliest_part_data()
 
-        self.generate_initial_dtd_shipto_dict()
-        self.generate_source_terminal_info_for_shipto()
+        '''
+        以下是新增的刷新代码，增加 dtd 和 cluster 相关的
+        '''
+        if (odbc_master.check_refresh(table_name='DTDInfo', cur=self.local_cur) and
+                odbc_master.check_refresh(table_name='ClusterInfo', cur=self.local_cur)):
+            print('今日 DTD 和 Cluster 已刷新！')
+        else:
+            self.generate_shipto_info()
+            self.prepare_dtd_data()
+            self.refresh_dtd_data()
+            self.refresh_cluster_data()
+            self.drop_local_tables()
 
-        self.refresh_dtd_data()
-        self.refresh_cluster_data()
 
-        self.drop_local_tables()
 
 
