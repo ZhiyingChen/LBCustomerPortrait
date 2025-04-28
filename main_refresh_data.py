@@ -1,4 +1,4 @@
-from src.forecast.daily_data_refresh import DataRefresh
+from src.forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from src.gui.forecast_ui import connect_sqlite
 from src.utils.log import setup_log
 from src.utils.email_report import send_email
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     local_conn = connect_sqlite(os.path.join(path1, db_name))
     local_cur = local_conn.cursor()
 
-    daily_refresh = DataRefresh(local_cur=local_cur, local_conn=local_conn)
+    daily_refresh = ForecastDataRefresh(local_cur=local_cur, local_conn=local_conn)
     daily_refresh.refresh_all()
 
     et = time.time()

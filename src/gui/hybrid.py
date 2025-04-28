@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from src.gui.forecast_ui import update_font, connect_sqlite, forecaster_run, copyfile
-from ..forecast.daily_data_refresh import DataRefresh
+from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from .new import NewInterface
 from ..utils.decorator import record_time_decorator
 
@@ -29,7 +29,7 @@ class HybridApp(tk.Tk):
         self.conn = connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
 
-        daily_refresh = DataRefresh(local_cur=self.cur, local_conn=self.conn)
+        daily_refresh = ForecastDataRefresh(local_cur=self.cur, local_conn=self.conn)
         daily_refresh.refresh_all()
 
         # 保持窗口设置

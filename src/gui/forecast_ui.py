@@ -1,6 +1,6 @@
-from src.forecast.Email_forecast import send_email
+from src.utils.Email_forecast import send_email
 from matplotlib.lines import Line2D
-from src.forecast.odbc_master import check_refresh_deliveryWindow
+from src.forecast_data_refresh.odbc_master import check_refresh_deliveryWindow
 from src.utils import decorator
 from datetime import datetime
 from datetime import timedelta
@@ -14,19 +14,16 @@ import os
 from matplotlib.backends.backend_tkagg import (
     FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
-from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.dates import WeekdayLocator, YearLocator, DayLocator
+from matplotlib.dates import DayLocator
 from tkinter import messagebox
 # from dateEntry import DateEntry
 import matplotlib
 import time
 import threading
-from tkinter import scrolledtext
-from src.forecast.dol_api import updateDOL
-from src.forecast.lct_api import updateLCT
+from src.utils.dol_api import updateDOL
+from src.utils.lct_api import updateLCT
 
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
@@ -715,7 +712,7 @@ def main_plot(root, conn, lock):
                 ts_join = pd.concat([ts_forecastBeforeTrip.last('1S'), ts_forecast.first('1S')])
                 # print(ts_join)
                 ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
-            # decide to plot manual forecast line
+            # decide to plot manual forecast_data_refresh line
             if manual_plot:
                 df_manual = get_manualForecast(shipto, fromTime, toTime, conn)
                 global ts_manual
@@ -963,7 +960,7 @@ def refresh_forecast_data(cur, conn, file_dict):
             if len(df_temp) > 0:
                 df_forecast = pd.concat([df_forecast, df_temp], ignore_index=True)
     end_time = time.time()
-    print('refresh forecast {} seconds'.format(round(end_time - start_time)))
+    print('refresh forecast_data_refresh {} seconds'.format(round(end_time - start_time)))
     df_forecast.Next_hr = pd.to_datetime(df_forecast.Next_hr)
     # 2024-09-02 新增：去除 DOL 中 的 LCT 数据
     f1 = df_forecast.Next_hr.isna()
@@ -1019,7 +1016,7 @@ def refresh_forecastBeforeTrip_data(cur, conn, file_dict):
 
 
 def refresh_fe(cur, conn):
-    '''刷新 forecast error'''
+    '''刷新 forecast_data_refresh error'''
     # 2023-03-06 dongliang modified
     # filepath = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling\\ForecastErrorTesting'
     filepath = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling\\ForecastingInputOutput\\ErrorRecording'
@@ -1309,7 +1306,7 @@ def cust_btn_search(root, conn):
 def get_forecast_customer_from_sqlite(conn):
     '''对这个函数进行一下说明：
        1. 原来这个函数只针对 forecastReading 里的客户，缺点是会遗漏 有 history reading 的客户；
-       2. 现在 把有 history reading 的客户 也加上去，目的是：一个客户 即便没有 forecast reading 的值
+       2. 现在 把有 history reading 的客户 也加上去，目的是：一个客户 即便没有 forecast_data_refresh reading 的值
           也能显示 history reading；'''
     sql = '''SELECT DISTINCT LocNum from forecastReading;'''
     forecast_shiptos = tuple(pd.read_sql(sql, conn).LocNum)
@@ -1373,7 +1370,7 @@ def send_feedback(event, root, conn, lock):
 
 
 def detail_info_label(framename):
-    '''show detailed information about tank and forecast'''
+    '''show detailed information about tank and forecast_data_refresh'''
     global lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb21, lb22
     pad_y = 0
     lb1 = tk.Label(framename, text='CustName')
@@ -1498,9 +1495,9 @@ def create_manual_forecast_data(conn, shipto, input_value):
         df = pd.read_sql(sql, conn)
         df = df[df.Forecasted_Reading.notna()].reset_index(drop=True)
         if len(df) == 0:
-            messagebox.showinfo(parent=root, title='Warning', message='No forecast Data To Show')
+            messagebox.showinfo(parent=root, title='Warning', message='No forecast_data_refresh Data To Show')
             return
-    # create new manual forecast data
+    # create new manual forecast_data_refresh data
     # print(df.head())
     if table_name == 'forecastReading':
         start_time = df.head(1).Next_hr.values[0]

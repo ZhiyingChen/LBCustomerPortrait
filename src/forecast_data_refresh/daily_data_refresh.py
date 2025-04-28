@@ -16,7 +16,7 @@ import datetime
 from typing import Dict
 
 
-class DataRefresh:
+class ForecastDataRefresh:
     def __init__(
             self,
             local_cur,
