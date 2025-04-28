@@ -1796,7 +1796,7 @@ def copyfile(dbname: str, to_dir: str, from_dir: str):
 
 
 if __name__ == '__main__':
-    from src.forecast.daily_data_refresh import DataRefresh
+    from src.forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
     update_font()
 
     # 刷新 ODBC Master Data
@@ -1806,7 +1806,7 @@ if __name__ == '__main__':
     conn = connect_sqlite(db_name)
     cur = conn.cursor()
 
-    daily_refresh = DataRefresh(local_cur=cur, local_conn=conn)
+    daily_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
     daily_refresh.refresh_earliest_part_data()
 
     # 建立窗口
