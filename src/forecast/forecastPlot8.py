@@ -921,7 +921,7 @@ def refresh_history_data(cur, conn, file_dict):
                 df_history = pd.concat([df_history, df_temp], ignore_index=True)
     end_time = time.time()
     print('refresh history {} seconds'.format(round(end_time - start_time)))
-    df_history.ReadingDate = pd.to_datetime(df_history.ReadingDate)
+    df_history.ReadingDate = pd.to_datetime(df_history.ReadingDate, format='mixed')
     df_history = df_history.sort_values(['LocNum', 'ReadingDate']).reset_index(drop=True)
     df_history.Reading_Gals = (df_history.Reading_Gals).round()
     table_name = 'historyReading'
