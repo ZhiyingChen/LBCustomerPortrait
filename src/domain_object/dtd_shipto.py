@@ -41,12 +41,16 @@ class NearbyShipToInfo:
     def __init__(
             self,
             nearby_shipto: str,
+            shipto_name: str,
             distance_km: float,
-            dder: float
+            dder: float,
+            rank: int,
     ):
         self.nearby_shipto = nearby_shipto
+        self.shipto_name = shipto_name
         self.distance_km = distance_km
         self.dder = dder
+        self.rank = rank
 
     def __str__(self):
         return self.nearby_shipto
