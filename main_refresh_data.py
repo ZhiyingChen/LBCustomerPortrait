@@ -1,11 +1,15 @@
 from src.forecast.daily_data_refresh import DataRefresh
 from src.forecast.forecastPlot8 import connect_sqlite
 from src.utils.log import setup_log
+from src.utils.email_report import send_email
 import os
+import logging
+import time
 
 
 if __name__ == '__main__':
 
+    st = time.time()
     setup_log("./output/")
 
     # 保持数据库连接
@@ -18,4 +22,11 @@ if __name__ == '__main__':
 
     daily_refresh = DataRefresh(local_cur=local_cur, local_conn=local_conn)
     daily_refresh.refresh_all()
+
+    et = time.time()
+    logging.info("Total time: {}".format(et-st))
+
+    addressee = 'chenz32@airproducts.com'
+    sender = 'wangj78@airproducts.com'
+    send_email(addressee=addressee, sender=sender)
 

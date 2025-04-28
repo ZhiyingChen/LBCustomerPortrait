@@ -618,10 +618,18 @@ class DataRefresh:
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的
         '''
-        if (odbc_master.check_refresh(table_name='DTDInfo', cur=self.local_cur) and
-                odbc_master.check_refresh(table_name='ClusterInfo', cur=self.local_cur)):
-            print('今日 DTD 和 Cluster 已刷新！')
-        else:
+        try:
+            if (odbc_master.check_refresh(table_name='DTDInfo', cur=self.local_cur) and
+                    odbc_master.check_refresh(table_name='ClusterInfo', cur=self.local_cur)):
+                print('今日 DTD 和 Cluster 已刷新！')
+            else:
+                self.generate_shipto_info()
+                self.prepare_dtd_data()
+                self.refresh_dtd_data()
+                self.refresh_cluster_data()
+                self.drop_local_tables()
+        except Exception as e:
+            print(e)
             self.generate_shipto_info()
             self.prepare_dtd_data()
             self.refresh_dtd_data()
