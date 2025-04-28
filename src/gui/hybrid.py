@@ -33,7 +33,7 @@ class HybridApp(tk.Tk):
         self.cur = self.conn.cursor()
 
         daily_refresh = DataRefresh(local_cur=self.cur, local_conn=self.conn)
-        daily_refresh.refresh_earliest_part_data()
+        daily_refresh.refresh_all()
 
         # 保持窗口设置
         self.wm_title("Air Products Forecasting Viz")

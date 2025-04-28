@@ -1,0 +1,21 @@
+from src.forecast.daily_data_refresh import DataRefresh
+from src.forecast.forecastPlot8 import connect_sqlite
+from src.utils.log import setup_log
+import os
+
+
+if __name__ == '__main__':
+
+    setup_log("./output/")
+
+    # 保持数据库连接
+    db_name = 'AutoSchedule.sqlite'
+    path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
+
+
+    local_conn = connect_sqlite(os.path.join(path1, db_name))
+    local_cur = local_conn.cursor()
+
+    daily_refresh = DataRefresh(local_cur=local_cur, local_conn=local_conn)
+    daily_refresh.refresh_all()
+
