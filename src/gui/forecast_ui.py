@@ -38,6 +38,42 @@ params = {'legend.fontsize': 'x-large',
 pylab.rcParams.update(params)
 
 
+class SimpleTable:
+    def __init__(self, parent, columns, col_widths=None, height=10):
+        self.frame = tk.Frame(parent)
+
+        self.tree = ttk.Treeview(
+            self.frame,
+            columns=columns,
+            show="headings",
+            height=height
+        )
+
+        # 设置列头
+        for i, col in enumerate(columns):
+            width = col_widths[i] if col_widths and i < len(col_widths) else 100
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=width, anchor='center')
+
+        # 垂直滚动条
+        scrollbar_y = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar_y.set)
+
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
+
+        self.frame.grid_rowconfigure(0, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+
+    def insert_rows(self, rows):
+        """ 插入多行数据，清空旧数据 """
+        self.tree.delete(*self.tree.get_children())
+        for row in rows:
+            self.tree.insert("", "end", values=row)
+
+    def clear(self):
+        self.tree.delete(*self.tree.get_children())
+
 # annot = None
 # canvas = None
 def logConnection(filename, action):
@@ -572,7 +608,7 @@ def hover_disappear(event):
         mutex.release()
 
 
-def main_plot(root, conn, lock):
+def main_plot(root, conn, cur, lock):
     '''作图主函数'''
     custName = listbox_customer.get(listbox_customer.curselection()[0])
     print('Customer: {}'.format(custName))
@@ -677,17 +713,17 @@ def main_plot(root, conn, lock):
             # 开始作图
             # 没想到这句话还这么重要(在hover的时候造成了极大的困扰)
             ax.clear()
+            # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
+            ax.set_zorder(3)
+            ax_histy.set_zorder(1)
+            ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
             # 新增注释
             global annot
-            # annot = ax.annotate("", xy=(0, 0), xytext=(20, 20), textcoords="offset points",
-            #                     bbox=dict(boxstyle="round", fc="lightblue",
-            #                               ec="steelblue", alpha=1),
-            #                     arrowprops=dict(arrowstyle="->"))
             annot = ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
                                 bbox=dict(boxstyle="round", fc="lightblue",
                                           ec="steelblue", alpha=1),
                                 arrowprops=dict(arrowstyle="->"),
-                                annotation_clip=True)
+                                annotation_clip=True, zorder=5)
             annot.set_visible(False)
             if len(df_history) > 0:
                 pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
@@ -737,7 +773,7 @@ def main_plot(root, conn, lock):
             else:
                 ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
             # fig.autofmt_xdate()
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
             # plot for second y-axis
             factor = weight_length_factor(uom)
             def kg2cm(x):
@@ -812,6 +848,8 @@ def main_plot(root, conn, lock):
             if lock.locked():
                 lock.release()
 
+            update_dtd_table(shipto_id=str(shipto), cursor=cur, risk_time=Risk_time)
+            update_near_customer_table(shipto_id=str(shipto), cursor=cur)
 
 def define_xticks(num):
     '''对直方图设定刻度；'''
@@ -832,7 +870,7 @@ def define_xticks(num):
     return xticks
 
 
-def plot(event, root, conn, lock):
+def plot(event, root, conn, cur, lock):
     '''多线程作图主函数'''
     starttime = time.time()
     # lock the thread
@@ -850,7 +888,7 @@ def plot(event, root, conn, lock):
     # print(event, type(event))
     # custName = listbox_customer.get(tk.ANCHOR)
     try:
-        main_plot(root, conn, lock)
+        main_plot(root, conn, cur, lock)
     except Exception as e:
         print(e)
         if lock.locked():
@@ -1339,7 +1377,7 @@ def get_all_customer_from_sqlite(conn):
     return df_name_all
 
 
-def send_feedback(event, root, conn, lock):
+def send_feedback(event, root, conn, cur, lock):
     # email_worker = send_email()
     # flag = 'Success'
     # message_subject, message_body, addressee = email_worker.getEmailData(flag)
@@ -1350,7 +1388,7 @@ def send_feedback(event, root, conn, lock):
     if os.path.isfile(pic_name):
         os.remove(pic_name)
     # event = None
-    plot(event, root, conn, lock)
+    plot(event, root, conn, cur, lock)
     print('testing')
     save_pic = False
     email_worker = send_email()
@@ -1445,7 +1483,7 @@ def manual_input_label(framename, root, lock, cur, conn):
                               command=lambda: calculate_by_manual(cur, conn, root, lock))
     btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
     btn_reset = tk.Button(framename, text='Reset', width=15,
-                          command=lambda: reset_manual(root, conn, lock))
+                          command=lambda: reset_manual(root, conn, cur, lock))
     btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
     lb_assess = tk.Label(framename, text='Feedback: ')
     lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
@@ -1468,7 +1506,7 @@ def manual_input_label(framename, root, lock, cur, conn):
     btn_email = tk.Button(framename, text='Send Email', width=15)
     btn_email.grid(row=6, column=0, pady=1, columnspan=2)
     btn_email.bind('<Button-1>', lambda event: threading.Thread(target=send_feedback,
-                                                                args=(event, root, conn, lock)).start())
+                                                                args=(event, root, conn, cur, lock)).start())
     lb_time1 = tk.Label(framename, text='Last Time: ')
     lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
     sql = 'select MAX(ReadingDate) from historyReading '
@@ -1561,15 +1599,15 @@ def calculate_by_manual(cur, conn, root, lock):
     global manual_plot
     manual_plot = True
     event = None
-    plot(event, root, conn, lock)
+    plot(event, root, conn, cur, lock)
     manual_plot = False
 
 
-def reset_manual(root, conn, lock):
+def reset_manual(root, conn, cur, lock):
     box_kg.delete(0, 'end')
     box_cm.delete(0, 'end')
     event = None
-    plot(event, root, conn, lock)
+    plot(event, root, conn, cur, lock)
 
 
 def treeView_design(framename, width, height, row, column, y_scroll):
@@ -1671,37 +1709,39 @@ def forecaster_run(root, path1, cur, conn):
     plot_flag = True
 
     print('start check_refresh_deliveryWindow')
-    check_refresh_deliveryWindow(cur=cur, conn=conn)
+    # check_refresh_deliveryWindow(cur=cur, conn=conn)
     print('finish check_refresh_deliveryWindow')
 
     file_dict = get_filename(path1, purpose='LB_CNS')
     print('start refresh sharefolder')
-    refresh_history_data(cur, conn, file_dict)
-    refresh_forecast_data(cur, conn, file_dict)
-    refresh_forecastBeforeTrip_data(cur, conn, file_dict)
-    refresh_fe(cur, conn)
+    # refresh_history_data(cur, conn, file_dict)
+    # refresh_forecast_data(cur, conn, file_dict)
+    # refresh_forecastBeforeTrip_data(cur, conn, file_dict)
+    # refresh_fe(cur, conn)
     print('finish refresh sharefolder.')
     global df_name_forecast, df_name_all
     df_name_forecast = get_forecast_customer_from_sqlite(conn)
     df_name_all = get_all_customer_from_sqlite(conn)
     # 建立 作图区域
     plot_frame = tk.LabelFrame(root, text='Plot')
-    # plot_frame.pack(fill='x', expand=True, padx=20, pady=1)
-    plot_frame.pack(fill='x',  expand=True, padx=5, pady=1)
-    plot_frame.rowconfigure(0, weight=1)
-    plot_frame.columnconfigure(1, weight=1)
+    plot_frame.pack(fill='x',  expand=True, padx=2, pady=1)
+
+    # column 0: 筛选区域
+    plot_frame.columnconfigure(0, weight=1)
     f_frame = tk.LabelFrame(plot_frame, text='Filter')
-    f_frame.grid(row=0, column=0, padx=5, pady=1)
+    f_frame.grid(row=0, column=0, padx=2, pady=1)
     subRegion_boxlist(f_frame)
     terminal_boxlist(f_frame)
     products_boxlist(f_frame)
     demandType_boxlist(f_frame)
     # 重新排版,建立 frame_input
     frame_input = tk.LabelFrame(plot_frame, text='input')
-    frame_input.grid(row=1, column=0, padx=10, pady=5)
+    frame_input.grid(row=1, column=0, padx=2, pady=5)
     input_framework(frame_input, cur=cur, conn=conn, file_dict=file_dict)
+
+    # column 1：作图区域
+    plot_frame.columnconfigure(1, weight=8)
     pic_frame = tk.LabelFrame(plot_frame)
-    # pic_frame.grid(row=0, column=1, padx=5, pady=5)
     pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E+tk.W+tk.N+tk.S)
     pic_frame.rowconfigure(0, weight=1)
     pic_frame.columnconfigure(0, weight=1)
@@ -1713,9 +1753,19 @@ def forecaster_run(root, path1, cur, conn):
     lock = threading.Lock()
     canvas.mpl_connect("motion_notify_event", hover)
 
+    # column 2: 新增 DTD and Cluster 的 Frame
+    plot_frame.columnconfigure(2, weight=3)
+    dtd_cluster_frame = tk.LabelFrame(plot_frame)
+    dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
+
+    dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
+
     # 最大的frame：par_frame
     par_frame = tk.LabelFrame(root)
-    par_frame.pack(fill='x', expand=True, padx=20, pady=1)
+    par_frame.pack(fill='x', expand=True, padx=5, pady=1)
+
+    for col in range(4):
+        par_frame.columnconfigure(col, weight=1)
 
     cust_frame = info_cust_frame(par_frame)
     customer_query(cust_frame)
@@ -1735,7 +1785,7 @@ def forecaster_run(root, path1, cur, conn):
     listbox_demandType.bind("<<ListboxSelect>>", show_list_cust)
 
     listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
-        target=plot, args=(event, root, conn, lock)).start())
+        target=plot, args=(event, root, conn, cur, lock)).start())
 
     # 重新排版,建立 frame_detail
     frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
@@ -1744,31 +1794,147 @@ def forecaster_run(root, path1, cur, conn):
     detail_info_label(frame_detail)
 
     second_col_frame =  tk.LabelFrame(par_frame)
-    second_col_frame.grid(row=0, column=2, padx=10, pady=2)
+    second_col_frame.grid(row=0, column=2, padx=2, pady=2)
 
     frame_warning = tk.LabelFrame(second_col_frame, text='Warning')
-    frame_warning.grid(row=0, column=0, padx=10, pady=2)
+    frame_warning.grid(row=0, column=0, padx=2, pady=2)
 
     frame_warning_label(frame_warning)
 
     # 重新排版,建立 frame_detail
     frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
-    frame_manual.grid(row=1, column=0, padx=10, pady=2)
+    frame_manual.grid(row=1, column=0, padx=2, pady=2)
     # 输入 起始日期
     manual_input_label(frame_manual, root, lock, cur, conn)
     # 新增两个 Treeview
-    frame_tree = tk.LabelFrame(par_frame)
-    frame_tree.grid(row=0, column=3, padx=5, pady=1)
+    frame_tree = tk.LabelFrame(par_frame, text='Historical Readings')
+    frame_tree.grid(row=0, column=3, padx=2, pady=1)
     # 增加历史液位记录
     global reading_tree, deliveryWindow_tree
     reading_tree = treeView_design(framename=frame_tree, width=380,
                                    height=120, row=0, column=0, y_scroll=True)
     deliveryWindow_tree = treeView_design(framename=frame_tree, width=380,
                                           height=120, row=1, column=0, y_scroll=False)
+
     global log_file
     log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
     logConnection(log_file, 'opened')
 
+def dtd_cluster_label(dtd_cluster_frame):
+
+    # 上方 Frame：Terminal/Source DTD 模块
+    frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
+    frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
+
+    dtd_label(dtd_frame=frame_dtd)
+
+    # 下方 Frame：临近客户模块
+    frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
+    frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+
+    near_customer_label(near_customer_frame=frame_near_customer)
+
+
+def dtd_label(dtd_frame):
+    global dtd_table
+
+    columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
+    col_widths = [15, 30, 30, 100]
+
+    dtd_table = SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
+    dtd_table.frame.pack(fill="both", expand=True)
+
+def update_dtd_table(shipto_id: str, cursor, risk_time: pd.Timestamp):
+    # 提取 primary DTD 信息
+    primary_sql = '''
+        SELECT DT, Distance, Duration FROM DTDInfo 
+        WHERE LocNum={} AND DTType='Primary'
+        '''.format(shipto_id)
+
+    cursor.execute(primary_sql)
+    results = cursor.fetchall()
+
+    # 添加 Primary DTD 信息
+    primary_info = []
+    for row in results:
+        primary_dt, distance, duration = row
+        primary_info.append('T{}'.format(primary_dt))
+        primary_info.append(distance)
+        primary_info.append(duration)
+
+        departure_time = ''
+        try:
+            departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
+            departure_time = departure_time.strftime('%Y-%m-%d %H:%M')
+        except Exception as e:
+            print(e)
+
+        primary_info.append(departure_time)
+
+    # 提取 Source DTD 信息
+    source_sql = '''
+        SELECT DT, Distance, Duration FROM DTDInfo 
+        WHERE LocNum={} AND DTType='Sourcing'
+        ORDER BY Rank
+        '''.format(shipto_id)
+    cursor.execute(source_sql)
+    results = cursor.fetchall()
+
+    # 添加 Source DTD 信息
+    source_list = []
+    for row in results:
+        source_info = list()
+        source_dt, distance, duration = row
+        source_info.append('S{}'.format(source_dt))
+        source_info.append(distance)
+        source_info.append(duration)
+
+        departure_time = ''
+        try:
+            departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
+            departure_time = departure_time.strftime('%Y-%m-%d %H:%M')
+        except Exception as e:
+            print(e)
+        source_info.append(departure_time)
+
+        source_list.append(source_info)
+
+    rows = [primary_info] + source_list
+    dtd_table.insert_rows(rows)
+
+def near_customer_label(near_customer_frame):
+    global near_customer_table
+
+    columns = ["临近客户简称", "距离(km)", "DDER"]
+    col_widths = [100, 40, 20]
+
+    near_customer_table = SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths, height=4)
+    near_customer_table.frame.pack(fill="both", expand=True)
+
+def update_near_customer_table(shipto_id: str, cursor):
+    sql_line = '''
+        SELECT ToLocNum, ToCustAcronym, distanceKM, DDER 
+        FROM ClusterInfo
+        WHERE LocNum={}
+        ORDER BY DDER DESC
+    '''.format(shipto_id)
+
+    cursor.execute(sql_line)
+    results = cursor.fetchall()
+
+    update_rows = list()
+    for row in results:
+        update_row = list()
+        to_loc_num, to_cust_acronym, distance_km, dder = row
+        if len(to_cust_acronym.strip()) == 0:
+            to_cust_acronym = to_loc_num
+        update_row.append(to_cust_acronym)
+        update_row.append(distance_km)
+        update_row.append('{}%'.format(round(dder * 100), 2))
+
+        update_rows.append(update_row)
+
+    near_customer_table.insert_rows(update_rows)
 
 def update_font():
     # font

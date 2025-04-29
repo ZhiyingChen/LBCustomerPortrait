@@ -421,15 +421,15 @@ class ForecastDataRefresh:
             record_lt.append(primary_record)
 
             for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
+                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
+                    continue
                 source_record = {
                     'LocNum': shipto_id,
                     'CustAcronym': dtd_shipto.shipto_name,
                     'DTType': 'Sourcing',
                     'DT': sourcing_terminal,
-                    'Distance': sourcing_terminal_info.distance_km
-                    if sourcing_terminal_info.distance_km is not None else 'unknown',
-                    'Duration': sourcing_terminal_info.duration_hours
-                    if sourcing_terminal_info.duration_hours is not None else 'unknown',
+                    'Distance': sourcing_terminal_info.distance_km,
+                    'Duration': sourcing_terminal_info.duration_hours,
                     'Rank': int(sourcing_terminal_info.rank),
                     'Frequency': int(sourcing_terminal_info.frequency)
                 }

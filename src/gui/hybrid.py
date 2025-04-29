@@ -25,7 +25,7 @@ class HybridApp(tk.Tk):
         self.db_name = 'AutoSchedule.sqlite'
         self.path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
 
-        copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
+        # copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
         self.conn = connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
 
