@@ -476,8 +476,8 @@ def plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full):
 def get_plot_basic(framename):
     '''获取作图框架'''
     fig = Figure(figsize=(5, 4), dpi=80)
-    gs = fig.add_gridspec(1, 2,  width_ratios=(4, 1),
-                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+    gs = fig.add_gridspec(1, 2,  width_ratios=(6, 1),
+                      left=0.08, right=0.96, bottom=0.1, top=0.9,
                       wspace=0.1, hspace=0.05)
     ax = fig.add_subplot(gs[0, 0])
     ax_histy = fig.add_subplot(gs[0, 1], sharey=ax)
