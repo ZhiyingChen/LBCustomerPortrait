@@ -576,6 +576,18 @@ class ForecastDataRefresh:
         record_lt = []
         cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'Rank']
         for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
+            if dtd_shipto.is_full_load:
+                record = {
+                    'LocNum': shipto_id,
+                    'CustAcronym': dtd_shipto.shipto_name,
+                    'ToLocNum': '无',
+                    'ToCustAcronym': '无',
+                    'distanceKM': '整车卸货',
+                    'DDER': '',
+                    'Rank': 1,
+                }
+                record_lt.append(record)
+                continue
             for to_loc_num, nearby_shipto_info in dtd_shipto.nearby_shipto_info_dict.items():
                 record = {
                     'LocNum': shipto_id,
