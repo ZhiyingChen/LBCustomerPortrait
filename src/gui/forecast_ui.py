@@ -1709,15 +1709,15 @@ def forecaster_run(root, path1, cur, conn):
     plot_flag = True
 
     print('start check_refresh_deliveryWindow')
-    # check_refresh_deliveryWindow(cur=cur, conn=conn)
+    check_refresh_deliveryWindow(cur=cur, conn=conn)
     print('finish check_refresh_deliveryWindow')
 
     file_dict = get_filename(path1, purpose='LB_CNS')
     print('start refresh sharefolder')
-    # refresh_history_data(cur, conn, file_dict)
-    # refresh_forecast_data(cur, conn, file_dict)
-    # refresh_forecastBeforeTrip_data(cur, conn, file_dict)
-    # refresh_fe(cur, conn)
+    refresh_history_data(cur, conn, file_dict)
+    refresh_forecast_data(cur, conn, file_dict)
+    refresh_forecastBeforeTrip_data(cur, conn, file_dict)
+    refresh_fe(cur, conn)
     print('finish refresh sharefolder.')
     global df_name_forecast, df_name_all
     df_name_forecast = get_forecast_customer_from_sqlite(conn)
