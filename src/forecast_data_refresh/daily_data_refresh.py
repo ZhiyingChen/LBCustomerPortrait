@@ -362,8 +362,8 @@ class ForecastDataRefresh:
     def get_distance_and_duration_from_local_p2p(self, from_loc: str, to_loc: str):
         sql_line = '''
                     SELECT 
-                        duration,
-                        distance
+                        distance,
+                        duration
                     FROM PointToPoint
                     WHERE (FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%') 
                     OR (ToLoc LIKE '%{}%' AND FromLoc LIKE '%{}%');
