@@ -1839,7 +1839,7 @@ def dtd_label(dtd_frame):
     global dtd_table
 
     columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
-    col_widths = [15, 30, 30, 100]
+    col_widths = [10, 20, 20, 100]
 
     dtd_table = SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
     dtd_table.frame.pack(fill="both", expand=True)
@@ -1906,7 +1906,7 @@ def near_customer_label(near_customer_frame):
     global near_customer_table
 
     columns = ["临近客户简称", "距离(km)", "DDER"]
-    col_widths = [100, 40, 20]
+    col_widths = [100, 20, 10]
 
     near_customer_table = SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths, height=4)
     near_customer_table.frame.pack(fill="both", expand=True)
@@ -1926,11 +1926,19 @@ def update_near_customer_table(shipto_id: str, cursor):
     for row in results:
         update_row = list()
         to_loc_num, to_cust_acronym, distance_km, dder = row
-        if len(to_cust_acronym.strip()) == 0:
+
+        if to_cust_acronym is None or len(to_cust_acronym.strip()) == 0:
             to_cust_acronym = to_loc_num
+
+        try:
+            dder = round(float(dder) * 100, 2)
+        except Exception as e:
+            print(e)
+            dder = '?'
+
         update_row.append(to_cust_acronym)
         update_row.append(distance_km)
-        update_row.append('{}%'.format(round(dder * 100), 2))
+        update_row.append('{}%'.format(dder))
 
         update_rows.append(update_row)
 
