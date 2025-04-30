@@ -632,7 +632,7 @@ class ForecastDataRefresh:
         for table_name in table_names:
             self.drop_local_table(table_name)
 
-    def refresh_all(self):
+    def refresh_lb_daily_data(self):
         self.refresh_earliest_part_data()
 
         '''
@@ -656,6 +656,8 @@ class ForecastDataRefresh:
             self.refresh_cluster_data()
             self.drop_local_tables()
 
+    def refresh_all(self):
+        self.refresh_lb_daily_data()
         self.refresh_lb_hourly_data()
 
     # refresh hourly data
