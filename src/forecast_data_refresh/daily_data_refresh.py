@@ -322,7 +322,7 @@ class ForecastDataRefresh:
                 ELSE ToLoc
             END AS ToLoc,
 
-            (TravelMatrixDefaultDuration / 60) AS duration,
+            FORMAT((TravelMatrixDefaultDuration)/60.0, 'N2') AS duration,
             TravelMatrixDefaultDistance AS distance
 
         FROM PointToPoint
