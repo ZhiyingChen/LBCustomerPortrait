@@ -93,7 +93,7 @@ def get_forecast_reading(shipto, fromTime, toTime, conn):
     return df_forecast
 
 
-def get_forecast_beforeTrip(shipto, fromTime, toTime, conn):
+def get_forecast_before_trip(shipto, fromTime, toTime, conn):
     '''获取当前到送货前预测液位数据'''
     sql = '''select LocNum, Next_hr, Forecasted_Reading
          FROM forecastBeforeTrip
@@ -555,7 +555,7 @@ def main_plot(root, conn, cur, lock):
             global df_info
             df_info = get_customer_info(shipto, conn)
             df_history = get_history_reading(shipto, fromTime, toTime, conn)
-            df_forecastBeforeTrip = get_forecast_beforeTrip(shipto, fromTime, toTime, conn)
+            df_forecastBeforeTrip = get_forecast_before_trip(shipto, fromTime, toTime, conn)
             df_forecast = get_forecast_reading(shipto, fromTime, toTime, conn)
             df_max_payload = get_max_payload_by_ship2(
                 conn=conn,
@@ -573,8 +573,6 @@ def main_plot(root, conn, cur, lock):
                     current_max_payload = row['LicenseFill']
                 current_primary_dt = row['CorporateIdn']
 
-            # print(df_forecast.head())
-            # print(df_info.columns)
             # 作图数据处理
             global ts_history, ts_forecast, ts_forecastBeforeTrip
             ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
