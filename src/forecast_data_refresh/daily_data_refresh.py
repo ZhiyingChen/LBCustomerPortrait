@@ -14,7 +14,7 @@ import os
 import re
 import datetime
 from typing import Dict
-
+import time
 
 class ForecastDataRefresh:
     def __init__(
@@ -32,6 +32,7 @@ class ForecastDataRefresh:
         self.odbc_conn = create_engine(f'mssql+pyodbc:///?odbc_connect={odbc_conn_string}')
 
         self.dtd_shipto_dict: Dict[str, do.DTDShipto] = dict()
+        self.file_dict = dict()
 
     def refresh_earliest_part_data(
             self,
@@ -60,6 +61,11 @@ class ForecastDataRefresh:
             else:
                 odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
 
+            if odbc_master.check_refresh(table_name='odbc_DeliveryWindow', cur=self.local_cur):
+                print('今日 odbc_DeliveryWindow 已刷新')
+            else:
+                odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+
 
         except Exception as e:
             print(e)
@@ -67,6 +73,8 @@ class ForecastDataRefresh:
             odbc_master.refresh_beforeReading(conn=self.local_conn)
             odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
             odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
+            odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+
 
     def get_lb_tele_shipto_dataframe(self):
         sql_line = '''
@@ -648,6 +656,215 @@ class ForecastDataRefresh:
             self.refresh_cluster_data()
             self.drop_local_tables()
 
+        self.refresh_lb_hourly_data()
 
+    # refresh hourly data
+    def refresh_lb_hourly_data(self):
+        self.get_filename()
+        self.refresh_history_data()
+        self.refresh_forecast_data()
+        self.refresh_forecast_beforeTrip_data()
+        self.refresh_fe()
 
+    def get_filename(
+            self,
+            path1='//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling',
+            purpose='LB_LCT'
+    ):
+        '''get filename and backup filename, modifid at 20220520'''
+        file_dict = {}
+        if purpose == 'autoScheduling':
+            # 仅供 成都 Terminal
+            name = 'chengdu'
+            forecast_file = os.path.join(path1, 'Sample forecasted reading.csv')
+            history_file = os.path.join(path1, 'Sample history reading.csv')
+            drop_file = os.path.join(path1, 'Sample forecasted reading_drop.csv')
+            file_dict[name] = [forecast_file, history_file, drop_file]
+        else:
+            # For Forecast Project
+            regions = ['LB_LCT', 'CNS', 'CNCE', 'CNNW']
+            path2 = os.path.join(path1, 'ForecastingInputOutput')
+            for region in regions:
+                file_dict[region] = []
+                # 主文件名夹
+                path3 = os.path.join(path2, region)
+                # 备份文件名夹
+                path_backup = os.path.join(path3, 'Backup')
+                # 三个只要文件名：预测,历史,drop信息
+                # 2024-08-30 新增
+                if region == 'LB_LCT':
+                    files = ['Sample_forecasted_reading.csv',
+                             'Sample_history_reading.csv', 'Sample_forecasted_reading_drop.csv']
+                else:
+                    files = ['Sample forecasted reading.csv',
+                             'Sample history reading.csv', 'Sample forecasted reading_drop.csv']
+                for file in files:
+                    if os.path.exists(os.path.join(path3, file)):
+                        filename = os.path.join(path3, file)
+                    else:
+                        filename = None
+                    # 主文件名加入列表
+                    file_dict[region].append(filename)
+                    if os.path.exists(os.path.join(path_backup, file)):
+                        filename_back = os.path.join(path_backup, file)
+                    else:
+                        filename_back = None
+                    # 备份文件名加入列表
+                    file_dict[region].append(filename_back)
+        self.file_dict = file_dict
+
+    def refresh_history_data(self):
+        '''刷新 历史数据,区分AS用,还是 Forecasting 用'''
+        cur = self.local_cur
+        conn = self.local_conn
+        file_dict = self.file_dict
+
+        start_time = time.time()
+        if len(file_dict) == 1:
+            # 用于 AS
+            filename = file_dict['chengdu'][1]
+            df_history = pd.read_csv(filename)
+        else:
+            # 用于 Forecasting
+            df_history = pd.DataFrame()
+            for region in file_dict:
+                filename = file_dict[region][2]
+                filename_back = file_dict[region][3]
+                try:
+                    df_temp = pd.read_csv(filename)
+                    if len(df_temp) <= 10000:
+                        # 说明数据正在写,有缺失
+                        print('file {} is missing data, use backup.'.format(filename))
+                        df_temp = pd.read_csv(filename_back)
+                except Exception as e:
+                    print('cannot read file {} , use backup.'.format(filename), e)
+                    df_temp = pd.read_csv(filename_back)
+                # 20220622 modify
+                if len(df_temp) > 0:
+                    df_history = pd.concat([df_history, df_temp], ignore_index=True)
+        end_time = time.time()
+        print('refresh history {} seconds'.format(round(end_time - start_time)))
+        df_history.ReadingDate = pd.to_datetime(df_history.ReadingDate, format='mixed')
+        df_history = df_history.sort_values(['LocNum', 'ReadingDate']).reset_index(drop=True)
+        df_history.Reading_Gals = (df_history.Reading_Gals).round()
+        table_name = 'historyReading'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_history[['LocNum', 'ReadingDate', 'Reading_Gals']].to_sql(
+            table_name, con=conn, if_exists='replace', index=False)
+
+    def refresh_forecast_data(self):
+        '''刷新 预测数据,区分AS用,还是 Forecasting 用'''
+        cur = self.local_cur
+        conn = self.local_conn
+        file_dict = self.file_dict
+
+        start_time = time.time()
+        if len(file_dict) == 1:
+            # 用于 AS
+            filename = file_dict['chengdu'][0]
+            df_forecast = pd.read_csv(filename)
+        else:
+            # 用于 Forecasting
+            df_forecast = pd.DataFrame()
+            for region in file_dict:
+                filename = file_dict[region][0]
+                filename_back = file_dict[region][1]
+                try:
+                    df_temp = pd.read_csv(filename)
+                    if len(df_temp) <= 1500:
+                        print('file {} is missing data, use backup.'.format(filename))
+                        # 说明数据正在写,有缺失
+                        df_temp = pd.read_csv(filename_back)
+                except Exception:
+                    print('cannot read file {} , use backup.'.format(filename))
+                    df_temp = pd.read_csv(filename_back)
+                if region == 'LB_LCT':
+                    # 2024-09-02 新增防止 DOL 中 混入 LCT 数据影响
+                    lb_lct_shiptos = list(df_temp.LocNum.unique())
+                # print(filename, df_temp.shape)
+                # df_temp.to_excel('{}.xlsx'.format(name))
+                # 20220622 modify
+                # df_forecast = df_forecast.append(df_temp)
+                if len(df_temp) > 0:
+                    df_forecast = pd.concat([df_forecast, df_temp], ignore_index=True)
+        end_time = time.time()
+        print('refresh forecast_data_refresh {} seconds'.format(round(end_time - start_time)))
+        df_forecast.Next_hr = pd.to_datetime(df_forecast.Next_hr)
+        # 2024-09-02 新增：去除 DOL 中 的 LCT 数据
+        f1 = df_forecast.Next_hr.isna()
+        f2 = df_forecast.LocNum.isin(lb_lct_shiptos)
+        # 这一步的意思是说： 如果是一个 LCT 客户，并且 Next_hr 为空，就剔除出去；
+        df_forecast = df_forecast[~(f1 & f2)]
+        df_forecast = df_forecast.sort_values(['LocNum', 'Next_hr'])
+        df_forecast.Forecasted_Reading = (df_forecast.Forecasted_Reading).astype(float).round()
+        use_cols = ['LocNum', 'Next_hr', 'Hourly_Usage_Rate', 'Forecasted_Reading', 'RiskGals',
+                    'TargetRefillDate', 'TargetRiskDate', 'TargetRunoutDate']
+        df_forecast1 = df_forecast.loc[df_forecast.Forecasted_Reading.notna(
+        ), use_cols].reset_index(drop=True).copy()
+        # df_forecast1.to_excel('aaa.xlsx')
+        table_name = 'forecastReading'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_forecast1.to_sql(table_name, con=conn, if_exists='replace', index=False)
+
+    def refresh_forecast_beforeTrip_data(self):
+        '''刷新 送货前数据,区分AS用,还是 Forecasting 用'''
+        cur = self.local_cur
+        conn = self.local_conn
+        file_dict = self.file_dict
+
+        start_time = time.time()
+        if len(file_dict) == 1:
+            # 用于 AS
+            filename = file_dict['chengdu'][2]
+            df_forecast = pd.read_csv(filename)
+        else:
+            # 用于 Forecasting
+            df_forecast = pd.DataFrame()
+            for region in file_dict:
+                filename = file_dict[region][4]
+                filename_back = file_dict[region][5]
+                try:
+                    df_temp = pd.read_csv(filename)
+                except Exception:
+                    print('cannot read file {} , use backup.'.format(filename))
+                    df_temp = pd.read_csv(filename_back)
+                # 20220622 modify
+                # df_forecast = df_forecast.append(df_temp)
+                if len(df_temp) > 0:
+                    df_forecast = pd.concat([df_forecast, df_temp], ignore_index=True)
+        end_time = time.time()
+        print('refresh drop {} seconds'.format(round(end_time - start_time)))
+        df_forecast.Next_hr = pd.to_datetime(df_forecast.Next_hr)
+        df_forecast = df_forecast.sort_values(['LocNum', 'Next_hr'])
+        df_forecast.Forecasted_Reading = (df_forecast.Forecasted_Reading).astype(float).round()
+        df_forecast1 = df_forecast.loc[df_forecast.Forecasted_Reading.notna(
+        ), ['LocNum', 'Next_hr', 'Forecasted_Reading']].reset_index(drop=True).copy()
+        table_name = 'forecastBeforeTrip'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_forecast1.to_sql(table_name, con=conn, if_exists='replace', index=False)
+
+    def refresh_fe(self):
+        '''刷新 forecast_data_refresh error'''
+        # 2023-03-06 dongliang modified
+        cur = self.local_cur
+        conn = self.local_conn
+
+        filepath = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling\\ForecastingInputOutput\\ErrorRecording'
+        filename = os.path.join(filepath, 'Error Result.csv')
+        df_fe = pd.read_csv(filename)
+        df_fe = df_fe[df_fe.AverageError_SEH.notna()].reset_index(drop=True)
+        if len(df_fe) > 0:
+            df_fe['AverageError'] = df_fe.apply(lambda row: min(row['AverageError_SEH'], row['AverageError_ARIMA']),
+                                                axis=1)
+        else:
+            df_fe['AverageError'] = None
+        use_cols = ['LocNum', 'AverageError']
+        df_fe = df_fe[use_cols]
+        table_name = 'forecastError'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
 

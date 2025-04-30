@@ -13,7 +13,6 @@ import sqlite3
 import os
 from matplotlib.backends.backend_tkagg import (
     FigureCanvasTkAgg, NavigationToolbar2Tk)
-# Implement the default Matplotlib key bindings.
 from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 from matplotlib.dates import DayLocator
@@ -22,9 +21,11 @@ from tkinter import messagebox
 import matplotlib
 import time
 import threading
-from src.utils.dol_api import updateDOL
-from src.utils.lct_api import updateLCT
-
+from . import ui_structure
+from ..utils.dol_api import updateDOL
+from ..utils.lct_api import updateLCT
+from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
+from ..utils import functions as func
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
 # 设置显示中文,与字体配合使用
@@ -38,56 +39,6 @@ params = {'legend.fontsize': 'x-large',
 pylab.rcParams.update(params)
 
 
-class SimpleTable:
-    def __init__(self, parent, columns, col_widths=None, height=10):
-        self.frame = tk.Frame(parent)
-
-        self.tree = ttk.Treeview(
-            self.frame,
-            columns=columns,
-            show="headings",
-            height=height
-        )
-
-        # 设置列头
-        for i, col in enumerate(columns):
-            width = col_widths[i] if col_widths and i < len(col_widths) else 100
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=width, anchor='center')
-
-        # 垂直滚动条
-        scrollbar_y = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar_y.set)
-
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar_y.grid(row=0, column=1, sticky="ns")
-
-        self.frame.grid_rowconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(0, weight=1)
-
-    def insert_rows(self, rows):
-        """ 插入多行数据，清空旧数据 """
-        self.tree.delete(*self.tree.get_children())
-        for row in rows:
-            self.tree.insert("", "end", values=row)
-
-    def clear(self):
-        self.tree.delete(*self.tree.get_children())
-
-# annot = None
-# canvas = None
-def logConnection(filename, action):
-    f = open(filename, "a")
-    use_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-    home = str(os.path.expanduser("~")).split('\\')
-    if len(home) > 2:
-        home_name = home[2]
-    else:
-        home_name = 'unknow person'
-    f.write("{} -- {} -- {}.\n".format(use_time, home_name, action))
-    f.close()
-
-
 def connect_sqlite(db_name):
     '''连接 SQLITE'''
     conn = sqlite3.connect(db_name, check_same_thread=False)
@@ -95,51 +46,7 @@ def connect_sqlite(db_name):
     return conn
 
 
-def get_filename(path1, purpose='autoScheduling'):
-    '''get filename and backup filename, modifid at 20220520'''
-    file_dict = {}
-    if purpose == 'autoScheduling':
-        # 仅供 成都 Terminal
-        name = 'chengdu'
-        forecast_file = os.path.join(path1, 'Sample forecasted reading.csv')
-        history_file = os.path.join(path1, 'Sample history reading.csv')
-        drop_file = os.path.join(path1, 'Sample forecasted reading_drop.csv')
-        file_dict[name] = [forecast_file, history_file, drop_file]
-    else:
-        # For Forecast Project
-        regions = ['LB_LCT', 'CNS', 'CNCE', 'CNNW' ]
-        path2 = os.path.join(path1, 'ForecastingInputOutput')
-        for region in regions:
-            file_dict[region] = []
-            # 主文件名夹
-            path3 = os.path.join(path2, region)
-            # 备份文件名夹
-            path_backup = os.path.join(path3, 'Backup')
-            # 三个只要文件名：预测,历史,drop信息
-            # 2024-08-30 新增
-            if region == 'LB_LCT':
-                files = ['Sample_forecasted_reading.csv',
-                     'Sample_history_reading.csv', 'Sample_forecasted_reading_drop.csv']
-            else:
-                files = ['Sample forecasted reading.csv',
-                     'Sample history reading.csv', 'Sample forecasted reading_drop.csv']
-            for file in files:
-                if os.path.exists(os.path.join(path3, file)):
-                    filename = os.path.join(path3, file)
-                else:
-                    filename = None
-                # 主文件名加入列表
-                file_dict[region].append(filename)
-                if os.path.exists(os.path.join(path_backup, file)):
-                    filename_back = os.path.join(path_backup, file)
-                else:
-                    filename_back = None
-                # 备份文件名加入列表
-                file_dict[region].append(filename_back)
-    return file_dict
-
-
-def get_historyReading(shipto, fromTime, toTime, conn):
+def get_history_reading(shipto, fromTime, toTime, conn):
     '''获取历史液位数据'''
     sql = '''select LocNum, ReadingDate, Reading_Gals
              FROM historyReading
@@ -151,7 +58,7 @@ def get_historyReading(shipto, fromTime, toTime, conn):
     return df_history
 
 
-def get_forecastReading(shipto, fromTime, toTime, conn):
+def get_forecast_reading(shipto, fromTime, toTime, conn):
     '''获取预测液位数据, 注意 返回的 df_forecast 长度始终大于 0；'''
     # 第一步 首先判断 该 shipto 是不是一个异常 shipto
     sql = '''select * FROM forecastReading
@@ -186,7 +93,7 @@ def get_forecastReading(shipto, fromTime, toTime, conn):
     return df_forecast
 
 
-def get_forecastBeforeTrip(shipto, fromTime, toTime, conn):
+def get_forecast_beforeTrip(shipto, fromTime, toTime, conn):
     '''获取当前到送货前预测液位数据'''
     sql = '''select LocNum, Next_hr, Forecasted_Reading
          FROM forecastBeforeTrip
@@ -198,7 +105,7 @@ def get_forecastBeforeTrip(shipto, fromTime, toTime, conn):
     return df_forecast
 
 
-def get_beforeReading(conn, shipto):
+def get_before_reading(conn, shipto):
     '''获取司机录入液位'''
     sql = '''select ReadingDate, beforeKG from beforeReading
              WHERE LocNum={};'''.format(shipto)
@@ -206,11 +113,11 @@ def get_beforeReading(conn, shipto):
     df = df.sort_values('ReadingDate')
     return df.beforeKG.values
 
+
 def get_max_payload_by_ship2(
         conn,
         ship2: str,
 ):
-
     sql_statement = \
         ("SELECT CorporateIdn, LicenseFill "
          "FROM odbc_MaxPayloadByShip2 "
@@ -218,7 +125,8 @@ def get_max_payload_by_ship2(
     result_df = pd.read_sql(sql_statement, conn)
     return result_df
 
-def get_manualForecast(shipto, fromTime, toTime, conn):
+
+def get_manual_forecast(shipto, fromTime, toTime, conn):
     '''get manually calculated data'''
     sql = '''select *
              FROM manual_forecast
@@ -230,7 +138,7 @@ def get_manualForecast(shipto, fromTime, toTime, conn):
     return df_manual
 
 
-def get_customerInfo(shipto, conn):
+def get_customer_info(shipto, conn):
     '''获取customer数据'''
     sql = '''select *
          FROM odbc_master
@@ -247,12 +155,12 @@ def get_recent_reading(shipto, conn):
                  where LocNum = {};'''.format(shipto)
     df1 = pd.read_sql(sql, conn).tail(24)
     df1.ReadingDate = pd.to_datetime(df1.ReadingDate)
-    df1['Reading_CM'] = (df1.Reading_Gals/galsPerInch).round().astype(int)
+    df1['Reading_CM'] = (df1.Reading_Gals / galsPerInch).round().astype(int)
     df1.Reading_Gals = df1.Reading_Gals.astype(int)
     df1 = df1.sort_values('ReadingDate', ascending=False).reset_index(drop=True)
     df1['cm_diff'] = df1.Reading_CM.diff(-1)
-    df1['time_diff'] = df1.ReadingDate.diff(-1)/pd.Timedelta('1 hour')
-    df1['Hour_CM'] = (df1.cm_diff/df1.time_diff).round(1)
+    df1['time_diff'] = df1.ReadingDate.diff(-1) / pd.Timedelta('1 hour')
+    df1['Hour_CM'] = (df1.cm_diff / df1.time_diff).round(1)
 
     def clean_use(x):
         # 对小时用量进行清理
@@ -262,8 +170,9 @@ def get_recent_reading(shipto, conn):
             return -int(x)
         else:
             return None
+
     df1.Hour_CM = df1.Hour_CM.apply(clean_use)
-    df1['No'] = range(1, len(df1)+1)
+    df1['No'] = range(1, len(df1) + 1)
     cols = df1.columns.tolist()
     cols = cols[-1:] + cols[:-1]
     # 去掉两个过度列
@@ -274,7 +183,7 @@ def get_recent_reading(shipto, conn):
     return df1
 
 
-def get_deliveryWindow(shipto, conn):
+def get_delivery_window(shipto, conn):
     '''从 odbc_DeliveryWindow 里获取 送货窗口数据'''
     sql = '''select * from odbc_DeliveryWindow where LocNum={}'''.format(shipto)
     df = pd.read_sql(sql, conn)
@@ -304,7 +213,7 @@ def get_deliveryWindow(shipto, conn):
     return df2
 
 
-def get_forecastError(shipto, conn):
+def get_forecast_error(shipto, conn):
     '''获取 forecastError'''
     table_name = 'forecastError '
     sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
@@ -312,20 +221,19 @@ def get_forecastError(shipto, conn):
     if len(df) == 0:
         fe = 'NotFound'
     else:
-        fe = str(round(df.AverageError.values[0]*100)) + '%'
+        fe = str(round(df.AverageError.values[0] * 100)) + '%'
     return fe
 
-def get_t4_t6_value(shipto, conn):
 
+def get_t4_t6_value(shipto, conn):
     table_name = "t4_t6_data"
     sql = '''SELECT * FROM {} WHERE LocNum = {}'''.format(table_name, shipto)
     df = pd.read_sql(sql, conn)
     t4_t6_val = "unknown"
 
     for i, row in df.iterrows():
-        t4_t6_val = round(row['beforeToRoHours_rolling_mean'],1)
+        t4_t6_val = round(row['beforeToRoHours_rolling_mean'], 1)
     return t4_t6_val
-
 
 
 def weight_length_factor(uom):
@@ -335,9 +243,10 @@ def weight_length_factor(uom):
     elif uom == 'M':
         return 10
     elif uom == 'MM':
-        return 1/10
+        return 1 / 10
     else:
         return 1
+
 
 def clean_detailed_info():
     '''before fill in the info, we need to clean the previous text'''
@@ -348,7 +257,7 @@ def clean_detailed_info():
 
 def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
               Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-              primary_dt, max_payload,t4_t6_value
+              primary_dt, max_payload, t4_t6_value
               ):
     '''显示客户的充装的详细信息'''
     # 20220624 we need to clean the previous info first
@@ -359,11 +268,11 @@ def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
     if Risk_time is None:
         # 只挑选部分内容显示
         lb2.config(text=custName)
-        full_cm = int(full/galsperinch/factor)
+        full_cm = int(full / galsperinch / factor)
         lb10.config(text='{} KG / {} {}'.format(full, full_cm, uom))
-        TR_cm = int(TR/galsperinch/factor)
+        TR_cm = int(TR / galsperinch / factor)
         lb12.config(text='{} KG / {} {}'.format(TR, TR_cm, uom))
-        RO_cm = int(RO/galsperinch/factor)
+        RO_cm = int(RO / galsperinch / factor)
         lb16.config(text='{} KG / {} {}'.format(RO, RO_cm, uom))
     else:
         # 首先要进行字符串的转换
@@ -374,20 +283,20 @@ def show_info(custName, TR_time, Risk_time, RO_time, full, TR,
         lb4.config(text=tr)
         lb6.config(text=risk)
         lb8.config(text=ro)
-        full_cm = int(full/galsperinch/factor)
+        full_cm = int(full / galsperinch / factor)
         lb10.config(text='{} KG / {} {}'.format(full, full_cm, uom))
-        TR_cm = int(TR/galsperinch/factor)
+        TR_cm = int(TR / galsperinch / factor)
         lb12.config(text='{} KG / {} {}'.format(TR, TR_cm, uom))
-        Risk_cm = int(Risk/galsperinch/factor)
+        Risk_cm = int(Risk / galsperinch / factor)
         lb14.config(text='{} KG / {} {}'.format(Risk, Risk_cm, uom))
-        RO_cm = int(RO/galsperinch/factor)
+        RO_cm = int(RO / galsperinch / factor)
         lb16.config(text='{} KG / {} {}'.format(RO, RO_cm, uom))
         if len(ts_forecast) >= 2:
             s_time = ts_forecast.index[0].strftime("%m-%d %H:%M")
             # modify 20220624
-            e_time = ts_forecast.index[min(7, len(ts_forecast)-1)].strftime("%m-%d %H:%M")
+            e_time = ts_forecast.index[min(7, len(ts_forecast) - 1)].strftime("%m-%d %H:%M")
             hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
-            hourly_usage_cm = (hourly_usage/galsperinch/factor).round(1)
+            hourly_usage_cm = (hourly_usage / galsperinch / factor).round(1)
             # print(ts_forecast_usage[:8])
             # print(len(ts_forecast_usage[:8]))
             lb17.config(text='{}~{}\n 预测小时用量'.format(s_time, e_time))
@@ -416,7 +325,7 @@ def time_validate_check(conn, shipto):
     except ValueError:
         validate_flag = (False, 'To Time Wrong!')
         return validate_flag
-    df = get_forecastReading(shipto, fromTime, toTime, conn)
+    df = get_forecast_reading(shipto, fromTime, toTime, conn)
     # 为了防止 df 是空的：
     if len(df) == 0:
         # 这表明没有预测数据， 但是也要显示历史数据
@@ -449,7 +358,7 @@ def plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full):
     if fromTime <= TR_time <= Risk_time <= RO_time <= toTime:
         # 这个是最完整形态
         ax.axvline(x=TR_time, color='green', linewidth=1)
-        ax.axvline(x=Risk_time, color='yellow', linewidth=1,)
+        ax.axvline(x=Risk_time, color='yellow', linewidth=1, )
         ax.axvline(x=RO_time, color='red', linewidth=1)
         ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
         ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
@@ -476,9 +385,9 @@ def plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full):
 def get_plot_basic(framename):
     '''获取作图框架'''
     fig = Figure(figsize=(5, 4), dpi=80)
-    gs = fig.add_gridspec(1, 2,  width_ratios=(6, 1),
-                      left=0.08, right=0.96, bottom=0.1, top=0.9,
-                      wspace=0.1, hspace=0.05)
+    gs = fig.add_gridspec(1, 2, width_ratios=(6, 1),
+                          left=0.08, right=0.96, bottom=0.1, top=0.9,
+                          wspace=0.1, hspace=0.05)
     ax = fig.add_subplot(gs[0, 0])
     ax_histy = fig.add_subplot(gs[0, 1], sharey=ax)
     # ax = fig.add_subplot(111)
@@ -494,11 +403,7 @@ def update_annot(pos, text):
     # pos = sc.get_offsets()[ind["ind"][0]]
     global annot
     annot.xy = pos
-    # print(annot.xy)
     annot.set_text(text)
-    # print(annot.get_text())
-    # annot.get_bbox_patch().set_facecolor(cmap(norm(c[ind["ind"][0]])))
-    # annot.get_bbox_patch().set_alpha(0.8)
 
 
 def hover(event):
@@ -540,10 +445,10 @@ def hover(event):
                 unitOfLength = df_info.UnitOfLength.values[0]
                 uom = unitOfLength_dict[unitOfLength]
                 factor = weight_length_factor(uom)
-                show_level_cm = int(round(show_level/(galsperinch*factor), 1))
+                show_level_cm = int(round(show_level / (galsperinch * factor), 1))
                 # 可卸货量
                 loadAMT = int(full - show_level)
-                loadAMT_cm = int(round(loadAMT/(galsperinch*factor), 1))
+                loadAMT_cm = int(round(loadAMT / (galsperinch * factor), 1))
                 text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
                     show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
                 update_annot(pos, text)
@@ -581,11 +486,6 @@ def hover_disappear(event):
                 if curve.contains(event)[0]:
                     graph_id = curve.get_gid()
                     print('vis test:', vis, id(annot), graph_id)
-                    # if graph_id is None:
-                    #     mutex.release()
-                    #     return
-                    # hover_curves = ['point_history', 'point_forecast',
-                    #                 'point_forecastBeforeTrip', 'point_manual']
                     hover_curves = ['point_history', 'line_history', 'point_forecast',
                                     'line_forecast', 'point_forecastBeforeTrip',
                                     'line_forecastBeforeTrip', 'line_join']
@@ -602,9 +502,6 @@ def hover_disappear(event):
                     annot.set_visible(False)
                     canvas.draw_idle()
                     print('no touch:', annot.get_visible(), id(annot))
-                #     time.sleep(1)
-                #     annot.set_visible(False)
-                #     canvas.draw_idle()
         mutex.release()
 
 
@@ -656,15 +553,10 @@ def main_plot(root, conn, cur, lock):
             # 获取数据
             # 首先根据客户简称,获取 shipto
             global df_info
-            df_info = get_customerInfo(shipto, conn)
-            # print('ass')
-            # print(df_info)
-            # shipto = df_info.LocNum.values[0]
-            df_history = get_historyReading(shipto, fromTime, toTime, conn)
-            # print('history len:', len(df_history))
-            df_forecastBeforeTrip = get_forecastBeforeTrip(shipto, fromTime, toTime, conn)
-            # print(df_history.head())
-            df_forecast = get_forecastReading(shipto, fromTime, toTime, conn)
+            df_info = get_customer_info(shipto, conn)
+            df_history = get_history_reading(shipto, fromTime, toTime, conn)
+            df_forecastBeforeTrip = get_forecast_beforeTrip(shipto, fromTime, toTime, conn)
+            df_forecast = get_forecast_reading(shipto, fromTime, toTime, conn)
             df_max_payload = get_max_payload_by_ship2(
                 conn=conn,
                 ship2=str(shipto),
@@ -677,7 +569,7 @@ def main_plot(root, conn, cur, lock):
             current_primary_dt = '__'
             current_max_payload = 'unknown'
             for i, row in df_max_payload.iterrows():
-                if not pd.isna( row['LicenseFill'] ) and row['LicenseFill'] > 0:
+                if not pd.isna(row['LicenseFill']) and row['LicenseFill'] > 0:
                     current_max_payload = row['LicenseFill']
                 current_primary_dt = row['CorporateIdn']
 
@@ -690,14 +582,14 @@ def main_plot(root, conn, cur, lock):
             ts_forecastBeforeTrip = df_forecastBeforeTrip[[
                 'Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
             ts_forecast_usage = df_forecast[['Next_hr',
-                                            'Hourly_Usage_Rate']].set_index('Next_hr')
+                                             'Hourly_Usage_Rate']].set_index('Next_hr')
             # 记录四个液位值
             full = df_info.FullTrycockGals.values[0]
             TR = df_info.TargetGalsUser.values[0]
             RO = df_info.RunoutGals.values[0]
-            Risk = (RO + TR)/2
+            Risk = (RO + TR) / 2
             # 防止 Risk 是 None 而 无法 int
-            Risk = Risk if Risk is None else int(Risk) 
+            Risk = Risk if Risk is None else int(Risk)
             galsperinch = df_info.GalsPerInch.values[0]
             unitOfLength = df_info.UnitOfLength.values[0]
             uom = unitOfLength_dict[unitOfLength]
@@ -731,7 +623,7 @@ def main_plot(root, conn, cur, lock):
                 pic_title = '{}({}) No History Data'.format(custName, shipto)
             ax.set_title(pic_title, fontsize=20)
             ax.set_ylabel('K G')
-            ax.set_ylim(bottom=0, top=full*1.18)
+            ax.set_ylim(bottom=0, top=full * 1.18)
             # ax.set_xlabel('Date')
             ax.plot(ts_history, color='blue', marker='o', markersize=6,
                     linestyle='None', gid='point_history')
@@ -750,10 +642,10 @@ def main_plot(root, conn, cur, lock):
                 ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
             # decide to plot manual forecast_data_refresh line
             if manual_plot:
-                df_manual = get_manualForecast(shipto, fromTime, toTime, conn)
+                df_manual = get_manual_forecast(shipto, fromTime, toTime, conn)
                 global ts_manual
                 ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-                ax.plot(ts_manual, color='purple', marker='o',  markersize=6,
+                ax.plot(ts_manual, color='purple', marker='o', markersize=6,
                         linestyle='None', gid='point_manual', alpha=0.6)
                 ax.plot(ts_manual, color='purple', label='Manual',
                         linestyle='dashed', alpha=0.6)
@@ -766,9 +658,9 @@ def main_plot(root, conn, cur, lock):
             # 画竖直线,较繁琐。具体函数见定义
             if TR_time is not None:
                 plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full)
-            if (toTime-fromTime).days <= 12:
+            if (toTime - fromTime).days <= 12:
                 ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
-            elif (toTime-fromTime).days <= 24:
+            elif (toTime - fromTime).days <= 24:
                 ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
             else:
                 ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
@@ -776,11 +668,13 @@ def main_plot(root, conn, cur, lock):
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
             # plot for second y-axis
             factor = weight_length_factor(uom)
+
             def kg2cm(x):
                 return x / (galsperinch * factor)
 
             def cm2kg(x):
                 return x * (galsperinch * factor)
+
             secay = ax.secondary_yaxis('right', functions=(kg2cm, cm2kg))
             # secay.set_ylabel(uom)
 
@@ -795,11 +689,11 @@ def main_plot(root, conn, cur, lock):
             # 把 legend 放在图片外部
             # ax.legend(bbox_to_anchor=(1.04, 1.0), loc='upper left', fontsize=8)
             # 2024-04-18 新增 直方图
-            beforeRD = get_beforeReading(conn, shipto)
+            beforeRD = get_before_reading(conn, shipto)
             if len(beforeRD) > 0:
                 binwidth = 200
                 xymax = np.max(np.abs(beforeRD))
-                lim = (int(xymax/binwidth) + 1) * binwidth
+                lim = (int(xymax / binwidth) + 1) * binwidth
                 bins = np.arange(0, lim + binwidth, binwidth)
             else:
                 bins = np.arange(0, 2, 1)
@@ -809,14 +703,14 @@ def main_plot(root, conn, cur, lock):
             ax_histy.clear()
             axHist_info = ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue', orientation='horizontal')
             ax_histy.tick_params(
-                                axis='y',
-                                which='both',      # both major and minor ticks are affected
-                                bottom=False,      # ticks along the bottom edge are off
-                                top=False,         # ticks along the top edge are off
-                                # labelbottom=False,
-                                labelleft=False,
-                                # left=False
-                                )
+                axis='y',
+                which='both',  # both major and minor ticks are affected
+                bottom=False,  # ticks along the bottom edge are off
+                top=False,  # ticks along the top edge are off
+                # labelbottom=False,
+                labelleft=False,
+                # left=False
+            )
             if len(beforeRD) > 0:
                 max_count = np.max(axHist_info[0])
                 xticks = define_xticks(max_count)
@@ -835,12 +729,12 @@ def main_plot(root, conn, cur, lock):
                 fig.savefig('./feedback.png')
                 # print(222)
             # 点击作图时,同时显示客户的充装的详细信息
-            fe = get_forecastError(shipto, conn)
+            fe = get_forecast_error(shipto, conn)
             t4_t6_value = get_t4_t6_value(shipto, conn)
             show_info(custName, TR_time, Risk_time, RO_time, full,
                       TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
                       primary_dt=current_primary_dt, max_payload=current_max_payload,
-                      t4_t6_value =t4_t6_value)
+                      t4_t6_value=t4_t6_value)
             # 显示历史液位
             treeview_data(conn, shipto, reading_tree, 'reading')
             # 显示送货窗口
@@ -850,6 +744,7 @@ def main_plot(root, conn, cur, lock):
 
             update_dtd_table(shipto_id=str(shipto), cursor=cur, risk_time=Risk_time)
             update_near_customer_table(shipto_id=str(shipto), cursor=cur)
+
 
 def define_xticks(num):
     '''对直方图设定刻度；'''
@@ -865,7 +760,7 @@ def define_xticks(num):
         binwidth = 2
     else:
         binwidth = 1
-    lim = (int(num/binwidth) + 1) * binwidth
+    lim = (int(num / binwidth) + 1) * binwidth
     xticks = np.arange(0, lim + binwidth, binwidth)
     return xticks
 
@@ -885,8 +780,6 @@ def plot(event, root, conn, cur, lock):
             if duration > 8:
                 if lock.locked():
                     lock.release()
-    # print(event, type(event))
-    # custName = listbox_customer.get(tk.ANCHOR)
     try:
         main_plot(root, conn, cur, lock)
     except Exception as e:
@@ -895,194 +788,26 @@ def plot(event, root, conn, cur, lock):
             lock.release()
 
 
-# def onclick(event):
-#     if event.dblclick:
-#         x_pos = round(event.xdata)
-#         y_pos = round(event.ydata)
-#         # x1 = event.x
-#         # y1 = event.y
-#         print(x_pos, y_pos)
-#     # print(x1, y1)
 def onpick(event):
     thisline = event.artist
     xdata = thisline.get_xdata()
     ydata = thisline.get_ydata()
     ind = event.ind
-    # x_info = mdates.num2date(xdata[ind]).strftime("%Y-%m-%d %H:%M")
-    # y_info = mdates.num2date(ydata[ind]).strftime("%Y-%m-%d %H:%M")
+
     print(event.artist)
     print(isinstance(event.artist, Line2D))
     print('onpick points:', xdata[ind], ydata[ind])
-    # print('xdata ydata:', xdata, ydata)
-
-# def on_key_press(event):
-#     print("you pressed {}".format(event.key))
-#     key_press_handler(event, canvas, toolbar)
 
 
-# canvas.mpl_connect("key_press_event", on_key_press)
-
-
-# def _quit():
-#     root.quit()     # stops mainloop
-#     root.destroy()  # this is necessary on Windows to prevent
-# Fatal Python Error: PyEval_RestoreThread: NULL tstate
-
-
-def refresh_history_data(cur, conn, file_dict):
-    '''刷新 历史数据,区分AS用,还是 Forecasting 用'''
-    start_time = time.time()
-    if len(file_dict) == 1:
-        # 用于 AS
-        filename = file_dict['chengdu'][1]
-        df_history = pd.read_csv(filename)
-    else:
-        # 用于 Forecasting
-        df_history = pd.DataFrame()
-        for region in file_dict:
-            filename = file_dict[region][2]
-            filename_back = file_dict[region][3]
-            try:
-                df_temp = pd.read_csv(filename)
-                if len(df_temp) <= 10000:
-                    # 说明数据正在写,有缺失
-                    print('file {} is missing data, use backup.'.format(filename))
-                    df_temp = pd.read_csv(filename_back)
-            except Exception as e:
-                print('cannot read file {} , use backup.'.format(filename), e)
-                df_temp = pd.read_csv(filename_back)
-            # 20220622 modify
-            if len(df_temp) > 0:
-                df_history = pd.concat([df_history, df_temp], ignore_index=True)
-    end_time = time.time()
-    print('refresh history {} seconds'.format(round(end_time - start_time)))
-    df_history.ReadingDate = pd.to_datetime(df_history.ReadingDate, format='mixed')
-    df_history = df_history.sort_values(['LocNum', 'ReadingDate']).reset_index(drop=True)
-    df_history.Reading_Gals = (df_history.Reading_Gals).round()
-    table_name = 'historyReading'
-    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
-    conn.commit()
-    df_history[['LocNum', 'ReadingDate', 'Reading_Gals']].to_sql(
-        table_name, con=conn, if_exists='replace', index=False)
-
-
-def refresh_forecast_data(cur, conn, file_dict):
-    '''刷新 预测数据,区分AS用,还是 Forecasting 用'''
-    start_time = time.time()
-    if len(file_dict) == 1:
-        # 用于 AS
-        filename = file_dict['chengdu'][0]
-        df_forecast = pd.read_csv(filename)
-    else:
-        # 用于 Forecasting
-        df_forecast = pd.DataFrame()
-        for region in file_dict:
-            filename = file_dict[region][0]
-            filename_back = file_dict[region][1]
-            try:
-                df_temp = pd.read_csv(filename)
-                if len(df_temp) <= 1500:
-                    print('file {} is missing data, use backup.'.format(filename))
-                    # 说明数据正在写,有缺失
-                    df_temp = pd.read_csv(filename_back)
-            except Exception:
-                print('cannot read file {} , use backup.'.format(filename))
-                df_temp = pd.read_csv(filename_back)
-            if region == 'LB_LCT':
-                # 2024-09-02 新增防止 DOL 中 混入 LCT 数据影响
-                lb_lct_shiptos = list(df_temp.LocNum.unique())
-            # print(filename, df_temp.shape)
-            # df_temp.to_excel('{}.xlsx'.format(name))
-            # 20220622 modify
-            # df_forecast = df_forecast.append(df_temp)
-            if len(df_temp) > 0:
-                df_forecast = pd.concat([df_forecast, df_temp], ignore_index=True)
-    end_time = time.time()
-    print('refresh forecast_data_refresh {} seconds'.format(round(end_time - start_time)))
-    df_forecast.Next_hr = pd.to_datetime(df_forecast.Next_hr)
-    # 2024-09-02 新增：去除 DOL 中 的 LCT 数据
-    f1 = df_forecast.Next_hr.isna()
-    f2 = df_forecast.LocNum.isin(lb_lct_shiptos)
-    # 这一步的意思是说： 如果是一个 LCT 客户，并且 Next_hr 为空，就剔除出去；
-    df_forecast = df_forecast[~(f1&f2)]
-    df_forecast = df_forecast.sort_values(['LocNum', 'Next_hr'])
-    df_forecast.Forecasted_Reading = (df_forecast.Forecasted_Reading).astype(float).round()
-    use_cols = ['LocNum', 'Next_hr', 'Hourly_Usage_Rate', 'Forecasted_Reading', 'RiskGals',
-                'TargetRefillDate',	'TargetRiskDate', 'TargetRunoutDate']
-    df_forecast1 = df_forecast.loc[df_forecast.Forecasted_Reading.notna(
-    ), use_cols].reset_index(drop=True).copy()
-    # df_forecast1.to_excel('aaa.xlsx')
-    table_name = 'forecastReading'
-    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
-    conn.commit()
-    df_forecast1.to_sql(table_name, con=conn, if_exists='replace', index=False)
-
-
-def refresh_forecastBeforeTrip_data(cur, conn, file_dict):
-    '''刷新 送货前数据,区分AS用,还是 Forecasting 用'''
-    start_time = time.time()
-    if len(file_dict) == 1:
-        # 用于 AS
-        filename = file_dict['chengdu'][2]
-        df_forecast = pd.read_csv(filename)
-    else:
-        # 用于 Forecasting
-        df_forecast = pd.DataFrame()
-        for region in file_dict:
-            filename = file_dict[region][4]
-            filename_back = file_dict[region][5]
-            try:
-                df_temp = pd.read_csv(filename)
-            except Exception:
-                print('cannot read file {} , use backup.'.format(filename))
-                df_temp = pd.read_csv(filename_back)
-            # 20220622 modify
-            # df_forecast = df_forecast.append(df_temp)
-            if len(df_temp) > 0:
-                df_forecast = pd.concat([df_forecast, df_temp], ignore_index=True)
-    end_time = time.time()
-    print('refresh drop {} seconds'.format(round(end_time - start_time)))
-    df_forecast.Next_hr = pd.to_datetime(df_forecast.Next_hr)
-    df_forecast = df_forecast.sort_values(['LocNum', 'Next_hr'])
-    df_forecast.Forecasted_Reading = (df_forecast.Forecasted_Reading).astype(float).round()
-    df_forecast1 = df_forecast.loc[df_forecast.Forecasted_Reading.notna(
-    ), ['LocNum', 'Next_hr', 'Forecasted_Reading']].reset_index(drop=True).copy()
-    table_name = 'forecastBeforeTrip'
-    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
-    conn.commit()
-    df_forecast1.to_sql(table_name, con=conn, if_exists='replace', index=False)
-
-
-def refresh_fe(cur, conn):
-    '''刷新 forecast_data_refresh error'''
-    # 2023-03-06 dongliang modified
-    # filepath = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling\\ForecastErrorTesting'
-    filepath = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling\\ForecastingInputOutput\\ErrorRecording'
-    filename = os.path.join(filepath, 'Error Result.csv')
-    df_fe = pd.read_csv(filename)
-    df_fe = df_fe[df_fe.AverageError_SEH.notna()].reset_index(drop=True)
-    if len(df_fe) > 0:
-        df_fe['AverageError'] = df_fe.apply(lambda row: min(row['AverageError_SEH'], row['AverageError_ARIMA']), axis=1)
-    else:
-        df_fe['AverageError'] = None
-    use_cols = ['LocNum', 'AverageError']
-    df_fe = df_fe[use_cols]
-    table_name = 'forecastError'
-    cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
-    conn.commit()
-    df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
-
-
-def refresh_data(cur, conn, file_dict):
+def refresh_data(cur, conn, show_message=True):
     try:
-        refresh_history_data(cur, conn, file_dict)
-        refresh_forecast_data(cur, conn, file_dict)
-        refresh_forecastBeforeTrip_data(cur, conn, file_dict)
-        refresh_fe(cur, conn)
-        logConnection(log_file, 'refreshed')
-        messagebox.showinfo(title='success', message='data to sqlite success!')
-    except Exception:
-        messagebox.showinfo(title='failure', message='failure, please check!')
+        data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
+        data_refresh.refresh_lb_hourly_data()
+        func.log_connection(log_file, 'refreshed')
+        if show_message:
+            messagebox.showinfo(title='success', message='data to sqlite success!')
+    except Exception as e:
+        messagebox.showinfo(title='failure', message='failure, please check! {}'.format(e))
 
 
 def info_fiter_frame(par_frame):
@@ -1099,7 +824,7 @@ def info_cust_frame(par_frame):
     return frame_name
 
 
-def input_framework(framename, cur, conn, file_dict):
+def input_framework(framename, cur, conn):
     # 输入 起始日期
     lb_fromtime = tk.Label(framename, text='from time')
     lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
@@ -1119,7 +844,7 @@ def input_framework(framename, cur, conn, file_dict):
     to_box.grid(row=1, column=1, padx=10, pady=5)
     # 设置刷新按钮
     btn_refresh = tk.Button(framename, text='Refresh data',
-                            command=lambda: refresh_data(cur, conn, file_dict))
+                            command=lambda: refresh_data(cur, conn))
     btn_refresh.grid(row=2, column=0, padx=10, pady=10)
     # 设置是否需要 从DOL API 下载数据
     global var_TELE
@@ -1178,19 +903,7 @@ def demandType_boxlist(framename):
 def customer_query(framename):
     global entry_name
     entry_name = tk.Entry(framename, width=20, bg='white', fg='black', borderwidth=1)
-    # entry_name.insert(0, 'name or shipto:')
     entry_name.grid(row=0, column=0)
-
-
-# def click_entry_name(event):
-#     entry_name.delete(0, 'end')
-#
-#
-# def leave_entry_name(event):
-#     entry_name.delete(0, 'end')
-#     entry_name.insert(0, 'name or shipto:')
-    # root.focus()
-
 
 def customer_boxlist(framename):
     ''' customer boxlist'''
@@ -1202,11 +915,6 @@ def customer_boxlist(framename):
     global listbox_customer
     listbox_customer = tk.Listbox(
         frame_name, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
-    # listbox_customer = tk.Listbox(
-    #     frame_name, height=10, width=20, yscrollcommand=scroll_y.set)
-    # custName_list = df_name_forecast.index
-    # for item in custName_list:
-    #     listbox_customer.insert(tk.END, item)
     scroll_y.config(command=listbox_customer.yview)
     scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
     frame_name.grid(row=1, column=0, padx=5, pady=5, columnspan=2)
@@ -1292,21 +1000,14 @@ def show_list_terminal_product_FO(event):
     selected_subRegion = listbox_subRegion.get(tk.ANCHOR)
     terminal_list = sorted(list(df_name_forecast.loc[df_name_forecast.SubRegion ==
                                                      selected_subRegion, 'PrimaryTerminal'].unique()))
-    # print(terminal_list)
-    # if len(terminal_list) == 1:
-    #     listbox_terminal.insert(tk.END, terminal_list[0])
     for item in terminal_list:
         listbox_terminal.insert(tk.END, item)
     # 2 products
     listbox_products.delete(0, tk.END)
-    # product_list = sorted(list(df_name_forecast.loc[df_name_forecast.SubRegion ==
-    #                                                 selected_subRegion, 'ProductClass'].unique()))
-    # sort products by lin lox lar co2
     product_list = df_name_forecast.loc[df_name_forecast.SubRegion ==
                                         selected_subRegion, 'ProductClass'].unique()
     product_list = [rank_product(i) for i in product_list]
     product_list = [i[0] for i in sorted(product_list, key=lambda x: x[1])]
-    # product_list = product_list
     for item in product_list:
         listbox_products.insert(tk.END, item)
     # 3 Demand type
@@ -1378,10 +1079,6 @@ def get_all_customer_from_sqlite(conn):
 
 
 def send_feedback(event, root, conn, cur, lock):
-    # email_worker = send_email()
-    # flag = 'Success'
-    # message_subject, message_body, addressee = email_worker.getEmailData(flag)
-    # email_worker.outlook(addressee, message_subject, message_body)
     global save_pic
     save_pic = True
     pic_name = "./feedback.png"
@@ -1398,7 +1095,7 @@ def send_feedback(event, root, conn, cur, lock):
     rounds = 0
     while not os.path.isfile(pic_name):
         time.sleep(2)
-        rounds = rounds+1
+        rounds = rounds + 1
         if rounds > 5:
             messagebox.showinfo(parent=root, title='Warning', message='No Data To Send!')
             return
@@ -1456,6 +1153,7 @@ def detail_info_label(framename):
     lb22 = tk.Label(framename, text='')
     lb22.grid(row=1, column=1, padx=6, pady=pad_y)
 
+
 def frame_warning_label(framename):
     global t4_t6_value_label
 
@@ -1497,12 +1195,6 @@ def manual_input_label(framename, root, lock, cur, conn):
     reason_options = ['', '并联罐', '生产计划原因', '节日长假', '突发情况', '模型有改进空间']
     combo_reason = ttk.Combobox(framename, value=reason_options)
     combo_reason.grid(row=5, column=1, padx=1, pady=5)
-    # event = None
-    # btn_email = tk.Button(framename, text='Send Email', width=15,
-    #                       command=lambda: send_feedback(root, conn))
-    # btn_email = tk.Button(framename, text='Send Email', width=15,
-    #                       command=Thread(target=send_feedback, args=(event, root, conn)).start())
-    # global btn_email
     btn_email = tk.Button(framename, text='Send Email', width=15)
     btn_email.grid(row=6, column=0, pady=1, columnspan=2)
     btn_email.bind('<Button-1>', lambda event: threading.Thread(target=send_feedback,
@@ -1570,7 +1262,7 @@ def calculate_by_manual(cur, conn, root, lock):
     else:
         try:
             galsperinch = df_info.GalsPerInch.values[0]
-            input_value = float(input_value2)*galsperinch
+            input_value = float(input_value2) * galsperinch
         except ValueError:
             messagebox.showinfo(parent=root, title='Warning', message='Input Wrong')
             return
@@ -1584,13 +1276,6 @@ def calculate_by_manual(cur, conn, root, lock):
         return
     else:
         shipto = int(df_name_forecast.loc[custName].values[0])
-        validate_flag = time_validate_check(conn, shipto)
-    # if not validate_flag[0]:
-    #     messagebox.showinfo(parent=root, title='Warning', message=validate_flag[1])
-    #     return
-    # else:
-        # fromTime = pd.to_datetime(from_box.get())
-        # toTime = pd.to_datetime(to_box.get())
     df = create_manual_forecast_data(conn, shipto, input_value)
     table_name = 'manual_forecast'
     cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -1612,23 +1297,13 @@ def reset_manual(root, conn, cur, lock):
 
 def treeView_design(framename, width, height, row, column, y_scroll):
     '''增加 treeView'''
-    # create frame
-    # 固定大小,并且不让Frame根据内容自由变化大小
-    # myFrame = tk.Frame(framename, width=335, height=120)
     myFrame = tk.Frame(framename, width=width, height=height)
     myFrame.pack_propagate(0)
-    # myFrame.pack(pady=1)
-    # myFrame.pack_propagate(0)
-    # myFrame.grid(row=0, column=3, padx=10)
     myFrame.grid(row=row, column=column, padx=10, pady=5)
     # treeview scrollbar
     if y_scroll:
         tree_scroll_y = tk.Scrollbar(myFrame, orient=tk.VERTICAL)
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        # tree_scroll_x = tk.Scrollbar(myFrame, orient=tk.HORIZONTAL)
-        # tree_scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
-    # create treeview
-    # global myTree
         myTree = ttk.Treeview(myFrame, yscrollcommand=tree_scroll_y.set, selectmode='extended')
         # configure the scrollbar
         tree_scroll_y.config(command=myTree.yview)
@@ -1659,7 +1334,7 @@ def treeview_data(conn, shipto, treename, purpose):
         df = get_recent_reading(shipto, conn)
         clear_tree(treename)
     else:
-        df = get_deliveryWindow(shipto, conn)
+        df = get_delivery_window(shipto, conn)
         clear_tree(treename)
     # print(df)
     # set up new tree view
@@ -1694,13 +1369,11 @@ def treeview_data(conn, shipto, treename, purpose):
     # 填入内容
     for row in df_rows:
         if count % 2 == 0:
-            treename.insert(parent='', index='end', values=row, tags=('evenRow', ))
+            treename.insert(parent='', index='end', values=row, tags=('evenRow',))
         else:
-            treename.insert(parent='', index='end', values=row, tags=('oddRow', ))
+            treename.insert(parent='', index='end', values=row, tags=('oddRow',))
         count += 1
     treename.pack()
-
-
 
 
 def forecaster_run(root, path1, cur, conn):
@@ -1708,23 +1381,12 @@ def forecaster_run(root, path1, cur, conn):
     global plot_flag
     plot_flag = True
 
-    print('start check_refresh_deliveryWindow')
-    check_refresh_deliveryWindow(cur=cur, conn=conn)
-    print('finish check_refresh_deliveryWindow')
-
-    file_dict = get_filename(path1, purpose='LB_CNS')
-    print('start refresh sharefolder')
-    refresh_history_data(cur, conn, file_dict)
-    refresh_forecast_data(cur, conn, file_dict)
-    refresh_forecastBeforeTrip_data(cur, conn, file_dict)
-    refresh_fe(cur, conn)
-    print('finish refresh sharefolder.')
     global df_name_forecast, df_name_all
     df_name_forecast = get_forecast_customer_from_sqlite(conn)
     df_name_all = get_all_customer_from_sqlite(conn)
     # 建立 作图区域
     plot_frame = tk.LabelFrame(root, text='Plot')
-    plot_frame.pack(fill='x',  expand=True, padx=2, pady=1)
+    plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
 
     # column 0: 筛选区域
     plot_frame.columnconfigure(0, weight=1)
@@ -1737,12 +1399,12 @@ def forecaster_run(root, path1, cur, conn):
     # 重新排版,建立 frame_input
     frame_input = tk.LabelFrame(plot_frame, text='input')
     frame_input.grid(row=1, column=0, padx=2, pady=5)
-    input_framework(frame_input, cur=cur, conn=conn, file_dict=file_dict)
+    input_framework(frame_input, cur=cur, conn=conn)
 
     # column 1：作图区域
     plot_frame.columnconfigure(1, weight=8)
     pic_frame = tk.LabelFrame(plot_frame)
-    pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E+tk.W+tk.N+tk.S)
+    pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E + tk.W + tk.N + tk.S)
     pic_frame.rowconfigure(0, weight=1)
     pic_frame.columnconfigure(0, weight=1)
     global fig, ax, ax_histy, canvas, toolbar, annot
@@ -1793,7 +1455,7 @@ def forecaster_run(root, path1, cur, conn):
     # 输入 起始日期
     detail_info_label(frame_detail)
 
-    second_col_frame =  tk.LabelFrame(par_frame)
+    second_col_frame = tk.LabelFrame(par_frame)
     second_col_frame.grid(row=0, column=2, padx=2, pady=2)
 
     frame_warning = tk.LabelFrame(second_col_frame, text='Warning')
@@ -1818,10 +1480,10 @@ def forecaster_run(root, path1, cur, conn):
 
     global log_file
     log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
-    logConnection(log_file, 'opened')
+    func.log_connection(log_file, 'opened')
+
 
 def dtd_cluster_label(dtd_cluster_frame):
-
     # 上方 Frame：Terminal/Source DTD 模块
     frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
     frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
@@ -1841,8 +1503,9 @@ def dtd_label(dtd_frame):
     columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
     col_widths = [10, 20, 20, 100]
 
-    dtd_table = SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
+    dtd_table = ui_structure.SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
     dtd_table.frame.pack(fill="both", expand=True)
+
 
 def update_dtd_table(shipto_id: str, cursor, risk_time: pd.Timestamp):
     # 提取 primary DTD 信息
@@ -1902,14 +1565,17 @@ def update_dtd_table(shipto_id: str, cursor, risk_time: pd.Timestamp):
     rows = [primary_info] + source_list
     dtd_table.insert_rows(rows)
 
+
 def near_customer_label(near_customer_frame):
     global near_customer_table
 
     columns = ["临近客户简称", "距离(km)", "DDER"]
     col_widths = [100, 20, 10]
 
-    near_customer_table = SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths, height=4)
+    near_customer_table = ui_structure.SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths,
+                                                   height=4)
     near_customer_table.frame.pack(fill="both", expand=True)
+
 
 def update_near_customer_table(shipto_id: str, cursor):
     sql_line = '''
@@ -1943,53 +1609,3 @@ def update_near_customer_table(shipto_id: str, cursor):
         update_rows.append(update_row)
 
     near_customer_table.insert_rows(update_rows)
-
-def update_font():
-    # font
-    font_path = os.path.join('./', 'SimHei.ttf')
-    try:
-        from matplotlib.font_manager import fontManager
-        fontManager.addfont(font_path)
-        matplotlib.rc('font', family='SimHei')
-    except Exception as e:
-        print(e)
-
-@decorator.record_time_decorator("拷贝数据库")
-def copyfile(dbname: str, to_dir: str, from_dir: str):
-    import shutil
-    to_delivery_file = os.path.join(to_dir, dbname)
-    from_file = os.path.join(from_dir, dbname)
-    try:
-        if os.path.isfile(from_file):
-            shutil.copyfile(from_file, to_delivery_file)
-        info = "DATABASE TRANSFER SUCCESS"
-        print(info)
-    except Exception as e:
-        info = "DATABASE TRANSFER FAILURE"
-        print(info, e)
-
-
-if __name__ == '__main__':
-    from src.forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
-    update_font()
-
-    # 刷新 ODBC Master Data
-    path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
-
-    db_name = 'AutoSchedule.sqlite'
-    conn = connect_sqlite(db_name)
-    cur = conn.cursor()
-
-    daily_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
-    daily_refresh.refresh_earliest_part_data()
-
-    # 建立窗口
-    root = tk.Tk()
-    root.wm_title("Air Products Forecasting Viz")
-    root.iconbitmap('./csl.ico')
-    # print('screenwidth, screenheight', root.winfo_screenwidth(), root.winfo_screenheight())
-    width, height = root.winfo_screenwidth(), root.winfo_screenheight()
-    print('screenwidth, screenheight', width, height)
-    # root.geometry('%dx%d+0+0' % (width, height))
-    forecaster_run(root, path1, cur, conn)
-    root.mainloop()

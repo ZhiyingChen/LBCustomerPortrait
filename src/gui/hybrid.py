@@ -1,9 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-from src.gui.forecast_ui import update_font, connect_sqlite, forecaster_run, copyfile
+from src.gui.forecast_ui import connect_sqlite, forecaster_run
 from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from .new import NewInterface
 from ..utils.decorator import record_time_decorator
+from ..utils import functions as func
 
 class HybridApp(tk.Tk):
 
@@ -25,7 +26,7 @@ class HybridApp(tk.Tk):
         self.db_name = 'AutoSchedule.sqlite'
         self.path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
 
-        copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
+        func.copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
         self.conn = connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
 

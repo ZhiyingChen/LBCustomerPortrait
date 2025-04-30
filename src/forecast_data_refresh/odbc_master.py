@@ -36,9 +36,6 @@ def check_refresh_deliveryWindow(cur, conn):
         refresh_DeliveryWindow(cur, conn)
 
 def connect_odbc(server, database):
-    # cnxn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER='+server +
-    #                       ';DATABASE='+database+';UID='+username+';PWD=' + password + ';Trusted_Connection=yes')
-    # 这句话是2021-11-29 修改，请注意：这里的 DRIVER 的参数变化了，这是一个很重要的变化！
     cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+database+'')
     return cnxn
 
