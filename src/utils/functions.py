@@ -2,6 +2,7 @@ from . import decorator
 import os
 import datetime
 import sqlite3
+import numpy as np
 
 
 @decorator.record_time_decorator("拷贝数据库")
@@ -34,3 +35,49 @@ def connect_sqlite(db_name: str):
     conn = sqlite3.connect(db_name, check_same_thread=False)
     print('sqlite connected')
     return conn
+
+def weight_length_factor(uom):
+    '''因为 LBSHELL 与 odbc 导出 单位转化原因，需要设置一个 factor 进行还原'''
+    if uom == 'Inch':
+        return 2.54
+    elif uom == 'M':
+        return 10
+    elif uom == 'MM':
+        return 1 / 10
+    else:
+        return 1
+
+def define_xticks( num):
+    '''对直方图设定刻度；'''
+    if num >= 50:
+        binwidth = 10
+    elif num >= 25:
+        binwidth = 5
+    elif num >= 20:
+        binwidth = 4
+    elif num >= 13:
+        binwidth = 3
+    elif num >= 5:
+        binwidth = 2
+    else:
+        binwidth = 1
+    lim = (int(num / binwidth) + 1) * binwidth
+    xticks = np.arange(0, lim + binwidth, binwidth)
+    return xticks
+
+def rank_product(x):
+    '''给 product 排序'''
+    if x == 'LIN':
+        return (x, 1)
+    elif x == 'LOX':
+        return (x, 2)
+    elif x == 'LAR':
+        return (x, 3)
+    elif x == 'CO2':
+        return (x, 4)
+    elif x == 'LUX':
+        return (x, 5)
+    elif x == 'LUN':
+        return (x, 6)
+    else:
+        return (x, 7)

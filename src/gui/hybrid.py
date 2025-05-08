@@ -45,9 +45,9 @@ class HybridApp(tk.Tk):
         self.forecast_interface_container = ttk.Frame(self.main_container)
         self.forecast_interface_container.pack(fill='both', expand=True)
 
-        lb_forecast_ui = LBForecastUI()
+        lb_forecast_ui = LBForecastUI(root=self.forecast_interface_container, conn=self.conn, cur=self.cur)
         # 执行原有界面构建逻辑
-        lb_forecast_ui.forecaster_run(self.forecast_interface_container, self.path1, self.cur, self.conn)
+        lb_forecast_ui.forecaster_run(self.path1)
 
     def _setup_navigation(self):
         """添加导航控制栏"""

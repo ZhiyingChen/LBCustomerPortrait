@@ -39,13 +39,20 @@ params = {'legend.fontsize': 'x-large',
 pylab.rcParams.update(params)
 
 class LBForecastUI:
-    def __init__(self):
-        pass
+    def __init__(
+            self,
+            root,
+            conn,
+            cur
+    ):
+        self.root = root
+        self.conn = conn
+        self.cur = cur
 
+        self.lock = threading.Lock()
 
-
-
-    def get_history_reading(self, shipto, fromTime, toTime, conn):
+    def get_history_reading(self, shipto, fromTime, toTime):
+        conn = self.conn
         '''获取历史液位数据'''
         sql = '''select LocNum, ReadingDate, Reading_Gals
                  FROM historyReading
@@ -57,9 +64,10 @@ class LBForecastUI:
         return df_history
 
 
-    def get_forecast_reading(self, shipto, fromTime, toTime, conn):
+    def get_forecast_reading(self, shipto, fromTime, toTime):
         '''获取预测液位数据, 注意 返回的 df_forecast 长度始终大于 0；'''
         # 第一步 首先判断 该 shipto 是不是一个异常 shipto
+        conn = self.conn
         sql = '''select * FROM forecastReading
              where (Forecasted_Reading=999999
                     OR Forecasted_Reading=888888
@@ -92,8 +100,9 @@ class LBForecastUI:
         return df_forecast
 
 
-    def get_forecast_before_trip(self, shipto, fromTime, toTime, conn):
+    def get_forecast_before_trip(self, shipto, fromTime, toTime):
         '''获取当前到送货前预测液位数据'''
+        conn = self.conn
         sql = '''select LocNum, Next_hr, Forecasted_Reading
              FROM forecastBeforeTrip
              where Next_hr >= '{}'
@@ -104,8 +113,9 @@ class LBForecastUI:
         return df_forecast
 
 
-    def get_before_reading(self, conn, shipto):
+    def get_before_reading(self, shipto):
         '''获取司机录入液位'''
+        conn = self.conn
         sql = '''select ReadingDate, beforeKG from beforeReading
                  WHERE LocNum={};'''.format(shipto)
         df = pd.read_sql(sql, conn)
@@ -115,9 +125,9 @@ class LBForecastUI:
 
     def get_max_payload_by_ship2(
             self,
-            conn,
             ship2: str,
     ):
+        conn = self.conn
         sql_statement = \
             ("SELECT CorporateIdn, LicenseFill "
              "FROM odbc_MaxPayloadByShip2 "
@@ -126,8 +136,9 @@ class LBForecastUI:
         return result_df
 
 
-    def get_manual_forecast(self, shipto, fromTime, toTime, conn):
+    def get_manual_forecast(self, shipto, fromTime, toTime):
         '''get manually calculated data'''
+        conn = self.conn
         sql = '''select *
                  FROM manual_forecast
                  where Next_hr >= '{}'
@@ -138,8 +149,9 @@ class LBForecastUI:
         return df_manual
 
 
-    def get_customer_info(self, shipto, conn):
+    def get_customer_info(self, shipto):
         '''获取customer数据'''
+        conn = self.conn
         sql = '''select *
              FROM odbc_master
              where LocNum = {};'''.format(shipto)
@@ -147,8 +159,9 @@ class LBForecastUI:
         return df_info
 
 
-    def get_recent_reading(self, shipto, conn):
+    def get_recent_reading(self, shipto):
         '''从 historyReading 里获取最近液位读数'''
+        conn = self.conn
         galsPerInch = df_info.GalsPerInch.values[0]
         sql = '''select ReadingDate, Reading_Gals
                      FROM historyReading
@@ -183,12 +196,11 @@ class LBForecastUI:
         return df1
 
 
-    def get_delivery_window(self, shipto, conn):
+    def get_delivery_window(self, shipto):
         '''从 odbc_DeliveryWindow 里获取 送货窗口数据'''
+        conn = self.conn
         sql = '''select * from odbc_DeliveryWindow where LocNum={}'''.format(shipto)
         df = pd.read_sql(sql, conn)
-        # df1 = df.loc[:, df.columns[1:]].applymap(lambda x: pd.to_datetime(x).strftime('%H:%M'))
-
         try:
             # 新版本
             df1 = df.loc[:, df.columns[1:]].map(lambda x: pd.to_datetime(x).strftime('%H:%M'))
@@ -213,8 +225,9 @@ class LBForecastUI:
         return df2
 
 
-    def get_forecast_error(self, shipto, conn):
+    def get_forecast_error(self, shipto):
         '''获取 forecastError'''
+        conn = self.conn
         table_name = 'forecastError '
         sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
         df = pd.read_sql(sql, conn)
@@ -225,7 +238,8 @@ class LBForecastUI:
         return fe
 
 
-    def get_t4_t6_value(self, shipto, conn):
+    def get_t4_t6_value(self, shipto):
+        conn = self.conn
         table_name = "t4_t6_data"
         sql = '''SELECT * FROM {} WHERE LocNum = {}'''.format(table_name, shipto)
         df = pd.read_sql(sql, conn)
@@ -234,18 +248,6 @@ class LBForecastUI:
         for i, row in df.iterrows():
             t4_t6_val = round(row['beforeToRoHours_rolling_mean'], 1)
         return t4_t6_val
-
-
-    def weight_length_factor(self, uom):
-        '''因为 LBSHELL 与 odbc 导出 单位转化原因，需要设置一个 factor 进行还原'''
-        if uom == 'Inch':
-            return 2.54
-        elif uom == 'M':
-            return 10
-        elif uom == 'MM':
-            return 1 / 10
-        else:
-            return 1
 
 
     def clean_detailed_info(self):
@@ -263,7 +265,7 @@ class LBForecastUI:
         # 20220624 we need to clean the previous info first
         self.clean_detailed_info()
         # unitOfLength_dict = {1: 'CM', 2: 'Inch', 3: 'M', 4: 'MM', 5: 'Percent', 6: 'Liters'}
-        factor = self.weight_length_factor(uom)
+        factor = func.weight_length_factor(uom)
         # 2023-10-31 修改
         if Risk_time is None:
             # 只挑选部分内容显示
@@ -312,8 +314,9 @@ class LBForecastUI:
         t4_t6_value_label.config(text=t4_t6_value)
 
 
-    def time_validate_check(self, conn, shipto):
+    def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''
+        conn = self.conn
         validate_flag = (True, True)
         try:
             fromTime = pd.to_datetime(from_box.get())
@@ -325,7 +328,7 @@ class LBForecastUI:
         except ValueError:
             validate_flag = (False, 'To Time Wrong!')
             return validate_flag
-        df = self.get_forecast_reading(shipto, fromTime, toTime, conn)
+        df = self.get_forecast_reading(shipto, fromTime, toTime)
         # 为了防止 df 是空的：
         if len(df) == 0:
             # 这表明没有预测数据， 但是也要显示历史数据
@@ -414,12 +417,9 @@ class LBForecastUI:
             return
         vis = annot.get_visible()
         for curve in ax.get_lines():
-            # print(curve)
             # Searching which data member corresponds to current mouse position
             if curve.contains(event)[0]:
                 graph_id = curve.get_gid()
-                # print('global ', 'ts_manual' in globals())
-                # print('locals ', 'ts_manual' in locals())
                 if 'ts_manual' in globals():
                     graph_dict = {'point_history': ts_history,
                                   'point_forecast': ts_forecast,
@@ -444,7 +444,7 @@ class LBForecastUI:
                     galsperinch = df_info.GalsPerInch.values[0]
                     unitOfLength = df_info.UnitOfLength.values[0]
                     uom = unitOfLength_dict[unitOfLength]
-                    factor = self.weight_length_factor(uom)
+                    factor = func.weight_length_factor(uom)
                     show_level_cm = int(round(show_level / (galsperinch * factor), 1))
                     # 可卸货量
                     loadAMT = int(full - show_level)
@@ -454,17 +454,13 @@ class LBForecastUI:
                     self.update_annot(pos, text)
                     annot.set_visible(True)
                     canvas.draw_idle()
-                    # print('000')
                 else:
-                    # pass
                     if vis:
-                        # print(999)
                         annot.set_visible(False)
                         canvas.draw_idle()
             else:
                 # pass
                 if vis:
-                    # print(777)
                     annot.set_visible(False)
                     canvas.draw_idle()
 
@@ -479,10 +475,7 @@ class LBForecastUI:
                 return
             vis = annot.get_visible()
             if vis:
-                # curves = [i.get_gid() for i in ax.get_lines()]
-                # print(curves)
                 for curve in ax.get_lines():
-                    # print('curve:', curve)
                     if curve.contains(event)[0]:
                         graph_id = curve.get_gid()
                         print('vis test:', vis, id(annot), graph_id)
@@ -493,11 +486,9 @@ class LBForecastUI:
                             time.sleep(2)
                             annot.set_visible(False)
                             canvas.draw_idle()
-                            # print('after:', annot.get_visible(), id(annot), graph_id)
                             mutex.release()
                             return
                     else:
-                        # print(333)
                         time.sleep(2)
                         annot.set_visible(False)
                         canvas.draw_idle()
@@ -505,8 +496,11 @@ class LBForecastUI:
             mutex.release()
 
 
-    def main_plot(self, root, conn, cur, lock):
+    def main_plot(self):
         '''作图主函数'''
+        root = self.root
+        conn = self.conn
+        lock = self.lock
         custName = listbox_customer.get(listbox_customer.curselection()[0])
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
@@ -517,7 +511,7 @@ class LBForecastUI:
         else:
             shipto = int(df_name_forecast.loc[custName].values[0])
             TELE_type = df_name_forecast.loc[custName, 'Subscriber']
-            validate_flag = self.time_validate_check(conn, shipto)
+            validate_flag = self.time_validate_check(shipto)
             # print(custName, type(custName))
             # 如果查询得到 shipto,则显示 shipto,否则 将 shipto 设为 1
             if (not validate_flag[0]) and var_TELE.get() == 0:
@@ -553,12 +547,11 @@ class LBForecastUI:
                 # 获取数据
                 # 首先根据客户简称,获取 shipto
                 global df_info
-                df_info = self.get_customer_info(shipto, conn)
-                df_history = self.get_history_reading(shipto, fromTime, toTime, conn)
-                df_forecastBeforeTrip = self.get_forecast_before_trip(shipto, fromTime, toTime, conn)
-                df_forecast = self.get_forecast_reading(shipto, fromTime, toTime, conn)
+                df_info = self.get_customer_info(shipto)
+                df_history = self.get_history_reading(shipto, fromTime, toTime)
+                df_forecastBeforeTrip = self.get_forecast_before_trip(shipto, fromTime, toTime)
+                df_forecast = self.get_forecast_reading(shipto, fromTime, toTime)
                 df_max_payload = self.get_max_payload_by_ship2(
-                    conn=conn,
                     ship2=str(shipto),
                 )
                 # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
@@ -640,7 +633,7 @@ class LBForecastUI:
                     ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
                 # decide to plot manual forecast_data_refresh line
                 if manual_plot:
-                    df_manual = self.get_manual_forecast(shipto, fromTime, toTime, conn)
+                    df_manual = self.get_manual_forecast(shipto, fromTime, toTime)
                     global ts_manual
                     ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
                     ax.plot(ts_manual, color='purple', marker='o', markersize=6,
@@ -665,7 +658,7 @@ class LBForecastUI:
                 # fig.autofmt_xdate()
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
                 # plot for second y-axis
-                factor = self.weight_length_factor(uom)
+                factor = func.weight_length_factor(uom)
 
                 def kg2cm(x):
                     return x / (galsperinch * factor)
@@ -676,7 +669,7 @@ class LBForecastUI:
                 ax.grid()
 
                 # 2024-04-18 新增 直方图
-                beforeRD = self.get_before_reading(conn, shipto)
+                beforeRD = self.get_before_reading(shipto)
                 if len(beforeRD) > 0:
                     binwidth = 200
                     xymax = np.max(np.abs(beforeRD))
@@ -698,7 +691,7 @@ class LBForecastUI:
                 )
                 if len(beforeRD) > 0:
                     max_count = np.max(axHist_info[0])
-                    xticks = self.define_xticks(max_count)
+                    xticks = func.define_xticks(max_count)
                 else:
                     xticks = np.arange(0, 2, 1)
                 ax_histy.set_xticks(xticks)
@@ -711,46 +704,29 @@ class LBForecastUI:
                 if save_pic:
                     fig.savefig('./feedback.png')
                 # 点击作图时,同时显示客户的充装的详细信息
-                fe = self.get_forecast_error(shipto, conn)
-                t4_t6_value = self.get_t4_t6_value(shipto, conn)
+                fe = self.get_forecast_error(shipto)
+                t4_t6_value = self.get_t4_t6_value(shipto)
 
                 self.show_info(custName, TR_time, Risk_time, RO_time, full,
                           TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
                           primary_dt=current_primary_dt, max_payload=current_max_payload,
                           t4_t6_value=t4_t6_value)
                 # 显示历史液位
-                self.treeview_data(conn, shipto, reading_tree, 'reading')
+                self.treeview_data(shipto, reading_tree, 'reading')
                 # 显示送货窗口
-                self.treeview_data(conn, shipto, deliveryWindow_tree, 'deliveryWindow')
+                self.treeview_data(shipto, deliveryWindow_tree, 'deliveryWindow')
                 if lock.locked():
                     lock.release()
 
-                self.update_dtd_table(shipto_id=str(shipto), cursor=cur, risk_time=Risk_time)
-                self.update_near_customer_table(shipto_id=str(shipto), cursor=cur)
+                self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
+                self.update_near_customer_table(shipto_id=str(shipto))
 
 
-    def define_xticks(self, num):
-        '''对直方图设定刻度；'''
-        if num >= 50:
-            binwidth = 10
-        elif num >= 25:
-            binwidth = 5
-        elif num >= 20:
-            binwidth = 4
-        elif num >= 13:
-            binwidth = 3
-        elif num >= 5:
-            binwidth = 2
-        else:
-            binwidth = 1
-        lim = (int(num / binwidth) + 1) * binwidth
-        xticks = np.arange(0, lim + binwidth, binwidth)
-        return xticks
 
-
-    def plot(self, event, root, conn, cur, lock):
+    def plot(self):
         '''多线程作图主函数'''
         starttime = time.time()
+        lock = self.lock
         # lock the thread
         while True:
             if lock.acquire(blocking=False) is True:
@@ -764,26 +740,17 @@ class LBForecastUI:
                     if lock.locked():
                         lock.release()
         try:
-            self.main_plot(root, conn, cur, lock)
+            self.main_plot()
         except Exception as e:
             print(e)
             if lock.locked():
                 lock.release()
 
 
-    def onpick(self, event):
-        thisline = event.artist
-        xdata = thisline.get_xdata()
-        ydata = thisline.get_ydata()
-        ind = event.ind
-
-        print(event.artist)
-        print(isinstance(event.artist, Line2D))
-        print('onpick points:', xdata[ind], ydata[ind])
-
-
-    def refresh_data(self, cur, conn, show_message=True):
+    def refresh_data(self,show_message=True):
         try:
+            conn = self.conn
+            cur = self.cur
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
             func.log_connection(log_file, 'refreshed')
@@ -807,7 +774,7 @@ class LBForecastUI:
         return frame_name
 
 
-    def input_framework(self, framename, cur, conn):
+    def input_framework(self, framename):
         # 输入 起始日期
         lb_fromtime = tk.Label(framename, text='from time')
         lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
@@ -827,7 +794,7 @@ class LBForecastUI:
         to_box.grid(row=1, column=1, padx=10, pady=5)
         # 设置刷新按钮
         btn_refresh = tk.Button(framename, text='Refresh data',
-                                command=lambda: refresh_data(cur, conn))
+                                command=self.refresh_data)
         btn_refresh.grid(row=2, column=0, padx=10, pady=10)
         # 设置是否需要 从DOL API 下载数据
         global var_TELE
@@ -856,9 +823,6 @@ class LBForecastUI:
         global listbox_terminal
         listbox_terminal = tk.Listbox(
             frame_name, selectmode="extended", height=6, width=12, yscrollcommand=scroll_y.set, exportselection=False)
-        # terminal_list = df_name_forecast.PrimaryTerminal.unique()
-        # for item in terminal_list:
-        #     listbox_terminal.insert(tk.END, item)
         scroll_y.config(command=listbox_terminal.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         frame_name.grid(row=0, column=1, padx=1, pady=1)
@@ -870,9 +834,6 @@ class LBForecastUI:
         global listbox_products
         listbox_products = tk.Listbox(framename, selectmode="extended",
                                       height=4, width=10, exportselection=False)
-        # products_list = df_name_forecast.ProductClass.unique()
-        # for item in products_list:
-        #     listbox_products.insert(tk.END, item)
         listbox_products.grid(row=1, column=0, padx=1, pady=1)
 
 
@@ -957,24 +918,6 @@ class LBForecastUI:
             listbox_customer.insert(tk.END, item)
 
 
-    def rank_product(self, x):
-        '''给 product 排序'''
-        if x == 'LIN':
-            return (x, 1)
-        elif x == 'LOX':
-            return (x, 2)
-        elif x == 'LAR':
-            return (x, 3)
-        elif x == 'CO2':
-            return (x, 4)
-        elif x == 'LUX':
-            return (x, 5)
-        elif x == 'LUN':
-            return (x, 6)
-        else:
-            return (x, 7)
-
-
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
         # global terminal_list, product_list, demandType_list
@@ -989,7 +932,7 @@ class LBForecastUI:
         listbox_products.delete(0, tk.END)
         product_list = df_name_forecast.loc[df_name_forecast.SubRegion ==
                                             selected_subRegion, 'ProductClass'].unique()
-        product_list = [self.rank_product(i) for i in product_list]
+        product_list = [func.rank_product(i) for i in product_list]
         product_list = [i[0] for i in sorted(product_list, key=lambda x: x[1])]
         for item in product_list:
             listbox_products.insert(tk.END, item)
@@ -1008,8 +951,9 @@ class LBForecastUI:
         self.show_list_cust(event)
 
 
-    def cust_btn_search(self, root, conn):
+    def cust_btn_search(self):
         '''search for customer by shipto or name'''
+        root = self.root
         info = entry_name.get().strip()
         # print(info)
         if info.isdigit():
@@ -1025,11 +969,12 @@ class LBForecastUI:
                 listbox_customer.insert(tk.END, item)
 
 
-    def get_forecast_customer_from_sqlite(self, conn):
+    def get_forecast_customer_from_sqlite(self):
         '''对这个函数进行一下说明：
            1. 原来这个函数只针对 forecastReading 里的客户，缺点是会遗漏 有 history reading 的客户；
            2. 现在 把有 history reading 的客户 也加上去，目的是：一个客户 即便没有 forecast_data_refresh reading 的值
               也能显示 history reading；'''
+        conn = self.conn
         sql = '''SELECT DISTINCT LocNum from forecastReading;'''
         forecast_shiptos = tuple(pd.read_sql(sql, conn).LocNum)
         sql = '''SELECT DISTINCT LocNum from historyReading;'''
@@ -1049,8 +994,9 @@ class LBForecastUI:
         return df_name_forecast
 
 
-    def get_all_customer_from_sqlite(self, conn):
+    def get_all_customer_from_sqlite(self):
         '''get_all_customer_from_sqlite'''
+        conn = self.conn
         sql = '''select odbc_master.LocNum, odbc_master.CustAcronym,
                         odbc_master.PrimaryTerminal, odbc_master.SubRegion,
                         odbc_master.ProductClass, odbc_master.DemandType, odbc_master.GalsPerInch,
@@ -1061,14 +1007,17 @@ class LBForecastUI:
         return df_name_all
 
 
-    def send_feedback(self, event, root, conn, cur, lock):
+    def send_feedback(self, event):
+
+        root = self.root
+
         global save_pic
         save_pic = True
         pic_name = "./feedback.png"
         if os.path.isfile(pic_name):
             os.remove(pic_name)
         # event = None
-        self.plot(event, root, conn, cur, lock)
+        self.plot()
         print('testing')
         save_pic = False
         email_worker = send_email()
@@ -1148,8 +1097,10 @@ class LBForecastUI:
         t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
 
 
-    def manual_input_label(self, framename, root, lock, cur, conn):
+    def manual_input_label(self, framename):
         '''for schedulers manually input their estimation about hourly usage'''
+
+        conn = self.conn
         pad_y = 0
         lb_cm = tk.Label(framename, text='CM Hourly')
         lb_cm.grid(row=0, column=0, padx=1, pady=pad_y)
@@ -1161,10 +1112,10 @@ class LBForecastUI:
         box_kg = tk.Entry(framename, width=10)
         box_kg.grid(row=1, column=1, padx=1, pady=pad_y)
         btn_calculate = tk.Button(framename, text='Calculate by Input', width=15,
-                                  command=lambda: self.calculate_by_manual(cur, conn, root, lock))
+                                  command=self.calculate_by_manual)
         btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
         btn_reset = tk.Button(framename, text='Reset', width=15,
-                              command=lambda: self.reset_manual(root, conn, cur, lock))
+                              command=self.reset_manual)
         btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
         lb_assess = tk.Label(framename, text='Feedback: ')
         lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
@@ -1181,7 +1132,7 @@ class LBForecastUI:
         btn_email = tk.Button(framename, text='Send Email', width=15)
         btn_email.grid(row=6, column=0, pady=1, columnspan=2)
         btn_email.bind('<Button-1>', lambda event: threading.Thread(target=self.send_feedback,
-                                                                    args=(event, root, conn, cur, lock)).start())
+                                                                    args=(event,)).start())
         lb_time1 = tk.Label(framename, text='Last Time: ')
         lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
         sql = 'select MAX(ReadingDate) from historyReading '
@@ -1190,8 +1141,9 @@ class LBForecastUI:
         lb_time2.grid(row=7, column=1, padx=1, pady=pad_y)
 
 
-    def create_manual_forecast_data(self, conn, shipto, input_value):
+    def create_manual_forecast_data(self, shipto, input_value):
         '''create_manual_forecast_data'''
+        conn = self.conn
         table_name = 'forecastBeforeTrip'
         sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
         df = pd.read_sql(sql, conn)
@@ -1231,7 +1183,11 @@ class LBForecastUI:
         return df1
 
 
-    def calculate_by_manual(self, cur, conn, root, lock):
+    def calculate_by_manual(self):
+        root = self.root
+        cur = self.cur
+        conn = self.conn
+
         input_value1 = box_kg.get()
         input_value2 = box_cm.get()
         if len(input_value1) > 0 and len(input_value2) > 0:
@@ -1259,23 +1215,22 @@ class LBForecastUI:
             return
         else:
             shipto = int(df_name_forecast.loc[custName].values[0])
-        df = self.create_manual_forecast_data(conn, shipto, input_value)
+        df = self.create_manual_forecast_data(shipto, input_value)
         table_name = 'manual_forecast'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
         conn.commit()
         df.to_sql(table_name, con=conn, if_exists='replace', index=False)
         global manual_plot
         manual_plot = True
-        event = None
-        self.plot(event, root, conn, cur, lock)
+        self.plot()
         manual_plot = False
 
 
-    def reset_manual(self, root, conn, cur, lock):
+    def reset_manual(self):
         box_kg.delete(0, 'end')
         box_cm.delete(0, 'end')
         event = None
-        self.plot(event, root, conn, cur, lock)
+        self.plot()
 
 
     def treeView_design(self, framename, width, height, row, column, y_scroll):
@@ -1311,13 +1266,14 @@ class LBForecastUI:
         treename.delete(*treename.get_children())
 
 
-    def treeview_data(self, conn, shipto, treename, purpose):
+    def treeview_data(self, shipto, treename, purpose):
         '''显示数据'''
+        conn = self.conn
         if purpose == 'reading':
-            df = self.get_recent_reading(shipto, conn)
+            df = self.get_recent_reading(shipto)
             self.clear_tree(treename)
         else:
-            df = self.get_delivery_window(shipto, conn)
+            df = self.get_delivery_window(shipto)
             self.clear_tree(treename)
         # print(df)
         # set up new tree view
@@ -1359,14 +1315,16 @@ class LBForecastUI:
         treename.pack()
 
 
-    def forecaster_run(self, root, path1, cur, conn):
+    def forecaster_run(self,path1):
+        root = self.root
+        # 建立 筛选区域
         # 补丁
         global plot_flag
         plot_flag = True
 
         global df_name_forecast, df_name_all
-        df_name_forecast = self.get_forecast_customer_from_sqlite(conn)
-        df_name_all = self.get_all_customer_from_sqlite(conn)
+        df_name_forecast = self.get_forecast_customer_from_sqlite()
+        df_name_all = self.get_all_customer_from_sqlite()
         # 建立 作图区域
         plot_frame = tk.LabelFrame(root, text='Plot')
         plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
@@ -1382,7 +1340,7 @@ class LBForecastUI:
         # 重新排版,建立 frame_input
         frame_input = tk.LabelFrame(plot_frame, text='input')
         frame_input.grid(row=1, column=0, padx=2, pady=5)
-        self.input_framework(frame_input, cur=cur, conn=conn)
+        self.input_framework(frame_input)
 
         # column 1：作图区域
         plot_frame.columnconfigure(1, weight=8)
@@ -1395,7 +1353,7 @@ class LBForecastUI:
 
         annot = None
 
-        lock = threading.Lock()
+
         canvas.mpl_connect("motion_notify_event", self.hover)
 
         # column 2: 新增 DTD and Cluster 的 Frame
@@ -1415,7 +1373,7 @@ class LBForecastUI:
         cust_frame = self.info_cust_frame(par_frame)
         self.customer_query(cust_frame)
         global btn_query
-        btn_query = tk.Button(cust_frame, text='Search', command=lambda: self.cust_btn_search(root, conn))
+        btn_query = tk.Button(cust_frame, text='Search', command=lambda: self.cust_btn_search())
         btn_query.grid(row=0, column=1, padx=2)
         self.customer_boxlist(cust_frame)
         global save_pic, manual_plot
@@ -1430,7 +1388,7 @@ class LBForecastUI:
         listbox_demandType.bind("<<ListboxSelect>>", self.show_list_cust)
 
         listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
-            target=self.plot, args=(event, root, conn, cur, lock)).start())
+            target=self.plot).start())
 
         # 重新排版,建立 frame_detail
         frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
@@ -1450,7 +1408,7 @@ class LBForecastUI:
         frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
         frame_manual.grid(row=1, column=0, padx=2, pady=2)
         # 输入 起始日期
-        self.manual_input_label(frame_manual, root, lock, cur, conn)
+        self.manual_input_label(frame_manual)
         # 新增两个 Treeview
         frame_tree = tk.LabelFrame(par_frame, text='Historical Readings')
         frame_tree.grid(row=0, column=3, padx=2, pady=1)
@@ -1490,7 +1448,8 @@ class LBForecastUI:
         dtd_table.frame.pack(fill="both", expand=True)
 
 
-    def update_dtd_table(self, shipto_id: str, cursor, risk_time: pd.Timestamp):
+    def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
+        cursor = self.cur
         # 提取 primary DTD 信息
         primary_sql = '''
             SELECT DT, Distance, Duration FROM DTDInfo 
@@ -1560,7 +1519,8 @@ class LBForecastUI:
         near_customer_table.frame.pack(fill="both", expand=True)
 
 
-    def update_near_customer_table(self, shipto_id: str, cursor):
+    def update_near_customer_table(self, shipto_id: str):
+        cursor = self.cur
         sql_line = '''
             SELECT ToLocNum, ToCustAcronym, distanceKM, DDER 
             FROM ClusterInfo
