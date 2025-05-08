@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from src.gui.forecast_ui import connect_sqlite, forecaster_run
+from src.gui.forecast_ui import LBForecastUI
 from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from .new import NewInterface
 from ..utils.decorator import record_time_decorator
@@ -27,7 +27,7 @@ class HybridApp(tk.Tk):
         self.path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
 
         func.copyfile(dbname=self.db_name, from_dir=self.path1, to_dir='./')
-        self.conn = connect_sqlite('./{}'.format(self.db_name))
+        self.conn = func.connect_sqlite('./{}'.format(self.db_name))
         self.cur = self.conn.cursor()
 
         # 保持窗口设置
@@ -45,8 +45,9 @@ class HybridApp(tk.Tk):
         self.forecast_interface_container = ttk.Frame(self.main_container)
         self.forecast_interface_container.pack(fill='both', expand=True)
 
+        lb_forecast_ui = LBForecastUI()
         # 执行原有界面构建逻辑
-        forecaster_run(self.forecast_interface_container, self.path1, self.cur, self.conn)
+        lb_forecast_ui.forecaster_run(self.forecast_interface_container, self.path1, self.cur, self.conn)
 
     def _setup_navigation(self):
         """添加导航控制栏"""

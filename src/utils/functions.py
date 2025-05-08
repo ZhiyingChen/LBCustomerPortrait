@@ -1,6 +1,8 @@
 from . import decorator
 import os
 import datetime
+import sqlite3
+
 
 @decorator.record_time_decorator("拷贝数据库")
 def copyfile(dbname: str, to_dir: str, from_dir: str):
@@ -26,3 +28,9 @@ def log_connection(filename: str, action: str):
         home_name = 'unknown person'
     f.write("{} -- {} -- {}.\n".format(use_time, home_name, action))
     f.close()
+
+def connect_sqlite(db_name: str):
+    '''连接 SQLITE'''
+    conn = sqlite3.connect(db_name, check_same_thread=False)
+    print('sqlite connected')
+    return conn
