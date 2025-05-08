@@ -51,6 +51,7 @@ class LBForecastUI:
 
         self.lock = threading.Lock()
 
+
     def get_history_reading(self, shipto, fromTime, toTime):
         conn = self.conn
         '''获取历史液位数据'''
@@ -249,74 +250,69 @@ class LBForecastUI:
             t4_t6_val = round(row['beforeToRoHours_rolling_mean'], 1)
         return t4_t6_val
 
-
     def clean_detailed_info(self):
-        '''before fill in the info, we need to clean the previous text'''
-        lable_list = [lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb22, t4_t6_value_label]
-        for lb_Temp in lable_list:
-            lb_Temp.config(text='')
-
+        for key, label in self.detail_labels.items():
+            label.config(text='')
 
     def show_info(self, custName, TR_time, Risk_time, RO_time, full, TR,
                   Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-                  primary_dt, max_payload, t4_t6_value
-                  ):
+                  primary_dt, max_payload):
         '''显示客户的充装的详细信息'''
-        # 20220624 we need to clean the previous info first
         self.clean_detailed_info()
-        # unitOfLength_dict = {1: 'CM', 2: 'Inch', 3: 'M', 4: 'MM', 5: 'Percent', 6: 'Liters'}
+
         factor = func.weight_length_factor(uom)
-        # 2023-10-31 修改
+
         if Risk_time is None:
             # 只挑选部分内容显示
-            lb2.config(text=custName)
+            self.detail_labels['cust_name'].config(text=custName)
             full_cm = int(full / galsperinch / factor)
-            lb10.config(text='{} KG / {} {}'.format(full, full_cm, uom))
+            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
             TR_cm = int(TR / galsperinch / factor)
-            lb12.config(text='{} KG / {} {}'.format(TR, TR_cm, uom))
+            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
             RO_cm = int(RO / galsperinch / factor)
-            lb16.config(text='{} KG / {} {}'.format(RO, RO_cm, uom))
+            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
         else:
-            # 首先要进行字符串的转换
             tr = TR_time.strftime("%Y-%m-%d %H:%M")
             risk = Risk_time.strftime("%Y-%m-%d %H:%M")
             ro = RO_time.strftime("%Y-%m-%d %H:%M")
-            lb2.config(text=custName)
-            lb4.config(text=tr)
-            lb6.config(text=risk)
-            lb8.config(text=ro)
-            full_cm = int(full / galsperinch / factor)
-            lb10.config(text='{} KG / {} {}'.format(full, full_cm, uom))
-            TR_cm = int(TR / galsperinch / factor)
-            lb12.config(text='{} KG / {} {}'.format(TR, TR_cm, uom))
-            Risk_cm = int(Risk / galsperinch / factor)
-            lb14.config(text='{} KG / {} {}'.format(Risk, Risk_cm, uom))
-            RO_cm = int(RO / galsperinch / factor)
-            lb16.config(text='{} KG / {} {}'.format(RO, RO_cm, uom))
-            if len(ts_forecast) >= 2:
-                s_time = ts_forecast.index[0].strftime("%m-%d %H:%M")
-                # modify 20220624
-                e_time = ts_forecast.index[min(7, len(ts_forecast) - 1)].strftime("%m-%d %H:%M")
-                hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
-                hourly_usage_cm = (hourly_usage / galsperinch / factor).round(1)
-                # print(ts_forecast_usage[:8])
-                # print(len(ts_forecast_usage[:8]))
-                lb17.config(text='{}~{}\n 预测小时用量'.format(s_time, e_time))
-                lb18.config(text='{} KG / {} {}'.format(hourly_usage, hourly_usage_cm, uom))
-            else:
-                lb17.config(text='')
-                lb18.config(text='')
+            self.detail_labels['cust_name'].config(text=custName)
+            self.detail_labels['target_time'].config(text=tr)
+            self.detail_labels['risk_time'].config(text=risk)
+            self.detail_labels['runout_time'].config(text=ro)
 
-        lb20.config(text=fe)
-        lb21.config(text='{} MaxPayload'.format(primary_dt))
+            full_cm = int(full / galsperinch / factor)
+            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
+            TR_cm = int(TR / galsperinch / factor)
+            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
+            Risk_cm = int(Risk / galsperinch / factor)
+            self.detail_labels['risk'].config(text=f'{Risk} KG / {Risk_cm} {uom}')
+            RO_cm = int(RO / galsperinch / factor)
+            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
+
+            if len(ts_forecast_usage) >= 2:
+                s_time = ts_forecast_usage.index[0].strftime("%m-%d %H:%M")
+                e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H:%M")
+                hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
+                hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
+                self.detail_labels['forecast_hour_range'].config(
+                    text=f'{s_time}~{e_time}\n 预测小时用量'
+                )
+                self.detail_labels['forecast_hourly_usage'].config(
+                    text=f'{hourly_usage} KG / {hourly_usage_cm} {uom}'
+                )
+            else:
+                self.detail_labels['forecast_hour_range'].config(text='')
+                self.detail_labels['forecast_hourly_usage'].config(text='')
+
+
+        self.detail_labels['forecast_error'].config(text=fe)
         payload = int(max_payload) if isinstance(max_payload, float) else max_payload
-        lb22.config(text=payload)
-        t4_t6_value_label.config(text=t4_t6_value)
+        self.detail_labels['__ MaxPayload'].config(text=f'{primary_dt} MaxPayload')
+        self.detail_labels['max_payload_label'].config(text=f'{payload}')
 
 
     def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''
-        conn = self.conn
         validate_flag = (True, True)
         try:
             fromTime = pd.to_datetime(from_box.get())
@@ -705,12 +701,13 @@ class LBForecastUI:
                     fig.savefig('./feedback.png')
                 # 点击作图时,同时显示客户的充装的详细信息
                 fe = self.get_forecast_error(shipto)
-                t4_t6_value = self.get_t4_t6_value(shipto)
 
                 self.show_info(custName, TR_time, Risk_time, RO_time, full,
                           TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-                          primary_dt=current_primary_dt, max_payload=current_max_payload,
-                          t4_t6_value=t4_t6_value)
+                          primary_dt=current_primary_dt, max_payload=current_max_payload
+                          )
+                t4_t6_value = self.get_t4_t6_value(shipto=shipto)
+                t4_t6_value_label.config(text=t4_t6_value)
                 # 显示历史液位
                 self.treeview_data(shipto, reading_tree, 'reading')
                 # 显示送货窗口
@@ -1035,55 +1032,35 @@ class LBForecastUI:
         email_worker.outlook(addressee, message_subject, message_body)
         messagebox.showinfo(parent=root, title='Success', message='Email been sent!')
 
+    def _detail_info_label(self, framename):
+        '''show detailed information about tank and forecast'''
+        self.detail_labels = {}
 
-    def detail_info_label(self, framename):
-        '''show detailed information about tank and forecast_data_refresh'''
-        global lb2, lb4, lb6, lb8, lb10, lb12, lb14, lb16, lb17, lb18, lb20, lb21, lb22
         pad_y = 0
-        lb1 = tk.Label(framename, text='CustName')
-        lb1.grid(row=0, column=0, padx=6, pady=pad_y)
-        lb2 = tk.Label(framename, text='')
-        lb2.grid(row=0, column=1, padx=6, pady=pad_y)
-        lb3 = tk.Label(framename, text='TargetTime')
-        lb3.grid(row=2, column=0, padx=6, pady=pad_y)
-        lb4 = tk.Label(framename, text='')
-        lb4.grid(row=2, column=1, padx=6, pady=pad_y)
-        lb5 = tk.Label(framename, text='RiskTime')
-        lb5.grid(row=3, column=0, padx=6, pady=pad_y)
-        lb6 = tk.Label(framename, text='')
-        lb6.grid(row=3, column=1, padx=6, pady=pad_y)
-        lb7 = tk.Label(framename, text='RunOutTime')
-        lb7.grid(row=4, column=0, padx=6, pady=pad_y)
-        lb8 = tk.Label(framename, text='')
-        lb8.grid(row=4, column=1, padx=6, pady=pad_y)
-        lb9 = tk.Label(framename, text='FullTrycock')
-        lb9.grid(row=5, column=0, padx=6, pady=pad_y)
-        lb10 = tk.Label(framename, text='')
-        lb10.grid(row=5, column=1, padx=6, pady=pad_y)
-        lb11 = tk.Label(framename, text='TargetRefill')
-        lb11.grid(row=6, column=0, padx=6, pady=pad_y)
-        lb12 = tk.Label(framename, text='')
-        lb12.grid(row=6, column=1, padx=6, pady=pad_y)
-        lb13 = tk.Label(framename, text='Risk')
-        lb13.grid(row=7, column=0, padx=6, pady=pad_y)
-        lb14 = tk.Label(framename, text='')
-        lb14.grid(row=7, column=1, padx=6, pady=pad_y)
-        lb15 = tk.Label(framename, text='Runout')
-        lb15.grid(row=8, column=0, padx=6, pady=pad_y)
-        lb16 = tk.Label(framename, text='')
-        lb16.grid(row=8, column=1, padx=6, pady=pad_y)
-        lb17 = tk.Label(framename, text='')
-        lb17.grid(row=9, column=0, padx=6, pady=pad_y)
-        lb18 = tk.Label(framename, text='')
-        lb18.grid(row=9, column=1, padx=6, pady=pad_y)
-        lb19 = tk.Label(framename, text='ForecastError')
-        lb19.grid(row=10, column=0, padx=6, pady=pad_y)
-        lb20 = tk.Label(framename, text='')
-        lb20.grid(row=10, column=1, padx=6, pady=pad_y)
-        lb21 = tk.Label(framename, text='__MaxPayload')
-        lb21.grid(row=1, column=0, padx=6, pady=pad_y)
-        lb22 = tk.Label(framename, text='')
-        lb22.grid(row=1, column=1, padx=6, pady=pad_y)
+        label_info = [
+            ("CustName", "cust_name"),
+            ("__ MaxPayload", "max_payload_label"),
+            ("TargetTime", "target_time"),
+            ("RiskTime", "risk_time"),
+            ("RunOutTime", "runout_time"),
+            ("FullTrycock", "full_trycock"),
+            ("TargetRefill", "target_refill"),
+            ("Risk", "risk"),
+            ("Runout", "runout"),
+            ("forecast_hour_range", "forecast_hourly_usage"),
+            ("ForecastError", "forecast_error"),
+        ]
+
+        for i, (label_text, key) in enumerate(label_info):
+            lb_label = tk.Label(framename, text=label_text)
+            lb_label.grid(row=i, column=0, padx=6, pady=pad_y)
+
+            lb_value = tk.Label(framename, text="")
+            lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
+
+            if label_text in ["__ MaxPayload", "forecast_hour_range"]:
+                self.detail_labels[label_text] = lb_label
+            self.detail_labels[key] = lb_value
 
 
     def frame_warning_label(self, framename):
@@ -1394,7 +1371,7 @@ class LBForecastUI:
         frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
         frame_detail.grid(row=0, column=1, padx=10, pady=2)
         # 输入 起始日期
-        self.detail_info_label(frame_detail)
+        self._detail_info_label(frame_detail)
 
         second_col_frame = tk.LabelFrame(par_frame)
         second_col_frame.grid(row=0, column=2, padx=2, pady=2)
