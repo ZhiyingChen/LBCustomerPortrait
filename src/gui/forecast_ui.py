@@ -63,526 +63,6 @@ class LBForecastUI:
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
 
-
-
-    def clean_detailed_info(self):
-        for key, label in self.detail_labels.items():
-            label.config(text='')
-
-    def show_info(self, custName, TR_time, Risk_time, RO_time, full, TR,
-                  Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-                  primary_dt, max_payload):
-        '''显示客户的充装的详细信息'''
-        self.clean_detailed_info()
-
-        factor = func.weight_length_factor(uom)
-
-        if Risk_time is None:
-            # 只挑选部分内容显示
-            self.detail_labels['cust_name'].config(text=custName)
-            full_cm = int(full / galsperinch / factor)
-            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
-            TR_cm = int(TR / galsperinch / factor)
-            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
-            RO_cm = int(RO / galsperinch / factor)
-            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
-        else:
-            tr = TR_time.strftime("%Y-%m-%d %H:%M")
-            risk = Risk_time.strftime("%Y-%m-%d %H:%M")
-            ro = RO_time.strftime("%Y-%m-%d %H:%M")
-            self.detail_labels['cust_name'].config(text=custName)
-            self.detail_labels['target_time'].config(text=tr)
-            self.detail_labels['risk_time'].config(text=risk)
-            self.detail_labels['runout_time'].config(text=ro)
-
-            full_cm = int(full / galsperinch / factor)
-            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
-            TR_cm = int(TR / galsperinch / factor)
-            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
-            Risk_cm = int(Risk / galsperinch / factor)
-            self.detail_labels['risk'].config(text=f'{Risk} KG / {Risk_cm} {uom}')
-            RO_cm = int(RO / galsperinch / factor)
-            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
-
-            if len(ts_forecast_usage) >= 2:
-                s_time = ts_forecast_usage.index[0].strftime("%m-%d %H:%M")
-                e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H:%M")
-                hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
-                hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
-                self.detail_labels['forecast_hour_range'].config(
-                    text=f'{s_time}~{e_time}\n 预测小时用量'
-                )
-                self.detail_labels['forecast_hourly_usage'].config(
-                    text=f'{hourly_usage} KG / {hourly_usage_cm} {uom}'
-                )
-            else:
-                self.detail_labels['forecast_hour_range'].config(text='')
-                self.detail_labels['forecast_hourly_usage'].config(text='')
-
-
-        self.detail_labels['forecast_error'].config(text=fe)
-        payload = int(max_payload) if isinstance(max_payload, float) else max_payload
-        self.detail_labels['__ MaxPayload'].config(text=f'{primary_dt} MaxPayload')
-        self.detail_labels['max_payload_label'].config(text=f'{payload}')
-
-
-    def time_validate_check(self, shipto):
-        ''''检查box的内容是否正确'''
-        validate_flag = (True, True)
-        try:
-            fromTime = pd.to_datetime(from_box.get())
-        except ValueError:
-            validate_flag = (False, 'From Time Wrong!')
-            return validate_flag
-        try:
-            toTime = pd.to_datetime(to_box.get())
-        except ValueError:
-            validate_flag = (False, 'To Time Wrong!')
-            return validate_flag
-        df = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
-        # 为了防止 df 是空的：
-        if len(df) == 0:
-            # 这表明没有预测数据， 但是也要显示历史数据
-            return (True, True)
-        checkValue = df.Forecasted_Reading.values[0]
-        if checkValue == 777777:
-            validate_flag = (False, '此shipto无法抓取读数数据!')
-        elif checkValue == 888888:
-            validate_flag = (False, '读数少于一个月,不足以提供预测!')
-        elif checkValue == 999999:
-            validate_flag = (False, '近2日的读数缺失!')
-        # print(checkValue, validate_flag)
-        return validate_flag
-
-
-    def plot_vertical_lines(self, fromTime, toTime, TR_time, Risk_time, RO_time, full):
-        '''以下画垂直线, 一共有 10 种情况'''
-        alpha = 0.4
-        if fromTime < toTime < TR_time < Risk_time < RO_time:
-            # 其实这表明查询的是历史记录
-            pass
-        if fromTime <= TR_time <= toTime <= Risk_time <= RO_time:
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.fill_between(x=[TR_time, toTime], y1=full, facecolor='green', alpha=alpha)
-        if fromTime <= TR_time <= Risk_time <= toTime <= RO_time:
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
-            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
-        if fromTime <= TR_time <= Risk_time <= RO_time <= toTime:
-            # 这个是最完整形态
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1, )
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
-        if TR_time <= fromTime <= toTime <= Risk_time <= RO_time:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='green', alpha=alpha)
-        if TR_time <= fromTime <= Risk_time <= toTime <= RO_time:
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
-            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
-        if TR_time <= fromTime <= Risk_time <= RO_time <= toTime:
-            ax.axvline(x=Risk_time, color='green', linewidth=1)
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
-        if TR_time <= Risk_time <= fromTime <= toTime <= RO_time:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
-        if TR_time <= Risk_time <= fromTime <= RO_time <= toTime:
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[fromTime, RO_time], y1=full, facecolor='red', alpha=alpha)
-        if TR_time <= Risk_time <= RO_time <= fromTime <= toTime:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
-
-
-    def get_plot_basic(self, framename):
-        '''获取作图框架'''
-        fig = Figure(figsize=(5, 4), dpi=80)
-        gs = fig.add_gridspec(1, 2, width_ratios=(6, 1),
-                              left=0.08, right=0.96, bottom=0.1, top=0.9,
-                              wspace=0.1, hspace=0.05)
-        ax = fig.add_subplot(gs[0, 0])
-        ax_histy = fig.add_subplot(gs[0, 1], sharey=ax)
-        # ax = fig.add_subplot(111)
-        canvas = FigureCanvasTkAgg(fig, master=framename)  # A tk.DrawingArea.
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        # canvas.get_tk_widget().grid(row=0, column=1)
-        toolbar = NavigationToolbar2Tk(canvas, framename)
-        return fig, ax, ax_histy, canvas, toolbar
-
-
-    def update_annot(self, pos, text):
-        '''填写注释内容'''
-        # pos = sc.get_offsets()[ind["ind"][0]]
-        global annot
-        annot.xy = pos
-        annot.set_text(text)
-
-
-    def hover(self, event):
-        '''悬浮'''
-        global annot
-        global canvas
-        if annot is None:
-            return
-        vis = annot.get_visible()
-        for curve in ax.get_lines():
-            # Searching which data member corresponds to current mouse position
-            if curve.contains(event)[0]:
-                graph_id = curve.get_gid()
-                if 'ts_manual' in globals():
-                    graph_dict = {'point_history': ts_history,
-                                  'point_forecast': ts_forecast,
-                                  'point_forecastBeforeTrip': ts_forecastBeforeTrip,
-                                  'point_manual': ts_manual}
-                else:
-                    graph_dict = {'point_history': ts_history,
-                                  'point_forecast': ts_forecast,
-                                  'point_forecastBeforeTrip': ts_forecastBeforeTrip}
-                if graph_id in graph_dict.keys():
-                    if vis:
-                        # 说明已经有了一个 annot, 就不再显示第二个了。
-                        return
-                    df_data = graph_dict[graph_id]
-                    full = df_info.FullTrycockGals.values[0]
-                    ind = curve.contains(event)[1]['ind'][0]
-                    # pos = (event.x, event.y)
-                    pos = (event.xdata, event.ydata)
-                    show_time = df_data.index[ind].strftime("%Y-%m-%d %H:%M")
-                    show_level = int(df_data.values.flatten()[ind])
-                    # 转成长度单位
-                    galsperinch = df_info.GalsPerInch.values[0]
-                    unitOfLength = df_info.UnitOfLength.values[0]
-                    uom = unitOfLength_dict[unitOfLength]
-                    factor = func.weight_length_factor(uom)
-                    show_level_cm = int(round(show_level / (galsperinch * factor), 1))
-                    # 可卸货量
-                    loadAMT = int(full - show_level)
-                    loadAMT_cm = int(round(loadAMT / (galsperinch * factor), 1))
-                    text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
-                        show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
-                    self.update_annot(pos, text)
-                    annot.set_visible(True)
-                    canvas.draw_idle()
-                else:
-                    if vis:
-                        annot.set_visible(False)
-                        canvas.draw_idle()
-            else:
-                # pass
-                if vis:
-                    annot.set_visible(False)
-                    canvas.draw_idle()
-
-
-    def hover_disappear(self, event):
-        '''取消悬浮'''
-        global annot
-        global canvas
-        if mutex.acquire(2):
-            if annot is None:
-                mutex.release()
-                return
-            vis = annot.get_visible()
-            if vis:
-                for curve in ax.get_lines():
-                    if curve.contains(event)[0]:
-                        graph_id = curve.get_gid()
-                        print('vis test:', vis, id(annot), graph_id)
-                        hover_curves = ['point_history', 'line_history', 'point_forecast',
-                                        'line_forecast', 'point_forecastBeforeTrip',
-                                        'line_forecastBeforeTrip', 'line_join']
-                        if graph_id not in hover_curves:
-                            time.sleep(2)
-                            annot.set_visible(False)
-                            canvas.draw_idle()
-                            mutex.release()
-                            return
-                    else:
-                        time.sleep(2)
-                        annot.set_visible(False)
-                        canvas.draw_idle()
-                        print('no touch:', annot.get_visible(), id(annot))
-            mutex.release()
-
-
-    def main_plot(self):
-        '''作图主函数'''
-        root = self.root
-        conn = self.conn
-        lock = self.lock
-        df_name_forecast = self.df_name_forecast
-
-        custName = listbox_customer.get(listbox_customer.curselection()[0])
-        print('Customer: {}'.format(custName))
-        # 检查 From time 和 to time 是否正确
-        if custName not in df_name_forecast.index:
-            messagebox.showinfo(parent=root, title='Warning', message='No Data To Show!')
-            if lock.locked():
-                lock.release()
-        else:
-            shipto = int(df_name_forecast.loc[custName].values[0])
-            TELE_type = df_name_forecast.loc[custName, 'Subscriber']
-            validate_flag = self.time_validate_check(shipto)
-            # print(custName, type(custName))
-            # 如果查询得到 shipto,则显示 shipto,否则 将 shipto 设为 1
-            if (not validate_flag[0]) and var_TELE.get() == 0:
-                # 2023-10-31 新增逻辑
-                # 如果 var_TELE 为 1,说明正在使用 api,
-                error_msg = validate_flag[1]
-                if 'Time Wrong' in error_msg:
-                    # 说明时间填错
-                    messagebox.showinfo(parent=root, title='Warning', message=error_msg)
-                    if lock.locked():
-                        lock.release()
-                else:
-                    # 说明时间没有填错, 遇到了 无法预测的情况
-                    # 提醒采用 dol api 的选项
-                    error_msg = error_msg + ' -> 请使用 api 试试'
-                    messagebox.showinfo(parent=root, title='Warning', message=error_msg)
-                    if lock.locked():
-                        lock.release()
-            else:
-                fromTime = pd.to_datetime(from_box.get())
-                toTime = pd.to_datetime(to_box.get())
-                # 2023-09-04 更新 DOL API 数据
-                # print(var_TELE.get())
-                # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
-                # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
-                if var_TELE.get() == 1:
-                    if TELE_type == 3:
-                        updateDOL(shipto, conn)
-                    elif TELE_type == 7:
-                        updateLCT(shipto, conn)
-                    else:
-                        pass
-                # 获取数据
-                # 首先根据客户简称,获取 shipto
-                global df_info
-                df_info = self.data_manager.get_customer_info(shipto)
-                df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
-                df_forecastBeforeTrip = self.data_manager.get_forecast_before_trip(shipto, fromTime, toTime)
-                df_forecast = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
-                df_max_payload = self.data_manager.get_max_payload_by_ship2(
-                    ship2=str(shipto),
-                )
-                # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
-                if len(df_forecast) > 0:
-                    if df_forecast.Forecasted_Reading.values[0] in [777777, 888888, 999999]:
-                        df_forecast.Forecasted_Reading = None
-
-                current_primary_dt = '__'
-                current_max_payload = 'unknown'
-                for i, row in df_max_payload.iterrows():
-                    if not pd.isna(row['LicenseFill']) and row['LicenseFill'] > 0:
-                        current_max_payload = row['LicenseFill']
-                    current_primary_dt = row['CorporateIdn']
-
-                # 作图数据处理
-                global ts_history, ts_forecast, ts_forecastBeforeTrip
-                ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
-                ts_forecast = df_forecast[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-                ts_forecastBeforeTrip = df_forecastBeforeTrip[[
-                    'Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-                ts_forecast_usage = df_forecast[['Next_hr',
-                                                 'Hourly_Usage_Rate']].set_index('Next_hr')
-                # 记录四个液位值
-                full = df_info.FullTrycockGals.values[0]
-                TR = df_info.TargetGalsUser.values[0]
-                RO = df_info.RunoutGals.values[0]
-                Risk = (RO + TR) / 2
-                # 防止 Risk 是 None 而 无法 int
-                Risk = Risk if Risk is None else int(Risk)
-                galsperinch = df_info.GalsPerInch.values[0]
-                unitOfLength = df_info.UnitOfLength.values[0]
-                uom = unitOfLength_dict[unitOfLength]
-                # 记录三个液位时间
-                if len(df_forecast) > 0:
-                    TR_time = df_forecast.iloc[0].TargetRefillDate
-                    Risk_time = df_forecast.iloc[0].TargetRiskDate
-                    RO_time = df_forecast.iloc[0].TargetRunoutDate
-                else:
-                    TR_time = None
-                    Risk_time = None
-                    RO_time = None
-                # 开始作图
-                # 没想到这句话还这么重要(在hover的时候造成了极大的困扰)
-                ax.clear()
-                # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
-                ax.set_zorder(3)
-                ax_histy.set_zorder(1)
-                ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
-                # 新增注释
-                global annot
-                annot = ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
-                                    bbox=dict(boxstyle="round", fc="lightblue",
-                                              ec="steelblue", alpha=1),
-                                    arrowprops=dict(arrowstyle="->"),
-                                    annotation_clip=True, zorder=5)
-                annot.set_visible(False)
-                if len(df_history) > 0:
-                    pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
-                else:
-                    pic_title = '{}({}) No History Data'.format(custName, shipto)
-                ax.set_title(pic_title, fontsize=20)
-                ax.set_ylabel('K G')
-                ax.set_ylim(bottom=0, top=full * 1.18)
-                # ax.set_xlabel('Date')
-                ax.plot(ts_history, color='blue', marker='o', markersize=6,
-                        linestyle='None', gid='point_history')
-                ax.plot(ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
-                ax.plot(ts_forecast, color='green', marker='o', markersize=6, alpha=0.45,
-                        linestyle='None', gid='point_forecast')
-                ax.plot(ts_forecast, color='green', label='Forecast', alpha=0.45,
-                        linestyle='dashed', gid='line_forecast')
-                ax.plot(ts_forecastBeforeTrip, color='orange', marker='o', markersize=6,
-                        linestyle='None', gid='point_forecastBeforeTrip')
-                ax.plot(ts_forecastBeforeTrip, color='orange',
-                        label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
-                if (len(ts_forecastBeforeTrip) > 0 and len(ts_forecast) > 0):
-                    ts_join = pd.concat([ts_forecastBeforeTrip.last('1S'), ts_forecast.first('1S')])
-                    # print(ts_join)
-                    ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
-                # decide to plot manual forecast_data_refresh line
-                if manual_plot:
-                    df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
-                    global ts_manual
-                    ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-                    ax.plot(ts_manual, color='purple', marker='o', markersize=6,
-                            linestyle='None', gid='point_manual', alpha=0.6)
-                    ax.plot(ts_manual, color='purple', label='Manual',
-                            linestyle='dashed', alpha=0.6)
-                # 以下画水平线
-                ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
-                ax.axhline(y=TR, color='green', linewidth=2, label='TR', gid='line_TR')
-                if Risk is not None:
-                    ax.axhline(y=Risk, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
-                ax.axhline(y=RO, color='red', linewidth=2, label='RunOut', gid='line_RO')
-                # 画竖直线,较繁琐。具体函数见定义
-                if TR_time is not None:
-                    self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full)
-                if (toTime - fromTime).days <= 12:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
-                elif (toTime - fromTime).days <= 24:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
-                else:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
-                # fig.autofmt_xdate()
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-                # plot for second y-axis
-                factor = func.weight_length_factor(uom)
-
-                def kg2cm(x):
-                    return x / (galsperinch * factor)
-
-                def cm2kg(x):
-                    return x * (galsperinch * factor)
-
-                ax.grid()
-
-                # 2024-04-18 新增 直方图
-                beforeRD = self.data_manager.get_before_reading(shipto)
-                if len(beforeRD) > 0:
-                    binwidth = 200
-                    xymax = np.max(np.abs(beforeRD))
-                    lim = (int(xymax / binwidth) + 1) * binwidth
-                    bins = np.arange(0, lim + binwidth, binwidth)
-                else:
-                    bins = np.arange(0, 2, 1)
-
-                ax_histy.clear()
-                axHist_info = ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue', orientation='horizontal')
-                ax_histy.tick_params(
-                    axis='y',
-                    which='both',  # both major and minor ticks are affected
-                    bottom=False,  # ticks along the bottom edge are off
-                    top=False,  # ticks along the top edge are off
-                    # labelbottom=False,
-                    labelleft=False,
-                    # left=False
-                )
-                if len(beforeRD) > 0:
-                    max_count = np.max(axHist_info[0])
-                    xticks = func.define_xticks(max_count)
-                else:
-                    xticks = np.arange(0, 2, 1)
-                ax_histy.set_xticks(xticks)
-                ax_histy.grid()
-                # plt.tight_layout()
-                canvas.draw_idle()
-                toolbar.update()
-                # print(111)
-                # path = 'C:\Users\zhoud8\Documents\OneDrive - Air Products and Chemicals, Inc\python_project\gui\Forecasting'
-                if save_pic:
-                    fig.savefig('./feedback.png')
-                # 点击作图时,同时显示客户的充装的详细信息
-                fe = self.data_manager.get_forecast_error(shipto)
-
-                self.show_info(custName, TR_time, Risk_time, RO_time, full,
-                          TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
-                          primary_dt=current_primary_dt, max_payload=current_max_payload
-                          )
-                t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
-                t4_t6_value_label.config(text=t4_t6_value)
-                # 显示历史液位
-                self.update_reading_tree_table(shipto_id=str(shipto))
-                # # 显示送货窗口
-                self.update_delivery_window_tree_table(shipto_id=str(shipto))
-
-
-                self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
-                self.update_near_customer_table(shipto_id=str(shipto))
-
-                if lock.locked():
-                    lock.release()
-
-
-
-    def plot(self):
-        '''多线程作图主函数'''
-        starttime = time.time()
-        lock = self.lock
-        # lock the thread
-        while True:
-            if lock.acquire(blocking=False) is True:
-                break
-            else:
-                endtime = time.time()
-                duration = round(endtime - starttime, 3)
-                print('lock is not free')
-                time.sleep(0.5)
-                if duration > 8:
-                    if lock.locked():
-                        lock.release()
-        try:
-            self.main_plot()
-        except Exception as e:
-            print(e)
-            if lock.locked():
-                lock.release()
-
-
-    def refresh_data(self,show_message=True):
-        try:
-            conn = self.conn
-            cur = self.cur
-            data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
-            data_refresh.refresh_lb_hourly_data()
-            func.log_connection(self.log_file, 'refreshed')
-            if show_message:
-                messagebox.showinfo(title='success', message='data to sqlite success!')
-        except Exception as e:
-            messagebox.showinfo(title='failure', message='failure, please check! {}'.format(e))
-
-
-    def info_fiter_frame(self, par_frame):
-        '''建立筛选部分的frame,也即第一模块'''
-        frame_name = tk.LabelFrame(par_frame, text='Filter')
-        frame_name.grid(row=0, column=0, padx=5, pady=5)
-        return frame_name
-
-
     def info_cust_frame(self, par_frame):
         '''建立客户名称的frame,也即第二模块'''
         frame_name = tk.LabelFrame(par_frame, text='Cust')
@@ -817,7 +297,7 @@ class LBForecastUI:
         email_worker.outlook(addressee, message_subject, message_body)
         messagebox.showinfo(parent=root, title='Success', message='Email been sent!')
 
-    def _detail_info_label(self, framename):
+    def _set_detail_info_label(self, framename):
         '''show detailed information about tank and forecast'''
         self.detail_labels = {}
 
@@ -995,6 +475,63 @@ class LBForecastUI:
         event = None
         self.plot()
 
+
+    def _decorate_historical_readings_frame(self):
+        self.reading_tree_frame = tk.LabelFrame(self.historical_readings_frame)
+        self.reading_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_reading_tree()
+
+        self.delivery_window_tree_frame = tk.LabelFrame(self.historical_readings_frame)
+        self.delivery_window_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_delivery_window_tree()
+
+    def _set_reading_tree(self):
+        columns = ["No", "ReadingDate", "Read_KG", "Read_CM", "Hour_CM"]
+        col_widths = [10, 100, 20, 20, 20]
+
+        self.reading_tree_table = ui_structure.SimpleTable(
+            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
+        self.reading_tree_table.frame.pack(fill="both", expand=True)
+
+    def _set_delivery_window_tree(self):
+        columns = ["title", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        col_widths = [70, 30, 30, 30, 30, 30, 30, 30]
+
+        self.delivery_window_tree_table = ui_structure.SimpleTable(
+            self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
+        self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
+
+    def _decorate_dtd_cluster_label(self):
+        dtd_cluster_frame = self.dtd_cluster_frame
+        # 上方 Frame：Terminal/Source DTD 模块
+        self.frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
+        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_dtd_label()
+
+        # 下方 Frame：临近客户模块
+        self.frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
+        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_near_customer_label()
+
+
+    def _set_dtd_label(self):
+        columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
+        col_widths = [10, 20, 20, 100]
+
+        self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
+        self.dtd_table.frame.pack(fill="both", expand=True)
+
+    def _set_near_customer_label(self):
+        columns = ["临近客户简称", "距离(km)", "DDER"]
+        col_widths = [100, 20, 10]
+
+        self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
+                                                            col_widths=col_widths,
+                                                            height=4)
+        self.near_customer_table.frame.pack(fill="both", expand=True)
+
     def forecaster_run(self):
         root = self.root
 
@@ -1071,7 +608,7 @@ class LBForecastUI:
         frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
         frame_detail.grid(row=0, column=1, padx=10, pady=2)
         # 输入 起始日期
-        self._detail_info_label(frame_detail)
+        self._set_detail_info_label(frame_detail)
 
         second_col_frame = tk.LabelFrame(par_frame)
         second_col_frame.grid(row=0, column=2, padx=2, pady=2)
@@ -1094,64 +631,7 @@ class LBForecastUI:
         # 增加历史液位记录
         self._decorate_historical_readings_frame()
 
-    def _decorate_historical_readings_frame(self):
-        self.reading_tree_frame = tk.LabelFrame(self.historical_readings_frame)
-        self.reading_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        self._set_reading_tree()
-
-        self.delivery_window_tree_frame = tk.LabelFrame(self.historical_readings_frame)
-        self.delivery_window_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        self._set_delivery_window_tree()
-
-    def _set_reading_tree(self):
-        columns = ["No", "ReadingDate", "Read_KG", "Read_CM", "Hour_CM"]
-        col_widths = [10, 100, 20, 20, 20]
-
-        self.reading_tree_table = ui_structure.SimpleTable(
-            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
-        self.reading_tree_table.frame.pack(fill="both", expand=True)
-
-    def _set_delivery_window_tree(self):
-        columns = ["title", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        col_widths = [70, 30, 30, 30, 30, 30, 30, 30]
-
-        self.delivery_window_tree_table = ui_structure.SimpleTable(
-            self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
-        self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
-
-    def update_reading_tree_table(self, shipto_id: str):
-        historical_reading_df = self.data_manager.get_recent_reading(shipto_id)
-        rows = historical_reading_df.to_numpy().tolist()
-        self.reading_tree_table.insert_rows(rows)
-
-    def update_delivery_window_tree_table(self, shipto_id: str):
-        delivery_window_df = self.data_manager.get_delivery_window(shipto_id)
-        rows = delivery_window_df.to_numpy().tolist()
-        self.delivery_window_tree_table.insert_rows(rows)
-
-    def _decorate_dtd_cluster_label(self):
-        dtd_cluster_frame = self.dtd_cluster_frame
-        # 上方 Frame：Terminal/Source DTD 模块
-        self.frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
-        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
-
-        self._set_dtd_label()
-
-        # 下方 Frame：临近客户模块
-        self.frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
-        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
-
-        self._set_near_customer_label()
-
-
-    def _set_dtd_label(self):
-        columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
-        col_widths = [10, 20, 20, 100]
-
-        self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
-        self.dtd_table.frame.pack(fill="both", expand=True)
-
-
+    # region 刷新相关函数
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
         results = self.data_manager.get_primary_terminal_dtd_info(shipto_id)
 
@@ -1196,15 +676,6 @@ class LBForecastUI:
         self.dtd_table.insert_rows(rows)
 
 
-    def _set_near_customer_label(self):
-        columns = ["临近客户简称", "距离(km)", "DDER"]
-        col_widths = [100, 20, 10]
-
-        self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns, col_widths=col_widths,
-                                                       height=4)
-        self.near_customer_table.frame.pack(fill="both", expand=True)
-
-
     def update_near_customer_table(self, shipto_id: str):
         results = self.data_manager.get_near_customer_info(shipto_id)
         update_rows = list()
@@ -1228,3 +699,516 @@ class LBForecastUI:
             update_rows.append(update_row)
 
         self.near_customer_table.insert_rows(update_rows)
+
+
+    def update_reading_tree_table(self, shipto_id: str):
+        historical_reading_df = self.data_manager.get_recent_reading(shipto_id)
+        rows = historical_reading_df.to_numpy().tolist()
+        self.reading_tree_table.insert_rows(rows)
+
+    def update_delivery_window_tree_table(self, shipto_id: str):
+        delivery_window_df = self.data_manager.get_delivery_window(shipto_id)
+        rows = delivery_window_df.to_numpy().tolist()
+        self.delivery_window_tree_table.insert_rows(rows)
+
+    def clean_detailed_info(self):
+        for key, label in self.detail_labels.items():
+            label.config(text='')
+
+    def show_info(self, custName, TR_time, Risk_time, RO_time, full, TR,
+                  Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
+                  primary_dt, max_payload):
+        '''显示客户的充装的详细信息'''
+        self.clean_detailed_info()
+
+        factor = func.weight_length_factor(uom)
+
+        if Risk_time is None:
+            # 只挑选部分内容显示
+            self.detail_labels['cust_name'].config(text=custName)
+            full_cm = int(full / galsperinch / factor)
+            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
+            TR_cm = int(TR / galsperinch / factor)
+            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
+            RO_cm = int(RO / galsperinch / factor)
+            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
+        else:
+            tr = TR_time.strftime("%Y-%m-%d %H:%M")
+            risk = Risk_time.strftime("%Y-%m-%d %H:%M")
+            ro = RO_time.strftime("%Y-%m-%d %H:%M")
+            self.detail_labels['cust_name'].config(text=custName)
+            self.detail_labels['target_time'].config(text=tr)
+            self.detail_labels['risk_time'].config(text=risk)
+            self.detail_labels['runout_time'].config(text=ro)
+
+            full_cm = int(full / galsperinch / factor)
+            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
+            TR_cm = int(TR / galsperinch / factor)
+            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
+            Risk_cm = int(Risk / galsperinch / factor)
+            self.detail_labels['risk'].config(text=f'{Risk} KG / {Risk_cm} {uom}')
+            RO_cm = int(RO / galsperinch / factor)
+            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
+
+            if len(ts_forecast_usage) >= 2:
+                s_time = ts_forecast_usage.index[0].strftime("%m-%d %H:%M")
+                e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H:%M")
+                hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
+                hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
+                self.detail_labels['forecast_hour_range'].config(
+                    text=f'{s_time}~{e_time}\n 预测小时用量'
+                )
+                self.detail_labels['forecast_hourly_usage'].config(
+                    text=f'{hourly_usage} KG / {hourly_usage_cm} {uom}'
+                )
+            else:
+                self.detail_labels['forecast_hour_range'].config(text='')
+                self.detail_labels['forecast_hourly_usage'].config(text='')
+
+        self.detail_labels['forecast_error'].config(text=fe)
+        payload = int(max_payload) if isinstance(max_payload, float) else max_payload
+        self.detail_labels['__ MaxPayload'].config(text=f'{primary_dt} MaxPayload')
+        self.detail_labels['max_payload_label'].config(text=f'{payload}')
+
+    def time_validate_check(self, shipto):
+        ''''检查box的内容是否正确'''
+        validate_flag = (True, True)
+        try:
+            fromTime = pd.to_datetime(from_box.get())
+        except ValueError:
+            validate_flag = (False, 'From Time Wrong!')
+            return validate_flag
+        try:
+            toTime = pd.to_datetime(to_box.get())
+        except ValueError:
+            validate_flag = (False, 'To Time Wrong!')
+            return validate_flag
+        df = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
+        # 为了防止 df 是空的：
+        if len(df) == 0:
+            # 这表明没有预测数据， 但是也要显示历史数据
+            return (True, True)
+        checkValue = df.Forecasted_Reading.values[0]
+        if checkValue == 777777:
+            validate_flag = (False, '此shipto无法抓取读数数据!')
+        elif checkValue == 888888:
+            validate_flag = (False, '读数少于一个月,不足以提供预测!')
+        elif checkValue == 999999:
+            validate_flag = (False, '近2日的读数缺失!')
+        # print(checkValue, validate_flag)
+        return validate_flag
+
+    def plot_vertical_lines(self, fromTime, toTime, TR_time, Risk_time, RO_time, full):
+        '''以下画垂直线, 一共有 10 种情况'''
+        alpha = 0.4
+        if fromTime < toTime < TR_time < Risk_time < RO_time:
+            # 其实这表明查询的是历史记录
+            pass
+        if fromTime <= TR_time <= toTime <= Risk_time <= RO_time:
+            ax.axvline(x=TR_time, color='green', linewidth=1)
+            ax.fill_between(x=[TR_time, toTime], y1=full, facecolor='green', alpha=alpha)
+        if fromTime <= TR_time <= Risk_time <= toTime <= RO_time:
+            ax.axvline(x=TR_time, color='green', linewidth=1)
+            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
+            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
+        if fromTime <= TR_time <= Risk_time <= RO_time <= toTime:
+            # 这个是最完整形态
+            ax.axvline(x=TR_time, color='green', linewidth=1)
+            ax.axvline(x=Risk_time, color='yellow', linewidth=1, )
+            ax.axvline(x=RO_time, color='red', linewidth=1)
+            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
+        if TR_time <= fromTime <= toTime <= Risk_time <= RO_time:
+            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='green', alpha=alpha)
+        if TR_time <= fromTime <= Risk_time <= toTime <= RO_time:
+            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
+            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
+        if TR_time <= fromTime <= Risk_time <= RO_time <= toTime:
+            ax.axvline(x=Risk_time, color='green', linewidth=1)
+            ax.axvline(x=RO_time, color='red', linewidth=1)
+            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
+        if TR_time <= Risk_time <= fromTime <= toTime <= RO_time:
+            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
+        if TR_time <= Risk_time <= fromTime <= RO_time <= toTime:
+            ax.axvline(x=RO_time, color='red', linewidth=1)
+            ax.fill_between(x=[fromTime, RO_time], y1=full, facecolor='red', alpha=alpha)
+        if TR_time <= Risk_time <= RO_time <= fromTime <= toTime:
+            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
+
+    def get_plot_basic(self, framename):
+        '''获取作图框架'''
+        fig = Figure(figsize=(5, 4), dpi=80)
+        gs = fig.add_gridspec(1, 2, width_ratios=(6, 1),
+                              left=0.08, right=0.96, bottom=0.1, top=0.9,
+                              wspace=0.1, hspace=0.05)
+        ax = fig.add_subplot(gs[0, 0])
+        ax_histy = fig.add_subplot(gs[0, 1], sharey=ax)
+        # ax = fig.add_subplot(111)
+        canvas = FigureCanvasTkAgg(fig, master=framename)  # A tk.DrawingArea.
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # canvas.get_tk_widget().grid(row=0, column=1)
+        toolbar = NavigationToolbar2Tk(canvas, framename)
+        return fig, ax, ax_histy, canvas, toolbar
+
+    def update_annot(self, pos, text):
+        '''填写注释内容'''
+        # pos = sc.get_offsets()[ind["ind"][0]]
+        global annot
+        annot.xy = pos
+        annot.set_text(text)
+
+    def hover(self, event):
+        '''悬浮'''
+        global annot
+        global canvas
+        if annot is None:
+            return
+        vis = annot.get_visible()
+        for curve in ax.get_lines():
+            # Searching which data member corresponds to current mouse position
+            if curve.contains(event)[0]:
+                graph_id = curve.get_gid()
+                if 'ts_manual' in globals():
+                    graph_dict = {'point_history': ts_history,
+                                  'point_forecast': ts_forecast,
+                                  'point_forecastBeforeTrip': ts_forecastBeforeTrip,
+                                  'point_manual': ts_manual}
+                else:
+                    graph_dict = {'point_history': ts_history,
+                                  'point_forecast': ts_forecast,
+                                  'point_forecastBeforeTrip': ts_forecastBeforeTrip}
+                if graph_id in graph_dict.keys():
+                    if vis:
+                        # 说明已经有了一个 annot, 就不再显示第二个了。
+                        return
+                    df_data = graph_dict[graph_id]
+                    full = df_info.FullTrycockGals.values[0]
+                    ind = curve.contains(event)[1]['ind'][0]
+                    # pos = (event.x, event.y)
+                    pos = (event.xdata, event.ydata)
+                    show_time = df_data.index[ind].strftime("%Y-%m-%d %H:%M")
+                    show_level = int(df_data.values.flatten()[ind])
+                    # 转成长度单位
+                    galsperinch = df_info.GalsPerInch.values[0]
+                    unitOfLength = df_info.UnitOfLength.values[0]
+                    uom = unitOfLength_dict[unitOfLength]
+                    factor = func.weight_length_factor(uom)
+                    show_level_cm = int(round(show_level / (galsperinch * factor), 1))
+                    # 可卸货量
+                    loadAMT = int(full - show_level)
+                    loadAMT_cm = int(round(loadAMT / (galsperinch * factor), 1))
+                    text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
+                        show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
+                    self.update_annot(pos, text)
+                    annot.set_visible(True)
+                    canvas.draw_idle()
+                else:
+                    if vis:
+                        annot.set_visible(False)
+                        canvas.draw_idle()
+            else:
+                # pass
+                if vis:
+                    annot.set_visible(False)
+                    canvas.draw_idle()
+
+    def hover_disappear(self, event):
+        '''取消悬浮'''
+        global annot
+        global canvas
+        if mutex.acquire(2):
+            if annot is None:
+                mutex.release()
+                return
+            vis = annot.get_visible()
+            if vis:
+                for curve in ax.get_lines():
+                    if curve.contains(event)[0]:
+                        graph_id = curve.get_gid()
+                        print('vis test:', vis, id(annot), graph_id)
+                        hover_curves = ['point_history', 'line_history', 'point_forecast',
+                                        'line_forecast', 'point_forecastBeforeTrip',
+                                        'line_forecastBeforeTrip', 'line_join']
+                        if graph_id not in hover_curves:
+                            time.sleep(2)
+                            annot.set_visible(False)
+                            canvas.draw_idle()
+                            mutex.release()
+                            return
+                    else:
+                        time.sleep(2)
+                        annot.set_visible(False)
+                        canvas.draw_idle()
+                        print('no touch:', annot.get_visible(), id(annot))
+            mutex.release()
+
+    def main_plot(self):
+        '''作图主函数'''
+        root = self.root
+        conn = self.conn
+        lock = self.lock
+        df_name_forecast = self.df_name_forecast
+
+        custName = listbox_customer.get(listbox_customer.curselection()[0])
+        print('Customer: {}'.format(custName))
+        # 检查 From time 和 to time 是否正确
+        if custName not in df_name_forecast.index:
+            messagebox.showinfo(parent=root, title='Warning', message='No Data To Show!')
+            if lock.locked():
+                lock.release()
+        else:
+            shipto = int(df_name_forecast.loc[custName].values[0])
+            TELE_type = df_name_forecast.loc[custName, 'Subscriber']
+            validate_flag = self.time_validate_check(shipto)
+            # print(custName, type(custName))
+            # 如果查询得到 shipto,则显示 shipto,否则 将 shipto 设为 1
+            if (not validate_flag[0]) and var_TELE.get() == 0:
+                # 2023-10-31 新增逻辑
+                # 如果 var_TELE 为 1,说明正在使用 api,
+                error_msg = validate_flag[1]
+                if 'Time Wrong' in error_msg:
+                    # 说明时间填错
+                    messagebox.showinfo(parent=root, title='Warning', message=error_msg)
+                    if lock.locked():
+                        lock.release()
+                else:
+                    # 说明时间没有填错, 遇到了 无法预测的情况
+                    # 提醒采用 dol api 的选项
+                    error_msg = error_msg + ' -> 请使用 api 试试'
+                    messagebox.showinfo(parent=root, title='Warning', message=error_msg)
+                    if lock.locked():
+                        lock.release()
+            else:
+                fromTime = pd.to_datetime(from_box.get())
+                toTime = pd.to_datetime(to_box.get())
+                # 2023-09-04 更新 DOL API 数据
+                # print(var_TELE.get())
+                # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
+                # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
+                if var_TELE.get() == 1:
+                    if TELE_type == 3:
+                        updateDOL(shipto, conn)
+                    elif TELE_type == 7:
+                        updateLCT(shipto, conn)
+                    else:
+                        pass
+                # 获取数据
+                # 首先根据客户简称,获取 shipto
+                global df_info
+                df_info = self.data_manager.get_customer_info(shipto)
+                df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
+                df_forecastBeforeTrip = self.data_manager.get_forecast_before_trip(shipto, fromTime, toTime)
+                df_forecast = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
+                df_max_payload = self.data_manager.get_max_payload_by_ship2(
+                    ship2=str(shipto),
+                )
+                # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
+                if len(df_forecast) > 0:
+                    if df_forecast.Forecasted_Reading.values[0] in [777777, 888888, 999999]:
+                        df_forecast.Forecasted_Reading = None
+
+                current_primary_dt = '__'
+                current_max_payload = 'unknown'
+                for i, row in df_max_payload.iterrows():
+                    if not pd.isna(row['LicenseFill']) and row['LicenseFill'] > 0:
+                        current_max_payload = row['LicenseFill']
+                    current_primary_dt = row['CorporateIdn']
+
+                # 作图数据处理
+                global ts_history, ts_forecast, ts_forecastBeforeTrip
+                ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
+                ts_forecast = df_forecast[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+                ts_forecastBeforeTrip = df_forecastBeforeTrip[[
+                    'Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+                ts_forecast_usage = df_forecast[['Next_hr',
+                                                 'Hourly_Usage_Rate']].set_index('Next_hr')
+                # 记录四个液位值
+                full = df_info.FullTrycockGals.values[0]
+                TR = df_info.TargetGalsUser.values[0]
+                RO = df_info.RunoutGals.values[0]
+                Risk = (RO + TR) / 2
+                # 防止 Risk 是 None 而 无法 int
+                Risk = Risk if Risk is None else int(Risk)
+                galsperinch = df_info.GalsPerInch.values[0]
+                unitOfLength = df_info.UnitOfLength.values[0]
+                uom = unitOfLength_dict[unitOfLength]
+                # 记录三个液位时间
+                if len(df_forecast) > 0:
+                    TR_time = df_forecast.iloc[0].TargetRefillDate
+                    Risk_time = df_forecast.iloc[0].TargetRiskDate
+                    RO_time = df_forecast.iloc[0].TargetRunoutDate
+                else:
+                    TR_time = None
+                    Risk_time = None
+                    RO_time = None
+                # 开始作图
+                # 没想到这句话还这么重要(在hover的时候造成了极大的困扰)
+                ax.clear()
+                # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
+                ax.set_zorder(3)
+                ax_histy.set_zorder(1)
+                ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
+                # 新增注释
+                global annot
+                annot = ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
+                                    bbox=dict(boxstyle="round", fc="lightblue",
+                                              ec="steelblue", alpha=1),
+                                    arrowprops=dict(arrowstyle="->"),
+                                    annotation_clip=True, zorder=5)
+                annot.set_visible(False)
+                if len(df_history) > 0:
+                    pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
+                else:
+                    pic_title = '{}({}) No History Data'.format(custName, shipto)
+                ax.set_title(pic_title, fontsize=20)
+                ax.set_ylabel('K G')
+                ax.set_ylim(bottom=0, top=full * 1.18)
+                # ax.set_xlabel('Date')
+                ax.plot(ts_history, color='blue', marker='o', markersize=6,
+                        linestyle='None', gid='point_history')
+                ax.plot(ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
+                ax.plot(ts_forecast, color='green', marker='o', markersize=6, alpha=0.45,
+                        linestyle='None', gid='point_forecast')
+                ax.plot(ts_forecast, color='green', label='Forecast', alpha=0.45,
+                        linestyle='dashed', gid='line_forecast')
+                ax.plot(ts_forecastBeforeTrip, color='orange', marker='o', markersize=6,
+                        linestyle='None', gid='point_forecastBeforeTrip')
+                ax.plot(ts_forecastBeforeTrip, color='orange',
+                        label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
+                if (len(ts_forecastBeforeTrip) > 0 and len(ts_forecast) > 0):
+                    ts_join = pd.concat([ts_forecastBeforeTrip.last('1S'), ts_forecast.first('1S')])
+                    # print(ts_join)
+                    ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
+                # decide to plot manual forecast_data_refresh line
+                if manual_plot:
+                    df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
+                    global ts_manual
+                    ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+                    ax.plot(ts_manual, color='purple', marker='o', markersize=6,
+                            linestyle='None', gid='point_manual', alpha=0.6)
+                    ax.plot(ts_manual, color='purple', label='Manual',
+                            linestyle='dashed', alpha=0.6)
+                # 以下画水平线
+                ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
+                ax.axhline(y=TR, color='green', linewidth=2, label='TR', gid='line_TR')
+                if Risk is not None:
+                    ax.axhline(y=Risk, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
+                ax.axhline(y=RO, color='red', linewidth=2, label='RunOut', gid='line_RO')
+                # 画竖直线,较繁琐。具体函数见定义
+                if TR_time is not None:
+                    self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full)
+                if (toTime - fromTime).days <= 12:
+                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
+                elif (toTime - fromTime).days <= 24:
+                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
+                else:
+                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
+                # fig.autofmt_xdate()
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+                # plot for second y-axis
+                factor = func.weight_length_factor(uom)
+
+                def kg2cm(x):
+                    return x / (galsperinch * factor)
+
+                def cm2kg(x):
+                    return x * (galsperinch * factor)
+
+                ax.grid()
+
+                # 2024-04-18 新增 直方图
+                beforeRD = self.data_manager.get_before_reading(shipto)
+                if len(beforeRD) > 0:
+                    binwidth = 200
+                    xymax = np.max(np.abs(beforeRD))
+                    lim = (int(xymax / binwidth) + 1) * binwidth
+                    bins = np.arange(0, lim + binwidth, binwidth)
+                else:
+                    bins = np.arange(0, 2, 1)
+
+                ax_histy.clear()
+                axHist_info = ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue',
+                                            orientation='horizontal')
+                ax_histy.tick_params(
+                    axis='y',
+                    which='both',  # both major and minor ticks are affected
+                    bottom=False,  # ticks along the bottom edge are off
+                    top=False,  # ticks along the top edge are off
+                    # labelbottom=False,
+                    labelleft=False,
+                    # left=False
+                )
+                if len(beforeRD) > 0:
+                    max_count = np.max(axHist_info[0])
+                    xticks = func.define_xticks(max_count)
+                else:
+                    xticks = np.arange(0, 2, 1)
+                ax_histy.set_xticks(xticks)
+                ax_histy.grid()
+                # plt.tight_layout()
+                canvas.draw_idle()
+                toolbar.update()
+                # print(111)
+                # path = 'C:\Users\zhoud8\Documents\OneDrive - Air Products and Chemicals, Inc\python_project\gui\Forecasting'
+                if save_pic:
+                    fig.savefig('./feedback.png')
+                # 点击作图时,同时显示客户的充装的详细信息
+                fe = self.data_manager.get_forecast_error(shipto)
+
+                self.show_info(custName, TR_time, Risk_time, RO_time, full,
+                               TR, Risk, RO, ts_forecast_usage, galsperinch, uom, fe,
+                               primary_dt=current_primary_dt, max_payload=current_max_payload
+                               )
+                t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
+                t4_t6_value_label.config(text=t4_t6_value)
+                # 显示历史液位
+                self.update_reading_tree_table(shipto_id=str(shipto))
+                # # 显示送货窗口
+                self.update_delivery_window_tree_table(shipto_id=str(shipto))
+
+                self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
+                self.update_near_customer_table(shipto_id=str(shipto))
+
+                if lock.locked():
+                    lock.release()
+
+    def plot(self):
+        '''多线程作图主函数'''
+        starttime = time.time()
+        lock = self.lock
+        # lock the thread
+        while True:
+            if lock.acquire(blocking=False) is True:
+                break
+            else:
+                endtime = time.time()
+                duration = round(endtime - starttime, 3)
+                print('lock is not free')
+                time.sleep(0.5)
+                if duration > 8:
+                    if lock.locked():
+                        lock.release()
+        try:
+            self.main_plot()
+        except Exception as e:
+            print(e)
+            if lock.locked():
+                lock.release()
+    # endregion
+
+    # region 刷新数据
+    def refresh_data(self, show_message=True):
+        try:
+            conn = self.conn
+            cur = self.cur
+            data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
+            data_refresh.refresh_lb_hourly_data()
+            func.log_connection(self.log_file, 'refreshed')
+            if show_message:
+                messagebox.showinfo(title='success', message='data to sqlite success!')
+        except Exception as e:
+            messagebox.showinfo(title='failure', message='failure, please check! {}'.format(e))
+    # endregion
