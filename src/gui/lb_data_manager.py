@@ -274,3 +274,26 @@ class LBDataManager:
         df_name_all = pd.read_sql(sql, conn).drop_duplicates().set_index('CustAcronym')
         return df_name_all
 
+    def get_primary_terminal_dtd_info(self, shipto):
+        # 提取 primary DTD 信息
+        cursor = self.cur
+        primary_sql = '''
+                    SELECT DT, Distance, Duration FROM DTDInfo 
+                    WHERE LocNum={} AND DTType='Primary'
+                    '''.format(shipto)
+
+        cursor.execute(primary_sql)
+        results = cursor.fetchall()
+        return results
+
+    def get_sourcing_terminal_dtd_info(self, shipto):
+        # 提取 Source DTD 信息
+        cursor = self.cur
+        source_sql = '''
+                    SELECT DT, Distance, Duration FROM DTDInfo 
+                    WHERE LocNum={} AND DTType='Sourcing'
+                    ORDER BY Rank
+                    '''.format(shipto)
+        cursor.execute(source_sql)
+        results = cursor.fetchall()
+        return results

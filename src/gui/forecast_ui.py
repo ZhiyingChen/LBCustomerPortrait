@@ -1104,7 +1104,7 @@ class LBForecastUI:
         dtd_cluster_frame = tk.LabelFrame(plot_frame)
         dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
 
-        self.dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
+        self.set_dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
 
         # 最大的frame：par_frame
         par_frame = tk.LabelFrame(root)
@@ -1167,21 +1167,21 @@ class LBForecastUI:
         func.log_connection(log_file, 'opened')
 
 
-    def dtd_cluster_label(self, dtd_cluster_frame):
+    def set_dtd_cluster_label(self, dtd_cluster_frame):
         # 上方 Frame：Terminal/Source DTD 模块
         frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
         frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self.dtd_label(dtd_frame=frame_dtd)
+        self.set_dtd_label(dtd_frame=frame_dtd)
 
         # 下方 Frame：临近客户模块
         frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
         frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self.near_customer_label(near_customer_frame=frame_near_customer)
+        self.set_near_customer_label(near_customer_frame=frame_near_customer)
 
 
-    def dtd_label(self, dtd_frame):
+    def set_dtd_label(self, dtd_frame):
         global dtd_table
 
         columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
@@ -1192,15 +1192,7 @@ class LBForecastUI:
 
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
-        cursor = self.cur
-        # 提取 primary DTD 信息
-        primary_sql = '''
-            SELECT DT, Distance, Duration FROM DTDInfo 
-            WHERE LocNum={} AND DTType='Primary'
-            '''.format(shipto_id)
-
-        cursor.execute(primary_sql)
-        results = cursor.fetchall()
+        results = self.data_manager.get_primary_terminal_dtd_info(shipto_id)
 
         # 添加 Primary DTD 信息
         primary_info = []
@@ -1219,15 +1211,7 @@ class LBForecastUI:
 
             primary_info.append(departure_time)
 
-        # 提取 Source DTD 信息
-        source_sql = '''
-            SELECT DT, Distance, Duration FROM DTDInfo 
-            WHERE LocNum={} AND DTType='Sourcing'
-            ORDER BY Rank
-            '''.format(shipto_id)
-        cursor.execute(source_sql)
-        results = cursor.fetchall()
-
+        results = self.data_manager.get_sourcing_terminal_dtd_info(shipto_id)
         # 添加 Source DTD 信息
         source_list = []
         for row in results:
@@ -1251,7 +1235,7 @@ class LBForecastUI:
         dtd_table.insert_rows(rows)
 
 
-    def near_customer_label(self, near_customer_frame):
+    def set_near_customer_label(self, near_customer_frame):
         global near_customer_table
 
         columns = ["临近客户简称", "距离(km)", "DDER"]
