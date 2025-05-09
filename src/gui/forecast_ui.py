@@ -44,16 +44,22 @@ class LBForecastUI:
             self,
             root,
             conn,
-            cur
+            cur,
+            path1: str
     ):
         self.root = root
         self.conn = conn
         self.cur = cur
 
+        # lock
         self.lock = threading.Lock()
 
+        # 提取数据的类
         self.data_manager = LBDataManager(conn, cur)
 
+        # 日志记录
+        self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
+        func.log_connection(self.log_file, 'opened')
 
     def clean_detailed_info(self):
         for key, label in self.detail_labels.items():
@@ -555,7 +561,7 @@ class LBForecastUI:
             cur = self.cur
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
-            func.log_connection(log_file, 'refreshed')
+            func.log_connection(self.log_file, 'refreshed')
             if show_message:
                 messagebox.showinfo(title='success', message='data to sqlite success!')
         except Exception as e:
@@ -1058,7 +1064,7 @@ class LBForecastUI:
         treename.pack()
 
 
-    def forecaster_run(self,path1):
+    def forecaster_run(self):
         root = self.root
         # 建立 筛选区域
         # 补丁
@@ -1152,19 +1158,17 @@ class LBForecastUI:
         frame_manual.grid(row=1, column=0, padx=2, pady=2)
         # 输入 起始日期
         self.manual_input_label(frame_manual)
+
         # 新增两个 Treeview
-        frame_tree = tk.LabelFrame(par_frame, text='Historical Readings')
-        frame_tree.grid(row=0, column=3, padx=2, pady=1)
+        historical_readings_frame = tk.LabelFrame(par_frame, text='Historical Readings')
+        historical_readings_frame.grid(row=0, column=3, padx=2, pady=1)
         # 增加历史液位记录
         global reading_tree, deliveryWindow_tree
-        reading_tree = self.treeView_design(framename=frame_tree, width=380,
+        reading_tree = self.treeView_design(framename=historical_readings_frame, width=380,
                                        height=120, row=0, column=0, y_scroll=True)
-        deliveryWindow_tree = self.treeView_design(framename=frame_tree, width=380,
+        deliveryWindow_tree = self.treeView_design(framename=historical_readings_frame, width=380,
                                               height=120, row=1, column=0, y_scroll=False)
 
-        global log_file
-        log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
-        func.log_connection(log_file, 'opened')
 
 
     def decorate_dtd_cluster_label(self, dtd_cluster_frame):
