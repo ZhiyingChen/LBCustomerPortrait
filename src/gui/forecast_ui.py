@@ -57,9 +57,13 @@ class LBForecastUI:
         # 提取数据的类
         self.data_manager = LBDataManager(conn, cur)
 
+        self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
+
         # 日志记录
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
+
+
 
     def clean_detailed_info(self):
         for key, label in self.detail_labels.items():
@@ -308,6 +312,8 @@ class LBForecastUI:
         root = self.root
         conn = self.conn
         lock = self.lock
+        df_name_forecast = self.df_name_forecast
+
         custName = listbox_customer.get(listbox_customer.curselection()[0])
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
@@ -616,8 +622,9 @@ class LBForecastUI:
     def subRegion_boxlist(self, framename):
         '''subRegion boxlist'''
         global listbox_subRegion
+
         listbox_subRegion = tk.Listbox(framename, height=5, width=10, exportselection=False)
-        subRegion_list = df_name_forecast.SubRegion.unique()
+        subRegion_list = self.df_name_forecast.SubRegion.unique()
         for item in sorted(subRegion_list):
             listbox_subRegion.insert(tk.END, item)
         listbox_subRegion.grid(row=0, column=0, padx=1, pady=1)
@@ -677,6 +684,7 @@ class LBForecastUI:
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
+        df_name_forecast = self.df_name_forecast
         listbox_customer.delete(0, tk.END)
         if listbox_subRegion.curselection() is None or len(listbox_subRegion.curselection()) == 0:
             SubRegion = None
@@ -732,6 +740,8 @@ class LBForecastUI:
         '''当点击 subregion 的时候显示 products & terminal & FO'''
         # global terminal_list, product_list, demandType_list
         # 1 terminal
+        df_name_forecast = self.df_name_forecast
+
         listbox_terminal.delete(0, tk.END)
         selected_subRegion = listbox_subRegion.get(tk.ANCHOR)
         terminal_list = sorted(list(df_name_forecast.loc[df_name_forecast.SubRegion ==
@@ -765,7 +775,8 @@ class LBForecastUI:
         '''search for customer by shipto or name'''
         root = self.root
         info = entry_name.get().strip()
-        # print(info)
+
+        df_name_all = self.data_manager.get_all_customer_from_sqlite()
         if info.isdigit():
             info = int(info)
             names = df_name_all[df_name_all.LocNum == info].index
@@ -938,6 +949,7 @@ class LBForecastUI:
         root = self.root
         cur = self.cur
         conn = self.conn
+        df_name_forecast = self.df_name_forecast
 
         input_value1 = box_kg.get()
         input_value2 = box_cm.get()
@@ -985,14 +997,8 @@ class LBForecastUI:
 
     def forecaster_run(self):
         root = self.root
-        # 建立 筛选区域
-        # 补丁
-        global plot_flag
-        plot_flag = True
 
-        global df_name_forecast, df_name_all
-        df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
-        df_name_all = self.data_manager.get_all_customer_from_sqlite()
+
         # 建立 作图区域
         plot_frame = tk.LabelFrame(root, text='Plot')
         plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
