@@ -27,6 +27,7 @@ from ..utils.lct_api import updateLCT
 from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from .lb_data_manager import LBDataManager
 from ..utils import functions as func
+from ..utils.constant import unitOfLength_dict
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
 # 设置显示中文,与字体配合使用
@@ -63,9 +64,9 @@ class LBForecastUI:
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
 
-    def info_cust_frame(self, par_frame):
+    def info_cust_frame(self):
         '''建立客户名称的frame,也即第二模块'''
-        frame_name = tk.LabelFrame(par_frame, text='Cust')
+        frame_name = tk.LabelFrame(self.par_frame, text='Cust')
         frame_name.grid(row=0, column=0, padx=5, pady=5)
         return frame_name
 
@@ -140,31 +141,40 @@ class LBForecastUI:
         self.listbox_demand_type.grid(row=1, column=1, padx=1, pady=1)
 
 
-    def customer_query(self, framename):
-        global entry_name
-        entry_name = tk.Entry(framename, width=20, bg='white', fg='black', borderwidth=1)
-        entry_name.grid(row=0, column=0)
+    def _set_customer_query(self):
+        self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
+        self.entry_name.grid(row=0, column=0)
 
-    def customer_boxlist(self, framename):
+        self.btn_query = tk.Button(self.cust_frame, text='Search', command=lambda: self.cust_btn_search())
+        self.btn_query.grid(row=0, column=1, padx=2)
+
+        self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame, text='Customer Name')
+        self.cust_name_selection_frame.grid(row=1, column=0, padx=5, pady=5, columnspan=2)
+
+        self._decorate_cust_name_selection_frame()
+
+
+
+    def _decorate_cust_name_selection_frame(self):
         ''' customer boxlist'''
-        frame_name = tk.LabelFrame(framename, text='Customer Name')
         # 新增滚动轴 scrollbar
-        scroll_y = tk.Scrollbar(frame_name, orient=tk.VERTICAL)
+        scroll_y = tk.Scrollbar(self.cust_name_selection_frame, orient=tk.VERTICAL)
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
-        global listbox_customer
-        listbox_customer = tk.Listbox(
-            frame_name, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
-        scroll_y.config(command=listbox_customer.yview)
+        self.listbox_customer = tk.Listbox(
+            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
+        scroll_y.config(command=self.listbox_customer.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        frame_name.grid(row=1, column=0, padx=5, pady=5, columnspan=2)
-        listbox_customer.pack()
+
+        self.listbox_customer.pack()
+        self.listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
+            target=self.plot).start())
 
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
         df_name_forecast = self.df_name_forecast
-        listbox_customer.delete(0, tk.END)
+        self.listbox_customer.delete(0, tk.END)
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
             SubRegion = None
         else:
@@ -212,7 +222,7 @@ class LBForecastUI:
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
         for item in custName_list:
-            listbox_customer.insert(tk.END, item)
+            self.listbox_customer.insert(tk.END, item)
 
 
     def show_list_terminal_product_FO(self, event):
@@ -246,14 +256,14 @@ class LBForecastUI:
         self.listbox_terminal.select_set(0)
         self.listbox_products.select_set(0)
         self.listbox_demand_type.select_set(0)
-        # 显示 listbox_customer
+        # 显示 self.listbox_customer
         self.show_list_cust(event)
 
 
     def cust_btn_search(self):
         '''search for customer by shipto or name'''
         root = self.root
-        info = entry_name.get().strip()
+        info = self.entry_name.get().strip()
 
         df_name_all = self.data_manager.get_all_customer_from_sqlite()
         if info.isdigit():
@@ -264,26 +274,25 @@ class LBForecastUI:
         if len(names) == 0:
             messagebox.showinfo(parent=root, title='Warning', message='Check your search!')
         else:
-            listbox_customer.delete(0, tk.END)
+            self.listbox_customer.delete(0, tk.END)
             for item in sorted(names):
-                listbox_customer.insert(tk.END, item)
+                self.listbox_customer.insert(tk.END, item)
 
     def send_feedback(self, event):
 
         root = self.root
 
-        global save_pic
-        save_pic = True
+        self.save_pic = True
         pic_name = "./feedback.png"
         if os.path.isfile(pic_name):
             os.remove(pic_name)
         # event = None
         self.plot()
         print('testing')
-        save_pic = False
+        self.save_pic = False
         email_worker = send_email()
-        result = combo_assess.get()
-        reason = combo_reason.get()
+        result = self.combo_assess.get()
+        reason = self.combo_reason.get()
         time.sleep(3)
         rounds = 0
         while not os.path.isfile(pic_name):
@@ -296,7 +305,7 @@ class LBForecastUI:
         email_worker.outlook(addressee, message_subject, message_body)
         messagebox.showinfo(parent=root, title='Success', message='Email been sent!')
 
-    def _set_detail_info_label(self, framename):
+    def _set_detail_info_label(self):
         '''show detailed information about tank and forecast'''
         self.detail_labels = {}
 
@@ -316,69 +325,77 @@ class LBForecastUI:
         ]
 
         for i, (label_text, key) in enumerate(label_info):
-            lb_label = tk.Label(framename, text=label_text)
+            lb_label = tk.Label(self.frame_detail, text=label_text)
             lb_label.grid(row=i, column=0, padx=6, pady=pad_y)
 
-            lb_value = tk.Label(framename, text="")
+            lb_value = tk.Label(self.frame_detail, text="")
             lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
 
             if label_text in ["__ MaxPayload", "forecast_hour_range"]:
                 self.detail_labels[label_text] = lb_label
             self.detail_labels[key] = lb_value
+    
+    def _set_manipulate_frame(self):
+        self.frame_warning = tk.LabelFrame(self.manipulate_frame, text='Warning')
+        self.frame_warning.grid(row=0, column=0, padx=2, pady=2)
 
+        self._set_frame_warning_label()
 
-    def frame_warning_label(self, framename):
-        global t4_t6_value_label
+        # 重新排版,建立 frame_detail
+        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='Manual Input')
+        self.frame_manual.grid(row=1, column=0, padx=2, pady=2)
+        # 输入 起始日期
+        self._set_manual_input_label()
 
+    def _set_frame_warning_label(self):
         # 添加一个标签作为示例
-        t4_t6_label = tk.Label(framename, text="T6-T4 recent 3-time average (h): ")
-        t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
+        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4 recent 3-time average (h): ")
+        self.t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
 
-        t4_t6_value_label = tk.Label(framename, text="")
-        t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
+        self.t4_t6_value_label = tk.Label(self.frame_warning, text="")
+        self.t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
 
 
-    def manual_input_label(self, framename):
+    def _set_manual_input_label(self):
         '''for schedulers manually input their estimation about hourly usage'''
 
         conn = self.conn
         pad_y = 0
-        lb_cm = tk.Label(framename, text='CM Hourly')
+        lb_cm = tk.Label(self.frame_manual, text='CM Hourly')
         lb_cm.grid(row=0, column=0, padx=1, pady=pad_y)
-        global box_cm, box_kg
-        box_cm = tk.Entry(framename, width=10)
-        box_cm.grid(row=0, column=1, padx=1, pady=pad_y)
-        lb_kg = tk.Label(framename, text='KG Hourly')
+    
+        self.box_cm = tk.Entry(self.frame_manual, width=10)
+        self.box_cm.grid(row=0, column=1, padx=1, pady=pad_y)
+        lb_kg = tk.Label(self.frame_manual, text='KG Hourly')
         lb_kg.grid(row=1, column=0, padx=1, pady=pad_y)
-        box_kg = tk.Entry(framename, width=10)
-        box_kg.grid(row=1, column=1, padx=1, pady=pad_y)
-        btn_calculate = tk.Button(framename, text='Calculate by Input', width=15,
+        self.box_kg = tk.Entry(self.frame_manual, width=10)
+        self.box_kg.grid(row=1, column=1, padx=1, pady=pad_y)
+        btn_calculate = tk.Button(self.frame_manual, text='Calculate by Input', width=15,
                                   command=self.calculate_by_manual)
         btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
-        btn_reset = tk.Button(framename, text='Reset', width=15,
+        btn_reset = tk.Button(self.frame_manual, text='Reset', width=15,
                               command=self.reset_manual)
         btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
-        lb_assess = tk.Label(framename, text='Feedback: ')
+        lb_assess = tk.Label(self.frame_manual, text='Feedback: ')
         lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
-        global combo_assess, combo_reason
+
         assess_options = ['', '预测准确', '预测误差小', '预测误差大']
-        combo_assess = ttk.Combobox(framename, value=assess_options)
-        # combo_assess.current(1)
-        combo_assess.grid(row=4, column=1, padx=1, pady=pad_y)
-        lb_reason = tk.Label(framename, text='Reason: ')
+        self.combo_assess = ttk.Combobox(self.frame_manual, value=assess_options)
+        self.combo_assess.grid(row=4, column=1, padx=1, pady=pad_y)
+        lb_reason = tk.Label(self.frame_manual, text='Reason: ')
         lb_reason.grid(row=5, column=0, padx=1, pady=pad_y)
         reason_options = ['', '并联罐', '生产计划原因', '节日长假', '突发情况', '模型有改进空间']
-        combo_reason = ttk.Combobox(framename, value=reason_options)
-        combo_reason.grid(row=5, column=1, padx=1, pady=5)
-        btn_email = tk.Button(framename, text='Send Email', width=15)
+        self.combo_reason = ttk.Combobox(self.frame_manual, value=reason_options)
+        self.combo_reason.grid(row=5, column=1, padx=1, pady=5)
+        btn_email = tk.Button(self.frame_manual, text='Send Email', width=15)
         btn_email.grid(row=6, column=0, pady=1, columnspan=2)
         btn_email.bind('<Button-1>', lambda event: threading.Thread(target=self.send_feedback,
                                                                     args=(event,)).start())
-        lb_time1 = tk.Label(framename, text='Last Time: ')
+        lb_time1 = tk.Label(self.frame_manual, text='Last Time: ')
         lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
         sql = 'select MAX(ReadingDate) from historyReading '
         lastTime = pd.read_sql(sql, conn).values.flatten()[0]
-        lb_time2 = tk.Label(framename, text='{}'.format(lastTime))
+        lb_time2 = tk.Label(self.frame_manual, text='{}'.format(lastTime))
         lb_time2.grid(row=7, column=1, padx=1, pady=pad_y)
 
 
@@ -430,8 +447,8 @@ class LBForecastUI:
         conn = self.conn
         df_name_forecast = self.df_name_forecast
 
-        input_value1 = box_kg.get()
-        input_value2 = box_cm.get()
+        input_value1 = self.box_kg.get()
+        input_value2 = self.box_cm.get()
         if len(input_value1) > 0 and len(input_value2) > 0:
             messagebox.showinfo(parent=root, title='Warning', message='Cannot KM+CM')
             return
@@ -451,7 +468,7 @@ class LBForecastUI:
             messagebox.showinfo(parent=root, title='Warning', message='Input Wrong')
             return
         # print(input_value1, input_value2, type(input_value1), type(input_value2))
-        custName = listbox_customer.get(tk.ANCHOR)
+        custName = self.listbox_customer.get(tk.ANCHOR)
         if custName not in df_name_forecast.index:
             messagebox.showinfo(parent=root, title='Warning', message='No Data To Show.')
             return
@@ -462,15 +479,15 @@ class LBForecastUI:
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
         conn.commit()
         df.to_sql(table_name, con=conn, if_exists='replace', index=False)
-        global manual_plot
-        manual_plot = True
+
+        self.manual_plot = True
         self.plot()
-        manual_plot = False
+        self.manual_plot = False
 
 
     def reset_manual(self):
-        box_kg.delete(0, 'end')
-        box_cm.delete(0, 'end')
+        self.box_kg.delete(0, 'end')
+        self.box_cm.delete(0, 'end')
         event = None
         self.plot()
 
@@ -536,12 +553,15 @@ class LBForecastUI:
         self._set_terminal_boxlist()
         self._set_products_boxlist()
         self._set_demand_type_boxlist()
+
+        self.listbox_subregion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
+        self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
     
     def forecaster_run(self):
         root = self.root
-
-
-        # 建立 作图区域
+        # 建立上半区：作图区域 plot frame
         self.plot_frame = tk.LabelFrame(root, text='Plot')
         self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
 
@@ -566,71 +586,42 @@ class LBForecastUI:
         self._set_pic_frame()
 
         self.annot = None
+        self.save_pic = False
+        self.manual_plot = False
 
-        self.canvas.mpl_connect("motion_notify_event", self.hover)
-
-        # column 2: 新增 DTD and Cluster 的 Frame
+        # plot_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.plot_frame.columnconfigure(2, weight=3)
         self.dtd_cluster_frame = tk.LabelFrame(self.plot_frame)
         self.dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
-
         self._decorate_dtd_cluster_label()
 
-        # 最大的frame：par_frame
-        par_frame = tk.LabelFrame(root)
-        par_frame.pack(fill='x', expand=True, padx=5, pady=1)
+        # 建立下半区：信息区域：par_frame
+        self.par_frame = tk.LabelFrame(root)
+        self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
 
-        for col in range(4):
-            weight = 1
-            if col == 3:
-                weight = 2
-            par_frame.columnconfigure(col, weight=weight)
 
-        cust_frame = self.info_cust_frame(par_frame)
-        self.customer_query(cust_frame)
-        global btn_query
-        btn_query = tk.Button(cust_frame, text='Search', command=lambda: self.cust_btn_search())
-        btn_query.grid(row=0, column=1, padx=2)
-        self.customer_boxlist(cust_frame)
-        global save_pic, manual_plot
-        save_pic = False
-        manual_plot = False
-        global unitOfLength_dict
-        unitOfLength_dict = {1: 'CM', 2: 'Inch', 3: 'M', 4: 'MM', 5: 'Percent', 6: 'Liters'}
+        # par_frame column 0, row 0: 客户筛选区域
+        self.par_frame.columnconfigure(0, weight=1)
+        self.cust_frame = tk.LabelFrame(self.par_frame, text='Cust')
+        self.cust_frame.grid(row=0, column=0, padx=5, pady=5)
+        self._set_customer_query()
 
-        self.listbox_subregion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
-        self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
-        self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
-        self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
+        # par_frame column 1, row 0: 建立 frame_detail
+        self.par_frame.columnconfigure(1, weight=1)
+        self.frame_detail = tk.LabelFrame(self.par_frame, text='Detailed Info')
+        self.frame_detail.grid(row=0, column=1, padx=10, pady=2)
+        self._set_detail_info_label()
 
-        listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
-            target=self.plot).start())
+        # par_frame column 2, row 0: 建立 手工操作区域
+        self.par_frame.columnconfigure(2, weight=1)
+        self.manipulate_frame = tk.LabelFrame(self.par_frame)
+        self.manipulate_frame.grid(row=0, column=2, padx=2, pady=2)
+        self._set_manipulate_frame()
 
-        # 重新排版,建立 frame_detail
-        frame_detail = tk.LabelFrame(par_frame, text='Detailed Info')
-        frame_detail.grid(row=0, column=1, padx=10, pady=2)
-        # 输入 起始日期
-        self._set_detail_info_label(frame_detail)
-
-        second_col_frame = tk.LabelFrame(par_frame)
-        second_col_frame.grid(row=0, column=2, padx=2, pady=2)
-
-        frame_warning = tk.LabelFrame(second_col_frame, text='Warning')
-        frame_warning.grid(row=0, column=0, padx=2, pady=2)
-
-        self.frame_warning_label(frame_warning)
-
-        # 重新排版,建立 frame_detail
-        frame_manual = tk.LabelFrame(second_col_frame, text='Manual Input')
-        frame_manual.grid(row=1, column=0, padx=2, pady=2)
-        # 输入 起始日期
-        self.manual_input_label(frame_manual)
-
-        # 新增两个 Treeview
-        self.historical_readings_frame = tk.LabelFrame(par_frame)
+        # par_frame column 3, row 0: 两个 Treeview 历史液位记录和时间窗
+        self.par_frame.columnconfigure(3, weight=2)
+        self.historical_readings_frame = tk.LabelFrame(self.par_frame)
         self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
-
-        # 增加历史液位记录
         self._decorate_historical_readings_frame()
 
     # region 刷新相关函数
@@ -852,7 +843,8 @@ class LBForecastUI:
       
         self.canvas = FigureCanvasTkAgg(self.pic_figure, master=framename)  # A tk.DrawingArea.
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
+       
+        self.canvas.mpl_connect("motion_notify_event", self.hover)
         self.toolbar = NavigationToolbar2Tk(self.canvas, framename)
 
 
@@ -951,7 +943,7 @@ class LBForecastUI:
         lock = self.lock
         df_name_forecast = self.df_name_forecast
 
-        custName = listbox_customer.get(listbox_customer.curselection()[0])
+        custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
         if custName not in df_name_forecast.index:
@@ -1081,7 +1073,7 @@ class LBForecastUI:
                     # print(ts_join)
                     self.forecast_plot_ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
                 # decide to plot manual forecast_data_refresh line
-                if manual_plot:
+                if self.manual_plot:
                     df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
                     global ts_manual
                     ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
@@ -1151,7 +1143,7 @@ class LBForecastUI:
                 self.toolbar.update()
                 # print(111)
                 # path = 'C:\Users\zhoud8\Documents\OneDrive - Air Products and Chemicals, Inc\python_project\gui\Forecasting'
-                if save_pic:
+                if self.save_pic:
                     self.pic_figure.savefig('./feedback.png')
                 # 点击作图时,同时显示客户的充装的详细信息
                 fe = self.data_manager.get_forecast_error(shipto)
@@ -1161,7 +1153,7 @@ class LBForecastUI:
                                primary_dt=current_primary_dt, max_payload=current_max_payload
                                )
                 t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
-                t4_t6_value_label.config(text=t4_t6_value)
+                self.t4_t6_value_label.config(text=t4_t6_value)
                 # 显示历史液位
                 self.update_reading_tree_table(shipto_id=str(shipto))
                 # # 显示送货窗口
