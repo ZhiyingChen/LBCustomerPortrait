@@ -226,7 +226,6 @@ class LBForecastUI:
         else:
             f_FO = df_name_forecast.DemandType.isin(cur_FO)
         # get selected customers
-        # global custName_list
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
         for item in custName_list:
@@ -235,7 +234,6 @@ class LBForecastUI:
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
-        # global terminal_list, product_list, demandType_list
         # 1 terminal
         df_name_forecast = self.df_name_forecast
 
@@ -887,15 +885,10 @@ class LBForecastUI:
             # Searching which data member corresponds to current mouse position
             if curve.contains(event)[0]:
                 graph_id = curve.get_gid()
-                if 'ts_manual' in globals():
-                    graph_dict = {'point_history': self.ts_history,
-                                  'point_forecast': self.ts_forecast,
-                                  'point_forecastBeforeTrip': self.ts_forecast_before_trip,
-                                  'point_manual': ts_manual}
-                else:
-                    graph_dict = {'point_history': self.ts_history,
-                                  'point_forecast': self.ts_forecast,
-                                  'point_forecastBeforeTrip': self.ts_forecast_before_trip}
+                graph_dict = {'point_history': self.ts_history,
+                              'point_forecast': self.ts_forecast,
+                              'point_forecastBeforeTrip': self.ts_forecast_before_trip,
+                              'point_manual': self.ts_manual}
                 if graph_id in graph_dict.keys():
                     if vis:
                         # 说明已经有了一个 annot, 就不再显示第二个了。
@@ -1160,11 +1153,10 @@ class LBForecastUI:
         # decide to plot manual forecast_data_refresh line
         if self.manual_plot:
             df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
-            global ts_manual
-            ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-            self.forecast_plot_ax.plot(ts_manual, color='purple', marker='o', markersize=6,
+            self.ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+            self.forecast_plot_ax.plot(self.ts_manual, color='purple', marker='o', markersize=6,
                                        linestyle='None', gid='point_manual', alpha=0.6)
-            self.forecast_plot_ax.plot(ts_manual, color='purple', label='Manual',
+            self.forecast_plot_ax.plot(self.ts_manual, color='purple', label='Manual',
                                        linestyle='dashed', alpha=0.6)
         # 以下画水平线
         self.forecast_plot_ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
