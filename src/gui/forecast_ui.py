@@ -64,6 +64,9 @@ class LBForecastUI:
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
 
+        # setup ui
+        self._setup_ui()
+
     def info_cust_frame(self):
         '''建立客户名称的frame,也即第二模块'''
         frame_name = tk.LabelFrame(self.par_frame, text='Cust')
@@ -558,20 +561,14 @@ class LBForecastUI:
         self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
         self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
         self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
-    
-    def forecaster_run(self):
-        root = self.root
-        # 建立上半区：作图区域 plot frame
-        self.plot_frame = tk.LabelFrame(root, text='Plot')
-        self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
 
+    def _decorate_plot_frame(self):
         # plot_frame column 0, row 0: 筛选区域
         self.plot_frame.columnconfigure(0, weight=1)
         self.f_frame = tk.LabelFrame(self.plot_frame, text='Filter')
         self.f_frame.grid(row=0, column=0, padx=2, pady=1)
         self._decorate_filter_frame()
-      
-        
+
         # plot_frame column 0, row 1: 重新排版,建立 frame_input
         self.frame_input = tk.LabelFrame(self.plot_frame, text='input')
         self.frame_input.grid(row=1, column=0, padx=2, pady=5)
@@ -595,11 +592,7 @@ class LBForecastUI:
         self.dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
         self._decorate_dtd_cluster_label()
 
-        # 建立下半区：信息区域：par_frame
-        self.par_frame = tk.LabelFrame(root)
-        self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
-
-
+    def _decorate_par_frame(self):
         # par_frame column 0, row 0: 客户筛选区域
         self.par_frame.columnconfigure(0, weight=1)
         self.cust_frame = tk.LabelFrame(self.par_frame, text='Cust')
@@ -623,6 +616,19 @@ class LBForecastUI:
         self.historical_readings_frame = tk.LabelFrame(self.par_frame)
         self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
         self._decorate_historical_readings_frame()
+
+    def _setup_ui(self):
+        # 建立上半区：作图区域 plot frame
+        self.plot_frame = tk.LabelFrame(self.root, text='Plot')
+        self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
+        self._decorate_plot_frame()
+
+
+        # 建立下半区：信息区域：par_frame
+        self.par_frame = tk.LabelFrame(self.root)
+        self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
+        self._decorate_par_frame()
+
 
     # region 刷新相关函数
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
