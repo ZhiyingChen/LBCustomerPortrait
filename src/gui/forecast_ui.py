@@ -1104,7 +1104,7 @@ class LBForecastUI:
         dtd_cluster_frame = tk.LabelFrame(plot_frame)
         dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
 
-        self.set_dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
+        self.decorate_dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
 
         # 最大的frame：par_frame
         par_frame = tk.LabelFrame(root)
@@ -1167,7 +1167,7 @@ class LBForecastUI:
         func.log_connection(log_file, 'opened')
 
 
-    def set_dtd_cluster_label(self, dtd_cluster_frame):
+    def decorate_dtd_cluster_label(self, dtd_cluster_frame):
         # 上方 Frame：Terminal/Source DTD 模块
         frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
         frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
