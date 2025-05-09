@@ -297,3 +297,16 @@ class LBDataManager:
         cursor.execute(source_sql)
         results = cursor.fetchall()
         return results
+
+    def get_near_customer_info(self, shipto):
+        cursor = self.cur
+        sql_line = '''
+                   SELECT ToLocNum, ToCustAcronym, distanceKM, DDER 
+                   FROM ClusterInfo
+                   WHERE LocNum={}
+                   ORDER BY DDER DESC
+               '''.format(shipto)
+
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        return results

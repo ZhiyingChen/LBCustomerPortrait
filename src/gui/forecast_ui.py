@@ -520,14 +520,16 @@ class LBForecastUI:
                 t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
                 t4_t6_value_label.config(text=t4_t6_value)
                 # 显示历史液位
-                self.treeview_data(shipto, self.reading_tree, 'reading')
-                # 显示送货窗口
-                self.treeview_data(shipto, self.deliveryWindow_tree, 'deliveryWindow')
-                if lock.locked():
-                    lock.release()
+                self.update_reading_tree_table(shipto_id=str(shipto))
+                # # 显示送货窗口
+                self.update_delivery_window_tree_table(shipto_id=str(shipto))
+
 
                 self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
                 self.update_near_customer_table(shipto_id=str(shipto))
+
+                if lock.locked():
+                    lock.release()
 
 
 
@@ -981,89 +983,6 @@ class LBForecastUI:
         event = None
         self.plot()
 
-
-    def treeView_design(self, framename, width, height, row, column, y_scroll):
-        '''增加 treeView'''
-        myFrame = tk.Frame(framename, width=width, height=height)
-        myFrame.pack_propagate(0)
-        myFrame.grid(row=row, column=column, padx=10, pady=5)
-        # treeview scrollbar
-        if y_scroll:
-            tree_scroll_y = tk.Scrollbar(myFrame, orient=tk.VERTICAL)
-            tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-            myTree = ttk.Treeview(myFrame, yscrollcommand=tree_scroll_y.set, selectmode='extended')
-            # configure the scrollbar
-            tree_scroll_y.config(command=myTree.yview)
-        else:
-            myTree = ttk.Treeview(myFrame, selectmode='extended')
-        # Add Style
-        style = ttk.Style()
-        # pick a theme
-        style.theme_use('default')
-        style.configure('Treeview', rowheight=25)
-        # tree_scroll_x.config(command=myTree.xview)
-        # striped row tags
-        myTree.tag_configure('oddRow', background='white')
-        myTree.tag_configure('evenRow', background='lightblue')
-        # 点击属性
-        # myTree.bind("<Double-1>", lambda event: OnDoubleClick(event, root))
-        return myTree
-
-
-    def clear_tree(self, treename):
-        # 如只删除 treeview
-        treename.delete(*treename.get_children())
-
-
-    def treeview_data(self, shipto, treename, purpose):
-        '''显示数据'''
-        conn = self.conn
-        if purpose == 'reading':
-            df = self.data_manager.get_recent_reading(shipto)
-            self.clear_tree(treename)
-        else:
-            df = self.data_manager.get_delivery_window(shipto)
-            self.clear_tree(treename)
-        # print(df)
-        # set up new tree view
-        treename['column'] = list(df.columns)
-        # print(df)
-        # 设置 column 的 属性, 主要是列宽
-        for col in df.columns:
-            if 'No' in col:
-                treename.column(col, anchor=tk.CENTER, width=35)
-            elif 'ReadingDate' in col:
-                treename.column(col, anchor=tk.CENTER, width=120)
-            elif 'Trailer_' in col:
-                treename.column(col, anchor=tk.CENTER, width=100)
-            elif 'LeaveTime' in col:
-                treename.column(col, anchor=tk.CENTER, width=120)
-            elif 'CheckInfo' in col:
-                treename.column(col, anchor=tk.CENTER, width=120)
-            elif 'title' in col:
-                treename.column(col, anchor=tk.CENTER, width=80)
-            elif col in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
-                treename.column(col, anchor=tk.CENTER, width=40)
-            else:
-                treename.column(col, anchor=tk.CENTER, width=65)
-
-        treename['show'] = 'headings'
-        # look thru column list for headers
-        global count
-        count = 0
-        for column in treename['column']:
-            treename.heading(column, text=column, anchor=tk.CENTER)
-        df_rows = df.to_numpy().tolist()
-        # 填入内容
-        for row in df_rows:
-            if count % 2 == 0:
-                treename.insert(parent='', index='end', values=row, tags=('evenRow',))
-            else:
-                treename.insert(parent='', index='end', values=row, tags=('oddRow',))
-            count += 1
-        treename.pack()
-
-
     def forecaster_run(self):
         root = self.root
         # 建立 筛选区域
@@ -1117,7 +1036,10 @@ class LBForecastUI:
         par_frame.pack(fill='x', expand=True, padx=5, pady=1)
 
         for col in range(4):
-            par_frame.columnconfigure(col, weight=1)
+            weight = 1
+            if col == 3:
+                weight = 2
+            par_frame.columnconfigure(col, weight=weight)
 
         cust_frame = self.info_cust_frame(par_frame)
         self.customer_query(cust_frame)
@@ -1161,20 +1083,45 @@ class LBForecastUI:
 
         # 新增两个 Treeview
         self.historical_readings_frame = tk.LabelFrame(par_frame, text='Historical Readings')
-        self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1)
+        self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
+
         # 增加历史液位记录
         self._decorate_historical_readings_frame()
 
-
     def _decorate_historical_readings_frame(self):
-        self.reading_tree = self.treeView_design(framename=self.historical_readings_frame, width=380,
-                                            height=120, row=0, column=0, y_scroll=True)
-        self.deliveryWindow_tree = self.treeView_design(framename=self.historical_readings_frame, width=380,
-                                                   height=120, row=1, column=0, y_scroll=False)
+        self.reading_tree_frame = tk.LabelFrame(self.historical_readings_frame)
+        self.reading_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_reading_tree()
 
-    def set_reading_tree(self):
-        pass
+        self.delivery_window_tree_frame = tk.LabelFrame(self.historical_readings_frame)
+        self.delivery_window_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_delivery_window_tree()
 
+    def _set_reading_tree(self):
+        columns = ["No", "ReadingDate", "Read_KG", "Read_CM", "Hour_CM"]
+        col_widths = [10, 100, 20, 20, 20]
+
+        self.reading_tree_table = ui_structure.SimpleTable(
+            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
+        self.reading_tree_table.frame.pack(fill="both", expand=True)
+
+    def _set_delivery_window_tree(self):
+        columns = ["title", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        col_widths = [70, 30, 30, 30, 30, 30, 30, 30]
+
+        self.delivery_window_tree_table = ui_structure.SimpleTable(
+            self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
+        self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
+
+    def update_reading_tree_table(self, shipto_id: str):
+        historical_reading_df = self.data_manager.get_recent_reading(shipto_id)
+        rows = historical_reading_df.to_numpy().tolist()
+        self.reading_tree_table.insert_rows(rows)
+
+    def update_delivery_window_tree_table(self, shipto_id: str):
+        delivery_window_df = self.data_manager.get_delivery_window(shipto_id)
+        rows = delivery_window_df.to_numpy().tolist()
+        self.delivery_window_tree_table.insert_rows(rows)
 
     def _decorate_dtd_cluster_label(self):
         dtd_cluster_frame = self.dtd_cluster_frame
@@ -1192,11 +1139,10 @@ class LBForecastUI:
 
 
     def _set_dtd_label(self):
-        dtd_frame = self.dtd_cluster_frame
         columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
         col_widths = [10, 20, 20, 100]
 
-        self.dtd_table = ui_structure.SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
+        self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
         self.dtd_table.frame.pack(fill="both", expand=True)
 
 
@@ -1254,17 +1200,7 @@ class LBForecastUI:
 
 
     def update_near_customer_table(self, shipto_id: str):
-        cursor = self.cur
-        sql_line = '''
-            SELECT ToLocNum, ToCustAcronym, distanceKM, DDER 
-            FROM ClusterInfo
-            WHERE LocNum={}
-            ORDER BY DDER DESC
-        '''.format(shipto_id)
-
-        cursor.execute(sql_line)
-        results = cursor.fetchall()
-
+        results = self.data_manager.get_near_customer_info(shipto_id)
         update_rows = list()
         for row in results:
             update_row = list()

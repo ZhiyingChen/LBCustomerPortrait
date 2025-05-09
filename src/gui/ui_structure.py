@@ -5,6 +5,7 @@ from tkinter import ttk
 class SimpleTable:
     def __init__(self, parent, columns, col_widths=None, height=10):
         self.frame = tk.Frame(parent)
+        self.frame.pack(fill="both", expand=True)  # 关键点1: 父容器填充扩展
 
         self.tree = ttk.Treeview(
             self.frame,
