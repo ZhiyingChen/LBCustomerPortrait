@@ -520,9 +520,9 @@ class LBForecastUI:
                 t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
                 t4_t6_value_label.config(text=t4_t6_value)
                 # 显示历史液位
-                self.treeview_data(shipto, reading_tree, 'reading')
+                self.treeview_data(shipto, self.reading_tree, 'reading')
                 # 显示送货窗口
-                self.treeview_data(shipto, deliveryWindow_tree, 'deliveryWindow')
+                self.treeview_data(shipto, self.deliveryWindow_tree, 'deliveryWindow')
                 if lock.locked():
                     lock.release()
 
@@ -1107,10 +1107,10 @@ class LBForecastUI:
 
         # column 2: 新增 DTD and Cluster 的 Frame
         plot_frame.columnconfigure(2, weight=3)
-        dtd_cluster_frame = tk.LabelFrame(plot_frame)
-        dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
+        self.dtd_cluster_frame = tk.LabelFrame(plot_frame)
+        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
 
-        self.decorate_dtd_cluster_label(dtd_cluster_frame=dtd_cluster_frame)
+        self._decorate_dtd_cluster_label()
 
         # 最大的frame：par_frame
         par_frame = tk.LabelFrame(root)
@@ -1160,39 +1160,39 @@ class LBForecastUI:
         self.manual_input_label(frame_manual)
 
         # 新增两个 Treeview
-        historical_readings_frame = tk.LabelFrame(par_frame, text='Historical Readings')
-        historical_readings_frame.grid(row=0, column=3, padx=2, pady=1)
+        self.historical_readings_frame = tk.LabelFrame(par_frame, text='Historical Readings')
+        self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1)
         # 增加历史液位记录
-        global reading_tree, deliveryWindow_tree
-        reading_tree = self.treeView_design(framename=historical_readings_frame, width=380,
-                                       height=120, row=0, column=0, y_scroll=True)
-        deliveryWindow_tree = self.treeView_design(framename=historical_readings_frame, width=380,
-                                              height=120, row=1, column=0, y_scroll=False)
+        self._decorate_historical_readings_frame()
 
 
+    def _decorate_historical_readings_frame(self):
+        self.reading_tree = self.treeView_design(framename=self.historical_readings_frame, width=380,
+                                            height=120, row=0, column=0, y_scroll=True)
+        self.deliveryWindow_tree = self.treeView_design(framename=self.historical_readings_frame, width=380,
+                                                   height=120, row=1, column=0, y_scroll=False)
 
-    def decorate_dtd_cluster_label(self, dtd_cluster_frame):
+    def _decorate_dtd_cluster_label(self):
+        dtd_cluster_frame = self.dtd_cluster_frame
         # 上方 Frame：Terminal/Source DTD 模块
         frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
         frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self.set_dtd_label(dtd_frame=frame_dtd)
+        self._set_dtd_label(dtd_frame=frame_dtd)
 
         # 下方 Frame：临近客户模块
         frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
         frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self.set_near_customer_label(near_customer_frame=frame_near_customer)
+        self._set_near_customer_label(near_customer_frame=frame_near_customer)
 
 
-    def set_dtd_label(self, dtd_frame):
-        global dtd_table
-
+    def _set_dtd_label(self, dtd_frame):
         columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
         col_widths = [10, 20, 20, 100]
 
-        dtd_table = ui_structure.SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
-        dtd_table.frame.pack(fill="both", expand=True)
+        self.dtd_table = ui_structure.SimpleTable(dtd_frame, columns=columns, col_widths=col_widths, height=5)
+        self.dtd_table.frame.pack(fill="both", expand=True)
 
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
@@ -1239,15 +1239,13 @@ class LBForecastUI:
         dtd_table.insert_rows(rows)
 
 
-    def set_near_customer_label(self, near_customer_frame):
-        global near_customer_table
-
+    def _set_near_customer_label(self, near_customer_frame):
         columns = ["临近客户简称", "距离(km)", "DDER"]
         col_widths = [100, 20, 10]
 
-        near_customer_table = ui_structure.SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths,
+        self.near_customer_table = ui_structure.SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths,
                                                        height=4)
-        near_customer_table.frame.pack(fill="both", expand=True)
+        self.near_customer_table.frame.pack(fill="both", expand=True)
 
 
     def update_near_customer_table(self, shipto_id: str):
