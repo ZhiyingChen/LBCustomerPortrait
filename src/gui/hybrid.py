@@ -52,8 +52,6 @@ class HybridApp(tk.Tk):
             path1=self.path1
         )
 
-        # 执行原有界面构建逻辑
-        lb_forecast_ui.forecaster_run()
 
     def _setup_navigation(self):
         """添加导航控制栏"""
