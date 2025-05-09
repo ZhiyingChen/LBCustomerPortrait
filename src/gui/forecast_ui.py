@@ -70,75 +70,74 @@ class LBForecastUI:
         return frame_name
 
 
-    def input_framework(self, framename):
+    def _decorate_input_framework(self):
         # 输入 起始日期
-        lb_fromtime = tk.Label(framename, text='from time')
-        lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
-        global from_box, to_box
-        from_box = tk.Entry(framename)
+        framename = self.frame_input
+
+        self.lb_fromtime = tk.Label(framename, text='from time')
+        self.lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
+        self.from_box = tk.Entry(framename)
         # 初始化 起始日期
-        startday = (datetime.now().date() - timedelta(days=2)).strftime("%Y-%m-%d")
-        from_box.insert(0, startday)
-        from_box.grid(row=0, column=1, padx=10, pady=5)
+        start_day = (datetime.now().date() - timedelta(days=2)).strftime("%Y-%m-%d")
+        self.from_box.insert(0, start_day)
+        self.from_box.grid(row=0, column=1, padx=10, pady=5)
         # 输入 结束日期
-        lb_totime = tk.Label(framename, text='to time')
-        lb_totime.grid(row=1, column=0, padx=10, pady=5)
-        to_box = tk.Entry(framename)
+        self.lb_totime = tk.Label(framename, text='to time')
+        self.lb_totime.grid(row=1, column=0, padx=10, pady=5)
+        self.to_box = tk.Entry(framename)
         # 初始化 结束日期
-        endday = (datetime.now().date() + timedelta(days=3)).strftime("%Y-%m-%d")
-        to_box.insert(0, endday)
-        to_box.grid(row=1, column=1, padx=10, pady=5)
+        end_day = (datetime.now().date() + timedelta(days=3)).strftime("%Y-%m-%d")
+
+        self.to_box.insert(0, end_day)
+        self.to_box.grid(row=1, column=1, padx=10, pady=5)
+
         # 设置刷新按钮
-        btn_refresh = tk.Button(framename, text='Refresh data',
+        self.btn_refresh = tk.Button(framename, text='Refresh data',
                                 command=self.refresh_data)
-        btn_refresh.grid(row=2, column=0, padx=10, pady=10)
+        self.btn_refresh.grid(row=2, column=0, padx=10, pady=10)
+        
         # 设置是否需要 从DOL API 下载数据
-        global var_TELE
-        var_TELE = tk.IntVar()
-        check_TELE = tk.Checkbutton(framename, text='远控 最新', variable=var_TELE, onvalue=1, offvalue=0)
-        check_TELE.grid(row=2, column=1, padx=1, pady=10)
+        self.var_telemetry_flag = tk.IntVar()
+        self.check_telemetry_flag = tk.Checkbutton(framename, text='远控 最新', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
+        self.check_telemetry_flag.grid(row=2, column=1, padx=1, pady=10)
 
 
-    def subRegion_boxlist(self, framename):
+    def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
-        global listbox_subRegion
 
-        listbox_subRegion = tk.Listbox(framename, height=5, width=10, exportselection=False)
-        subRegion_list = self.df_name_forecast.SubRegion.unique()
-        for item in sorted(subRegion_list):
-            listbox_subRegion.insert(tk.END, item)
-        listbox_subRegion.grid(row=0, column=0, padx=1, pady=1)
+        self.listbox_subregion = tk.Listbox(self.f_frame, height=5, width=10, exportselection=False)
+        subregion_list = self.df_name_forecast.SubRegion.unique()
+        for item in sorted(subregion_list):
+            self.listbox_subregion.insert(tk.END, item)
+        self.listbox_subregion.grid(row=0, column=0, padx=1, pady=1)
 
 
-    def terminal_boxlist(self, framename):
+    def _set_terminal_boxlist(self):
         '''terminal boxlist'''
-        frame_name = tk.LabelFrame(framename)
+        self.terminal_frame = tk.LabelFrame(self.f_frame)
         # scrollbar
-        scroll_y = tk.Scrollbar(frame_name, orient=tk.VERTICAL)
+        scroll_y = tk.Scrollbar(self.terminal_frame, orient=tk.VERTICAL)
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
-        global listbox_terminal
-        listbox_terminal = tk.Listbox(
-            frame_name, selectmode="extended", height=6, width=12, yscrollcommand=scroll_y.set, exportselection=False)
-        scroll_y.config(command=listbox_terminal.yview)
+        self.listbox_terminal = tk.Listbox(
+            self.terminal_frame, selectmode="extended", height=6, width=12, yscrollcommand=scroll_y.set, exportselection=False)
+        scroll_y.config(command=self.listbox_terminal.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        frame_name.grid(row=0, column=1, padx=1, pady=1)
-        listbox_terminal.pack()
+        self.terminal_frame.grid(row=0, column=1, padx=1, pady=1)
+        self.listbox_terminal.pack()
 
 
-    def products_boxlist(self, framename):
+    def _set_products_boxlist(self):
         '''products boxlist'''
-        global listbox_products
-        listbox_products = tk.Listbox(framename, selectmode="extended",
+        self.listbox_products = tk.Listbox(self.f_frame, selectmode="extended",
                                       height=4, width=10, exportselection=False)
-        listbox_products.grid(row=1, column=0, padx=1, pady=1)
+        self.listbox_products.grid(row=1, column=0, padx=1, pady=1)
 
 
-    def demandType_boxlist(self, framename):
-        global listbox_demandType
-        listbox_demandType = tk.Listbox(framename, selectmode="extended",
+    def _set_demand_type_boxlist(self):
+        self.listbox_demand_type = tk.Listbox(self.f_frame, selectmode="extended",
                                         height=4, width=10, exportselection=False)
-        listbox_demandType.grid(row=1, column=1, padx=1, pady=1)
+        self.listbox_demand_type.grid(row=1, column=1, padx=1, pady=1)
 
 
     def customer_query(self, framename):
@@ -166,26 +165,26 @@ class LBForecastUI:
         '''当点击 terminal 的时候显示客户名单'''
         df_name_forecast = self.df_name_forecast
         listbox_customer.delete(0, tk.END)
-        if listbox_subRegion.curselection() is None or len(listbox_subRegion.curselection()) == 0:
+        if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
             SubRegion = None
         else:
-            SubRegion = listbox_subRegion.get(listbox_subRegion.curselection()[0])
-        if listbox_terminal.curselection() is None or len(listbox_terminal.curselection()) == 0:
+            SubRegion = self.listbox_subregion.get(self.listbox_subregion.curselection()[0])
+        if self.listbox_terminal.curselection() is None or len(self.listbox_terminal.curselection()) == 0:
             cur_terminal = None
         else:
-            cur_no = listbox_terminal.curselection()
-            cur_terminal = [listbox_terminal.get(i) for i in cur_no]
+            cur_no = self.listbox_terminal.curselection()
+            cur_terminal = [self.listbox_terminal.get(i) for i in cur_no]
             # print(cur_no, '->', cur_terminal)
-        if listbox_products.curselection() is None or len(listbox_products.curselection()) == 0:
+        if self.listbox_products.curselection() is None or len(self.listbox_products.curselection()) == 0:
             cur_product = None
         else:
-            cur_no = listbox_products.curselection()
-            cur_product = [listbox_products.get(i) for i in cur_no]
-        if listbox_demandType.curselection() is None or len(listbox_demandType.curselection()) == 0:
+            cur_no = self.listbox_products.curselection()
+            cur_product = [self.listbox_products.get(i) for i in cur_no]
+        if self.listbox_demand_type.curselection() is None or len(self.listbox_demand_type.curselection()) == 0:
             cur_FO = None
         else:
-            cur_no = listbox_demandType.curselection()
-            cur_FO = [listbox_demandType.get(i) for i in cur_no]
+            cur_no = self.listbox_demand_type.curselection()
+            cur_FO = [self.listbox_demand_type.get(i) for i in cur_no]
         # get filter subregion
         if SubRegion is None or len(SubRegion) == 0:
             all_SubRegion = list(df_name_forecast.SubRegion.unique())
@@ -222,31 +221,31 @@ class LBForecastUI:
         # 1 terminal
         df_name_forecast = self.df_name_forecast
 
-        listbox_terminal.delete(0, tk.END)
-        selected_subRegion = listbox_subRegion.get(tk.ANCHOR)
+        self.listbox_terminal.delete(0, tk.END)
+        selected_subRegion = self.listbox_subregion.get(tk.ANCHOR)
         terminal_list = sorted(list(df_name_forecast.loc[df_name_forecast.SubRegion ==
                                                          selected_subRegion, 'PrimaryTerminal'].unique()))
         for item in terminal_list:
-            listbox_terminal.insert(tk.END, item)
+            self.listbox_terminal.insert(tk.END, item)
         # 2 products
-        listbox_products.delete(0, tk.END)
+        self.listbox_products.delete(0, tk.END)
         product_list = df_name_forecast.loc[df_name_forecast.SubRegion ==
                                             selected_subRegion, 'ProductClass'].unique()
         product_list = [func.rank_product(i) for i in product_list]
         product_list = [i[0] for i in sorted(product_list, key=lambda x: x[1])]
         for item in product_list:
-            listbox_products.insert(tk.END, item)
+            self.listbox_products.insert(tk.END, item)
         # 3 Demand type
-        listbox_demandType.delete(0, tk.END)
+        self.listbox_demand_type.delete(0, tk.END)
         demandType_list = list(df_name_forecast.loc[df_name_forecast.SubRegion ==
                                                     selected_subRegion, 'DemandType'].unique())
         # demandType_list = demandType_list
         for item in sorted(demandType_list):
-            listbox_demandType.insert(tk.END, item)
+            self.listbox_demand_type.insert(tk.END, item)
         # 4 自动选择第一个
-        listbox_terminal.select_set(0)
-        listbox_products.select_set(0)
-        listbox_demandType.select_set(0)
+        self.listbox_terminal.select_set(0)
+        self.listbox_products.select_set(0)
+        self.listbox_demand_type.select_set(0)
         # 显示 listbox_customer
         self.show_list_cust(event)
 
@@ -531,45 +530,48 @@ class LBForecastUI:
                                                             col_widths=col_widths,
                                                             height=4)
         self.near_customer_table.frame.pack(fill="both", expand=True)
-
+    
+    def _decorate_filter_frame(self):
+        self._set_subregion_boxlist()
+        self._set_terminal_boxlist()
+        self._set_products_boxlist()
+        self._set_demand_type_boxlist()
+    
     def forecaster_run(self):
         root = self.root
 
 
         # 建立 作图区域
-        plot_frame = tk.LabelFrame(root, text='Plot')
-        plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
+        self.plot_frame = tk.LabelFrame(root, text='Plot')
+        self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
 
-        # column 0: 筛选区域
-        plot_frame.columnconfigure(0, weight=1)
-        f_frame = tk.LabelFrame(plot_frame, text='Filter')
-        f_frame.grid(row=0, column=0, padx=2, pady=1)
-        self.subRegion_boxlist(f_frame)
-        self.terminal_boxlist(f_frame)
-        self.products_boxlist(f_frame)
-        self.demandType_boxlist(f_frame)
-        # 重新排版,建立 frame_input
-        frame_input = tk.LabelFrame(plot_frame, text='input')
-        frame_input.grid(row=1, column=0, padx=2, pady=5)
-        self.input_framework(frame_input)
+        # plot_frame column 0, row 0: 筛选区域
+        self.plot_frame.columnconfigure(0, weight=1)
+        self.f_frame = tk.LabelFrame(self.plot_frame, text='Filter')
+        self.f_frame.grid(row=0, column=0, padx=2, pady=1)
+        self._decorate_filter_frame()
+      
+        
+        # plot_frame column 0, row 1: 重新排版,建立 frame_input
+        self.frame_input = tk.LabelFrame(self.plot_frame, text='input')
+        self.frame_input.grid(row=1, column=0, padx=2, pady=5)
+        self._decorate_input_framework()
 
-        # column 1：作图区域
-        plot_frame.columnconfigure(1, weight=8)
-        pic_frame = tk.LabelFrame(plot_frame)
-        pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E + tk.W + tk.N + tk.S)
-        pic_frame.rowconfigure(0, weight=1)
-        pic_frame.columnconfigure(0, weight=1)
-        global fig, ax, ax_histy, canvas, toolbar, annot
-        fig, ax, ax_histy, canvas, toolbar = self.get_plot_basic(pic_frame)
+        # plot_frame column 1, row 0：作图区域
+        self.plot_frame.columnconfigure(1, weight=8)
+        self.pic_frame = tk.LabelFrame(self.plot_frame)
+        self.pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E + tk.W + tk.N + tk.S)
+        self.pic_frame.rowconfigure(0, weight=1)
+        self.pic_frame.columnconfigure(0, weight=1)
+        self._set_pic_frame()
 
-        annot = None
+        self.annot = None
 
-
-        canvas.mpl_connect("motion_notify_event", self.hover)
+        self.canvas.mpl_connect("motion_notify_event", self.hover)
 
         # column 2: 新增 DTD and Cluster 的 Frame
-        plot_frame.columnconfigure(2, weight=3)
-        self.dtd_cluster_frame = tk.LabelFrame(plot_frame)
+        self.plot_frame.columnconfigure(2, weight=3)
+        self.dtd_cluster_frame = tk.LabelFrame(self.plot_frame)
         self.dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
 
         self._decorate_dtd_cluster_label()
@@ -596,10 +598,10 @@ class LBForecastUI:
         global unitOfLength_dict
         unitOfLength_dict = {1: 'CM', 2: 'Inch', 3: 'M', 4: 'MM', 5: 'Percent', 6: 'Liters'}
 
-        listbox_subRegion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
-        listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
-        listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
-        listbox_demandType.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_subregion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
+        self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
 
         listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
             target=self.plot).start())
@@ -774,12 +776,12 @@ class LBForecastUI:
         ''''检查box的内容是否正确'''
         validate_flag = (True, True)
         try:
-            fromTime = pd.to_datetime(from_box.get())
+            fromTime = pd.to_datetime(self.from_box.get())
         except ValueError:
             validate_flag = (False, 'From Time Wrong!')
             return validate_flag
         try:
-            toTime = pd.to_datetime(to_box.get())
+            toTime = pd.to_datetime(self.to_box.get())
         except ValueError:
             validate_flag = (False, 'To Time Wrong!')
             return validate_flag
@@ -805,69 +807,67 @@ class LBForecastUI:
             # 其实这表明查询的是历史记录
             pass
         if fromTime <= TR_time <= toTime <= Risk_time <= RO_time:
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.fill_between(x=[TR_time, toTime], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=TR_time, color='green', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[TR_time, toTime], y1=full, facecolor='green', alpha=alpha)
         if fromTime <= TR_time <= Risk_time <= toTime <= RO_time:
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
-            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=TR_time, color='green', linewidth=1)
+            self.forecast_plot_ax.axvline(x=Risk_time, color='yellow', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
         if fromTime <= TR_time <= Risk_time <= RO_time <= toTime:
             # 这个是最完整形态
-            ax.axvline(x=TR_time, color='green', linewidth=1)
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1, )
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=TR_time, color='green', linewidth=1)
+            self.forecast_plot_ax.axvline(x=Risk_time, color='yellow', linewidth=1, )
+            self.forecast_plot_ax.axvline(x=RO_time, color='red', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[TR_time, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
         if TR_time <= fromTime <= toTime <= Risk_time <= RO_time:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='green', alpha=alpha)
         if TR_time <= fromTime <= Risk_time <= toTime <= RO_time:
-            ax.axvline(x=Risk_time, color='yellow', linewidth=1)
-            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=Risk_time, color='yellow', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[Risk_time, toTime], y1=full, facecolor='red', alpha=alpha)
         if TR_time <= fromTime <= Risk_time <= RO_time <= toTime:
-            ax.axvline(x=Risk_time, color='green', linewidth=1)
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
-            ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=Risk_time, color='green', linewidth=1)
+            self.forecast_plot_ax.axvline(x=RO_time, color='red', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[fromTime, Risk_time], y1=full, facecolor='green', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[Risk_time, RO_time], y1=full, facecolor='red', alpha=alpha)
         if TR_time <= Risk_time <= fromTime <= toTime <= RO_time:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
         if TR_time <= Risk_time <= fromTime <= RO_time <= toTime:
-            ax.axvline(x=RO_time, color='red', linewidth=1)
-            ax.fill_between(x=[fromTime, RO_time], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.axvline(x=RO_time, color='red', linewidth=1)
+            self.forecast_plot_ax.fill_between(x=[fromTime, RO_time], y1=full, facecolor='red', alpha=alpha)
         if TR_time <= Risk_time <= RO_time <= fromTime <= toTime:
-            ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
+            self.forecast_plot_ax.fill_between(x=[fromTime, toTime], y1=full, facecolor='red', alpha=alpha)
 
-    def get_plot_basic(self, framename):
+    def _set_pic_frame(self):
         '''获取作图框架'''
-        fig = Figure(figsize=(5, 4), dpi=80)
-        gs = fig.add_gridspec(1, 2, width_ratios=(6, 1),
+        framename = self.pic_frame
+        self.pic_figure = Figure(figsize=(5, 4), dpi=80)
+        gs = self.pic_figure.add_gridspec(1, 2, width_ratios=(6, 1),
                               left=0.08, right=0.96, bottom=0.1, top=0.9,
                               wspace=0.1, hspace=0.05)
-        ax = fig.add_subplot(gs[0, 0])
-        ax_histy = fig.add_subplot(gs[0, 1], sharey=ax)
-        # ax = fig.add_subplot(111)
-        canvas = FigureCanvasTkAgg(fig, master=framename)  # A tk.DrawingArea.
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        # canvas.get_tk_widget().grid(row=0, column=1)
-        toolbar = NavigationToolbar2Tk(canvas, framename)
-        return fig, ax, ax_histy, canvas, toolbar
+        self.forecast_plot_ax = self.pic_figure.add_subplot(gs[0, 0])
+        self.forecast_plot_ax_histy = self.pic_figure.add_subplot(gs[0, 1], sharey=self.forecast_plot_ax)
+      
+        self.canvas = FigureCanvasTkAgg(self.pic_figure, master=framename)  # A tk.DrawingArea.
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        self.toolbar = NavigationToolbar2Tk(self.canvas, framename)
+
 
     def update_annot(self, pos, text):
         '''填写注释内容'''
-        # pos = sc.get_offsets()[ind["ind"][0]]
-        global annot
-        annot.xy = pos
-        annot.set_text(text)
+        self.annot.xy = pos
+        self.annot.set_text(text)
 
     def hover(self, event):
         '''悬浮'''
-        global annot
-        global canvas
-        if annot is None:
+
+        if self.annot is None:
             return
-        vis = annot.get_visible()
-        for curve in ax.get_lines():
+        vis = self.annot.get_visible()
+        for curve in self.forecast_plot_ax.get_lines():
             # Searching which data member corresponds to current mouse position
             if curve.contains(event)[0]:
                 graph_id = curve.get_gid()
@@ -903,46 +903,45 @@ class LBForecastUI:
                     text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
                         show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
                     self.update_annot(pos, text)
-                    annot.set_visible(True)
-                    canvas.draw_idle()
+                    self.annot.set_visible(True)
+                    self.canvas.draw_idle()
                 else:
                     if vis:
-                        annot.set_visible(False)
-                        canvas.draw_idle()
+                        self.annot.set_visible(False)
+                        self.canvas.draw_idle()
             else:
                 # pass
                 if vis:
-                    annot.set_visible(False)
-                    canvas.draw_idle()
+                    self.annot.set_visible(False)
+                    self.canvas.draw_idle()
 
     def hover_disappear(self, event):
         '''取消悬浮'''
-        global annot
-        global canvas
+
         if mutex.acquire(2):
-            if annot is None:
+            if self.annot is None:
                 mutex.release()
                 return
-            vis = annot.get_visible()
+            vis = self.annot.get_visible()
             if vis:
-                for curve in ax.get_lines():
+                for curve in self.forecast_plot_ax.get_lines():
                     if curve.contains(event)[0]:
                         graph_id = curve.get_gid()
-                        print('vis test:', vis, id(annot), graph_id)
+                        print('vis test:', vis, id(self.annot), graph_id)
                         hover_curves = ['point_history', 'line_history', 'point_forecast',
                                         'line_forecast', 'point_forecastBeforeTrip',
                                         'line_forecastBeforeTrip', 'line_join']
                         if graph_id not in hover_curves:
                             time.sleep(2)
-                            annot.set_visible(False)
-                            canvas.draw_idle()
+                            self.annot.set_visible(False)
+                            self.canvas.draw_idle()
                             mutex.release()
                             return
                     else:
                         time.sleep(2)
-                        annot.set_visible(False)
-                        canvas.draw_idle()
-                        print('no touch:', annot.get_visible(), id(annot))
+                        self.annot.set_visible(False)
+                        self.canvas.draw_idle()
+                        print('no touch:', self.annot.get_visible(), id(self.annot))
             mutex.release()
 
     def main_plot(self):
@@ -965,9 +964,9 @@ class LBForecastUI:
             validate_flag = self.time_validate_check(shipto)
             # print(custName, type(custName))
             # 如果查询得到 shipto,则显示 shipto,否则 将 shipto 设为 1
-            if (not validate_flag[0]) and var_TELE.get() == 0:
+            if (not validate_flag[0]) and self.var_telemetry_flag.get() == 0:
                 # 2023-10-31 新增逻辑
-                # 如果 var_TELE 为 1,说明正在使用 api,
+                # 如果 self.var_telemetry_flag 为 1,说明正在使用 api,
                 error_msg = validate_flag[1]
                 if 'Time Wrong' in error_msg:
                     # 说明时间填错
@@ -982,13 +981,13 @@ class LBForecastUI:
                     if lock.locked():
                         lock.release()
             else:
-                fromTime = pd.to_datetime(from_box.get())
-                toTime = pd.to_datetime(to_box.get())
+                fromTime = pd.to_datetime(self.from_box.get())
+                toTime = pd.to_datetime(self.to_box.get())
                 # 2023-09-04 更新 DOL API 数据
-                # print(var_TELE.get())
+                # print(self.var_telemetry_flag.get())
                 # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
                 # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
-                if var_TELE.get() == 1:
+                if self.var_telemetry_flag.get() == 1:
                     if TELE_type == 3:
                         updateDOL(shipto, conn)
                     elif TELE_type == 7:
@@ -1046,68 +1045,67 @@ class LBForecastUI:
                     RO_time = None
                 # 开始作图
                 # 没想到这句话还这么重要(在hover的时候造成了极大的困扰)
-                ax.clear()
+                self.forecast_plot_ax.clear()
                 # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
-                ax.set_zorder(3)
-                ax_histy.set_zorder(1)
-                ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
+                self.forecast_plot_ax.set_zorder(3)
+                self.forecast_plot_ax_histy.set_zorder(1)
+                self.forecast_plot_ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
                 # 新增注释
-                global annot
-                annot = ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
+                self.annot = self.forecast_plot_ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
                                     bbox=dict(boxstyle="round", fc="lightblue",
                                               ec="steelblue", alpha=1),
                                     arrowprops=dict(arrowstyle="->"),
                                     annotation_clip=True, zorder=5)
-                annot.set_visible(False)
+                self.annot.set_visible(False)
                 if len(df_history) > 0:
                     pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
                 else:
                     pic_title = '{}({}) No History Data'.format(custName, shipto)
-                ax.set_title(pic_title, fontsize=20)
-                ax.set_ylabel('K G')
-                ax.set_ylim(bottom=0, top=full * 1.18)
-                # ax.set_xlabel('Date')
-                ax.plot(ts_history, color='blue', marker='o', markersize=6,
+                self.forecast_plot_ax.set_title(pic_title, fontsize=20)
+                self.forecast_plot_ax.set_ylabel('K G')
+                self.forecast_plot_ax.set_ylim(bottom=0, top=full * 1.18)
+                # self.forecast_plot_ax.set_xlabel('Date')
+                self.forecast_plot_ax.plot(ts_history, color='blue', marker='o', markersize=6,
                         linestyle='None', gid='point_history')
-                ax.plot(ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
-                ax.plot(ts_forecast, color='green', marker='o', markersize=6, alpha=0.45,
+                self.forecast_plot_ax.plot(ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
+                self.forecast_plot_ax.plot(ts_forecast, color='green', marker='o', markersize=6, alpha=0.45,
                         linestyle='None', gid='point_forecast')
-                ax.plot(ts_forecast, color='green', label='Forecast', alpha=0.45,
+                self.forecast_plot_ax.plot(ts_forecast, color='green', label='Forecast', alpha=0.45,
                         linestyle='dashed', gid='line_forecast')
-                ax.plot(ts_forecastBeforeTrip, color='orange', marker='o', markersize=6,
+                self.forecast_plot_ax.plot(ts_forecastBeforeTrip, color='orange', marker='o', markersize=6,
                         linestyle='None', gid='point_forecastBeforeTrip')
-                ax.plot(ts_forecastBeforeTrip, color='orange',
+                self.forecast_plot_ax.plot(ts_forecastBeforeTrip, color='orange',
                         label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
                 if (len(ts_forecastBeforeTrip) > 0 and len(ts_forecast) > 0):
                     ts_join = pd.concat([ts_forecastBeforeTrip.last('1S'), ts_forecast.first('1S')])
                     # print(ts_join)
-                    ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
+                    self.forecast_plot_ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
                 # decide to plot manual forecast_data_refresh line
                 if manual_plot:
                     df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
                     global ts_manual
                     ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-                    ax.plot(ts_manual, color='purple', marker='o', markersize=6,
+                    self.forecast_plot_ax.plot(ts_manual, color='purple', marker='o', markersize=6,
                             linestyle='None', gid='point_manual', alpha=0.6)
-                    ax.plot(ts_manual, color='purple', label='Manual',
+                    self.forecast_plot_ax.plot(ts_manual, color='purple', label='Manual',
                             linestyle='dashed', alpha=0.6)
                 # 以下画水平线
-                ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
-                ax.axhline(y=TR, color='green', linewidth=2, label='TR', gid='line_TR')
+                self.forecast_plot_ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
+                self.forecast_plot_ax.axhline(y=TR, color='green', linewidth=2, label='TR', gid='line_TR')
                 if Risk is not None:
-                    ax.axhline(y=Risk, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
-                ax.axhline(y=RO, color='red', linewidth=2, label='RunOut', gid='line_RO')
+                    self.forecast_plot_ax.axhline(y=Risk, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
+                self.forecast_plot_ax.axhline(y=RO, color='red', linewidth=2, label='RunOut', gid='line_RO')
                 # 画竖直线,较繁琐。具体函数见定义
                 if TR_time is not None:
                     self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full)
                 if (toTime - fromTime).days <= 12:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
+                    self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
                 elif (toTime - fromTime).days <= 24:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
+                    self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
                 else:
-                    ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
-                # fig.autofmt_xdate()
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+                    self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
+         
+                self.forecast_plot_ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
                 # plot for second y-axis
                 factor = func.weight_length_factor(uom)
 
@@ -1117,7 +1115,7 @@ class LBForecastUI:
                 def cm2kg(x):
                     return x * (galsperinch * factor)
 
-                ax.grid()
+                self.forecast_plot_ax.grid()
 
                 # 2024-04-18 新增 直方图
                 beforeRD = self.data_manager.get_before_reading(shipto)
@@ -1129,10 +1127,10 @@ class LBForecastUI:
                 else:
                     bins = np.arange(0, 2, 1)
 
-                ax_histy.clear()
-                axHist_info = ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue',
+                self.forecast_plot_ax_histy.clear()
+                axHist_info = self.forecast_plot_ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue',
                                             orientation='horizontal')
-                ax_histy.tick_params(
+                self.forecast_plot_ax_histy.tick_params(
                     axis='y',
                     which='both',  # both major and minor ticks are affected
                     bottom=False,  # ticks along the bottom edge are off
@@ -1146,15 +1144,15 @@ class LBForecastUI:
                     xticks = func.define_xticks(max_count)
                 else:
                     xticks = np.arange(0, 2, 1)
-                ax_histy.set_xticks(xticks)
-                ax_histy.grid()
+                self.forecast_plot_ax_histy.set_xticks(xticks)
+                self.forecast_plot_ax_histy.grid()
                 # plt.tight_layout()
-                canvas.draw_idle()
-                toolbar.update()
+                self.canvas.draw_idle()
+                self.toolbar.update()
                 # print(111)
                 # path = 'C:\Users\zhoud8\Documents\OneDrive - Air Products and Chemicals, Inc\python_project\gui\Forecasting'
                 if save_pic:
-                    fig.savefig('./feedback.png')
+                    self.pic_figure.savefig('./feedback.png')
                 # 点击作图时,同时显示客户的充装的详细信息
                 fe = self.data_manager.get_forecast_error(shipto)
 
