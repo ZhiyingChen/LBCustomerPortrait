@@ -1172,22 +1172,27 @@ class LBForecastUI:
         self.deliveryWindow_tree = self.treeView_design(framename=self.historical_readings_frame, width=380,
                                                    height=120, row=1, column=0, y_scroll=False)
 
+    def set_reading_tree(self):
+        pass
+
+
     def _decorate_dtd_cluster_label(self):
         dtd_cluster_frame = self.dtd_cluster_frame
         # 上方 Frame：Terminal/Source DTD 模块
-        frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
-        frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
+        self.frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
+        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self._set_dtd_label(dtd_frame=frame_dtd)
+        self._set_dtd_label()
 
         # 下方 Frame：临近客户模块
-        frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
-        frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+        self.frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
+        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self._set_near_customer_label(near_customer_frame=frame_near_customer)
+        self._set_near_customer_label()
 
 
-    def _set_dtd_label(self, dtd_frame):
+    def _set_dtd_label(self):
+        dtd_frame = self.dtd_cluster_frame
         columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
         col_widths = [10, 20, 20, 100]
 
@@ -1236,14 +1241,14 @@ class LBForecastUI:
             source_list.append(source_info)
 
         rows = [primary_info] + source_list
-        dtd_table.insert_rows(rows)
+        self.dtd_table.insert_rows(rows)
 
 
-    def _set_near_customer_label(self, near_customer_frame):
+    def _set_near_customer_label(self):
         columns = ["临近客户简称", "距离(km)", "DDER"]
         col_widths = [100, 20, 10]
 
-        self.near_customer_table = ui_structure.SimpleTable(near_customer_frame, columns=columns, col_widths=col_widths,
+        self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns, col_widths=col_widths,
                                                        height=4)
         self.near_customer_table.frame.pack(fill="both", expand=True)
 
@@ -1280,4 +1285,4 @@ class LBForecastUI:
 
             update_rows.append(update_row)
 
-        near_customer_table.insert_rows(update_rows)
+        self.near_customer_table.insert_rows(update_rows)
