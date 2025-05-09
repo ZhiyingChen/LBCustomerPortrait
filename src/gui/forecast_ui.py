@@ -1082,7 +1082,7 @@ class LBForecastUI:
         self.manual_input_label(frame_manual)
 
         # 新增两个 Treeview
-        self.historical_readings_frame = tk.LabelFrame(par_frame, text='Historical Readings')
+        self.historical_readings_frame = tk.LabelFrame(par_frame)
         self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
 
         # 增加历史液位记录

@@ -11,7 +11,8 @@ class SimpleTable:
             self.frame,
             columns=columns,
             show="headings",
-            height=height
+            height=height,
+            selectmode='extended'
         )
 
         # 设置列头
@@ -29,6 +30,14 @@ class SimpleTable:
 
         self.frame.grid_rowconfigure(0, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
+
+        style = ttk.Style()
+        # pick a theme
+        style.theme_use('default')
+        style.configure('Treeview', rowheight=25)
+
+        self.tree.tag_configure('oddRow', background='white')
+        self.tree.tag_configure('evenRow', background='lightblue')
 
     def insert_rows(self, rows):
         """ 插入多行数据，清空旧数据 """
