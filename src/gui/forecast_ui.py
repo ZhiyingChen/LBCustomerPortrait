@@ -48,13 +48,14 @@ class LBForecastUI:
             cur,
             path1: str
     ):
+
         self.root = root
         self.conn = conn
         self.cur = cur
 
         # lock
         self.lock = threading.Lock()
-
+        self.annot = None
         # 提取数据的类
         self.data_manager = LBDataManager(conn, cur)
 
@@ -268,7 +269,6 @@ class LBForecastUI:
 
     def cust_btn_search(self):
         '''search for customer by shipto or name'''
-        root = self.root
         info = self.entry_name.get().strip()
 
         df_name_all = self.data_manager.get_all_customer_from_sqlite()
@@ -278,16 +278,13 @@ class LBForecastUI:
         else:
             names = df_name_all[df_name_all.index.str.contains(info)].index
         if len(names) == 0:
-            messagebox.showinfo(parent=root, title='Warning', message='Check your search!')
+            messagebox.showinfo( title='Warning', message='Check your search!')
         else:
             self.listbox_customer.delete(0, tk.END)
             for item in sorted(names):
                 self.listbox_customer.insert(tk.END, item)
 
     def send_feedback(self, event):
-
-        root = self.root
-
         self.save_pic = True
         pic_name = "./feedback.png"
         if os.path.isfile(pic_name):
@@ -305,11 +302,11 @@ class LBForecastUI:
             time.sleep(2)
             rounds = rounds + 1
             if rounds > 5:
-                messagebox.showinfo(parent=root, title='Warning', message='No Data To Send!')
+                messagebox.showinfo( title='Warning', message='No Data To Send!')
                 return
         message_subject, message_body, addressee = email_worker.getEmailData(result, reason)
         email_worker.outlook(addressee, message_subject, message_body)
-        messagebox.showinfo(parent=root, title='Success', message='Email been sent!')
+        messagebox.showinfo( title='Success', message='Email been sent!')
 
     def _set_detail_info_label(self):
         '''show detailed information about tank and forecast'''
@@ -416,7 +413,7 @@ class LBForecastUI:
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
             df = pd.read_sql(sql, conn)
             if len(df) == 0:
-                messagebox.showinfo(parent=root, title='Warning', message='No history Data To Show')
+                messagebox.showinfo( title='Warning', message='No history Data To Show')
                 return
         else:
             table_name = 'forecastReading'
@@ -424,7 +421,7 @@ class LBForecastUI:
             df = pd.read_sql(sql, conn)
             df = df[df.Forecasted_Reading.notna()].reset_index(drop=True)
             if len(df) == 0:
-                messagebox.showinfo(parent=root, title='Warning', message='No forecast_data_refresh Data To Show')
+                messagebox.showinfo( title='Warning', message='No forecast_data_refresh Data To Show')
                 return
         # create new manual forecast_data_refresh data
         # print(df.head())
@@ -448,7 +445,6 @@ class LBForecastUI:
 
 
     def calculate_by_manual(self):
-        root = self.root
         cur = self.cur
         conn = self.conn
         df_name_forecast = self.df_name_forecast
@@ -456,27 +452,27 @@ class LBForecastUI:
         input_value1 = self.box_kg.get()
         input_value2 = self.box_cm.get()
         if len(input_value1) > 0 and len(input_value2) > 0:
-            messagebox.showinfo(parent=root, title='Warning', message='Cannot KM+CM')
+            messagebox.showinfo( title='Warning', message='Cannot KM+CM')
             return
         if len(input_value1) > 0:
             try:
                 input_value = float(input_value1)
             except ValueError:
-                messagebox.showinfo(parent=root, title='Warning', message='Input Wrong')
+                messagebox.showinfo( title='Warning', message='Input Wrong')
         else:
             try:
                 galsperinch = self.df_info.GalsPerInch.values[0]
                 input_value = float(input_value2) * galsperinch
             except ValueError:
-                messagebox.showinfo(parent=root, title='Warning', message='Input Wrong')
+                messagebox.showinfo( title='Warning', message='Input Wrong')
                 return
         if input_value < 0 or input_value > 50000:
-            messagebox.showinfo(parent=root, title='Warning', message='Input Wrong')
+            messagebox.showinfo( title='Warning', message='Input Wrong')
             return
         # print(input_value1, input_value2, type(input_value1), type(input_value2))
         custName = self.listbox_customer.get(tk.ANCHOR)
         if custName not in df_name_forecast.index:
-            messagebox.showinfo(parent=root, title='Warning', message='No Data To Show.')
+            messagebox.showinfo( title='Warning', message='No Data To Show.')
             return
         else:
             shipto = int(df_name_forecast.loc[custName].values[0])
@@ -955,7 +951,7 @@ class LBForecastUI:
 
     def check_cust_name_valid(self, cust_name):
         if cust_name not in self.df_name_forecast.index:
-            messagebox.showinfo(parent=self.root, title='Warning', message='No Data To Show!')
+            messagebox.showinfo( title='Warning', message='No Data To Show!')
             if self.lock.locked():
                 self.lock.release()
             return False
@@ -971,14 +967,14 @@ class LBForecastUI:
             error_msg = validate_flag[1]
             if 'Time Wrong' in error_msg:
                 # 说明时间填错
-                messagebox.showinfo(parent=self.root, title='Warning', message=error_msg)
+                messagebox.showinfo( title='Warning', message=error_msg)
                 if self.lock.locked():
                     self.lock.release()
             else:
                 # 说明时间没有填错, 遇到了 无法预测的情况
                 # 提醒采用 dol api 的选项
                 error_msg = error_msg + ' -> 请使用 api 试试'
-                messagebox.showinfo(parent=self.root, title='Warning', message=error_msg)
+                messagebox.showinfo( title='Warning', message=error_msg)
                 if self.lock.locked():
                     self.lock.release()
             return False
