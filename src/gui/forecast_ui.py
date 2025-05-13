@@ -70,6 +70,7 @@ class LBForecastUI:
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
 
+
         # setup ui
         self._setup_ui()
 
@@ -863,13 +864,10 @@ class LBForecastUI:
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
        
         self.canvas.mpl_connect("motion_notify_event", self.hover)
+        # 连接鼠标按钮事件
+        self.canvas.mpl_connect("button_press_event", self.on_click)
         self.toolbar = NavigationToolbar2Tk(self.canvas, framename)
 
-
-    def update_annot(self, pos, text):
-        '''填写注释内容'''
-        self.annot.xy = pos
-        self.annot.set_text(text)
 
     def hover(self, event):
         '''悬浮'''
@@ -919,6 +917,59 @@ class LBForecastUI:
                 if vis:
                     self.annot.set_visible(False)
                     self.canvas.draw_idle()
+
+    def on_click(self, event):
+        '''处理鼠标点击事件'''
+
+        if event.button == 3:  # 右键点击
+            for curve in self.forecast_plot_ax.get_lines():
+                if curve.contains(event)[0]:
+                    graph_id = curve.get_gid()
+                    graph_dict = {'point_history': self.ts_history,
+                                  'point_forecast': self.ts_forecast,
+                                  'point_forecastBeforeTrip': self.ts_forecast_before_trip,
+                                  'point_manual': self.ts_manual}
+                    if graph_id in graph_dict.keys():
+                        df_data = graph_dict[graph_id]
+                        full = self.df_info.FullTrycockGals.values[0]
+                        ind = curve.contains(event)[1]['ind'][0]
+                        pos = (event.xdata, event.ydata)
+                        show_time = df_data.index[ind].strftime("%Y-%m-%d %H:%M")
+                        show_level = int(df_data.values.flatten()[ind])
+                        galsperinch = self.df_info.GalsPerInch.values[0]
+                        unitOfLength = self.df_info.UnitOfLength.values[0]
+                        uom = unitOfLength_dict[unitOfLength]
+                        factor = func.weight_length_factor(uom)
+                        show_level_cm = int(round(show_level / (galsperinch * factor), 1))
+                        loadAMT = int(full - show_level)
+                        loadAMT_cm = int(round(loadAMT / (galsperinch * factor), 1))
+                        text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
+                            show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
+                        # 弹出消息框
+                        self.show_message_box(text)
+                        return
+
+    def show_message_box(self, message):
+        '''显示消息框'''
+
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口
+        messagebox.showinfo("信息", message)
+
+    def update_annot(self, pos, text):
+        '''更新注释'''
+
+        if self.annot is None:
+            # 创建注释
+            self.annot = self.forecast_plot_ax.annotate(text,
+                                                        xy=pos, xytext=(-20, 20),
+                                                        textcoords="offset points",
+                                                        bbox=dict(boxstyle="round", fc="w"),
+                                                        arrowprops=dict(arrowstyle="->"))
+        else:
+            # 更新注释的位置和文本
+            self.annot.xy = pos
+            self.annot.set_text(text)
 
     def hover_disappear(self, event):
         '''取消悬浮'''
