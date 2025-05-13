@@ -4,6 +4,7 @@ from tkinter import ttk
 
 class SimpleTable:
     def __init__(self, parent, columns, col_widths=None, height=10):
+        self.root = parent
         self.frame = tk.Frame(parent)
         self.frame.pack(fill="both", expand=True)  # 关键点1: 父容器填充扩展
 
@@ -36,8 +37,9 @@ class SimpleTable:
         style.theme_use('default')
         style.configure('Treeview', rowheight=25)
 
-        self.tree.tag_configure('oddRow', background='white')
-        self.tree.tag_configure('evenRow', background='lightblue')
+        self.tree.bind("<Double-1>", self.on_double_click)
+        self.tree.bind("<Control-c>", self.copy_selected_to_clipboard)
+
 
     def insert_rows(self, rows):
         """ 插入多行数据，清空旧数据 """
@@ -47,3 +49,28 @@ class SimpleTable:
 
     def clear(self):
         self.tree.delete(*self.tree.get_children())
+
+
+    def on_double_click(self, event):
+        item_id = self.tree.focus()
+        if item_id:
+            values = self.tree.item(item_id, "values")
+            # 弹出一个简单的窗口显示内容
+            popup = tk.Toplevel()
+            popup.title("复制内容")
+            text = tk.Text(popup, wrap="word", height=10, width=50)
+            text.insert("1.0", '\t'.join(values))  # 用 tab 分隔列
+            text.pack(padx=10, pady=10)
+            text.focus()
+
+    def copy_selected_to_clipboard(self, event=None):
+        selected = self.tree.selection()
+        if selected:
+            values = self.tree.item(selected[0], "values")[0]
+            self.root.clipboard_clear()
+            self.root.clipboard_append(values)
+            print("已复制到剪贴板：", values)
+
+
+
+
