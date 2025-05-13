@@ -393,11 +393,13 @@ class ForecastDataRefresh:
             # 从 dtd_sharepoint_df 中获取数据
             dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                 self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
+            dtd_shipto.primary_terminal_info.distance_data_source = 'DTD'
             if (dtd_shipto.primary_terminal_info.distance_km is None or
                     dtd_shipto.primary_terminal_info.duration_hours is None):
                 # 从 odbc 的 PointToPoint 表中获取数据
                 dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
 
             # 补充信息给 sourcing terminal
             for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
@@ -407,13 +409,15 @@ class ForecastDataRefresh:
                 # 从 dtd_sharepoint_df 中获取数据
                 sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
+                sourcing_terminal_info.distance_data_source = 'DTD'
                 if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
                     # 从 odbc 的 PointToPoint 表中获取数据
                     sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                         self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                    sourcing_terminal_info.distance_data_source = 'LBShell'
 
     def output_primary_and_source_dtd_df(self):
-        cols = ['LocNum', 'CustAcronym', 'DTType', 'DT', 'Distance', 'Duration', 'Rank', 'Frequency']
+        cols = ['LocNum', 'CustAcronym', 'DTType', 'DT', 'Distance', 'Duration', 'Rank', 'Frequency', 'DataSource']
         record_lt = []
         for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
             primary_record = {
@@ -425,6 +429,7 @@ class ForecastDataRefresh:
                     if dtd_shipto.primary_terminal_info.distance_km is not None else 'unknown',
                     'Duration': dtd_shipto.primary_terminal_info.duration_hours
                     if dtd_shipto.primary_terminal_info.duration_hours is not None else 'unknown',
+                    'DataSource': dtd_shipto.primary_terminal_info.distance_data_source,
                 }
             record_lt.append(primary_record)
 
@@ -439,7 +444,8 @@ class ForecastDataRefresh:
                     'Distance': sourcing_terminal_info.distance_km,
                     'Duration': sourcing_terminal_info.duration_hours,
                     'Rank': int(sourcing_terminal_info.rank),
-                    'Frequency': int(sourcing_terminal_info.frequency)
+                    'Frequency': int(sourcing_terminal_info.frequency),
+                    'DataSource': sourcing_terminal_info.distance_data_source
                 }
                 record_lt.append(source_record)
 
@@ -572,17 +578,21 @@ class ForecastDataRefresh:
                 nearby_shipto_info = dtd_shipto.nearby_shipto_info_dict[nearby_shipto_id]
 
                 mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
+                source = 'DTD'
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
+                    source = 'LBShell'
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
+                    source = 'LBShell'
                 nearby_shipto_info.distance_km = mile_kms
+                nearby_shipto_info.distance_data_source = source
 
     def output_cluster_df(self):
         record_lt = []
-        cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'Rank']
+        cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'Rank', 'DataSource']
         for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
             if dtd_shipto.is_full_load:
                 record = {
@@ -605,10 +615,11 @@ class ForecastDataRefresh:
                     'distanceKM': nearby_shipto_info.distance_km,
                     'DDER': nearby_shipto_info.dder,
                     'Rank': nearby_shipto_info.rank,
+                    'DataSource': nearby_shipto_info.distance_data_source
                 }
                 record_lt.append(record)
         df_cluster = pd.DataFrame(record_lt, columns=cols)
-
+        df_cluster = df_cluster.sort_values(['LocNum', 'distanceKM']).reset_index(drop=True)
         now = datetime.datetime.now()
         df_cluster['refresh_date'] = now
         table_name = 'ClusterInfo'

@@ -6,11 +6,13 @@ class PrimaryDTInfo:
             self,
             primary_terminal: str,
             distance_km: float = None,
-            duration_hours: float = None
+            duration_hours: float = None,
+            distance_data_source: str = None,
     ):
         self.primary_terminal = primary_terminal
         self.distance_km = distance_km
         self.duration_hours = duration_hours
+        self.distance_data_source = distance_data_source
 
     def __str__(self):
         return self.primary_terminal
@@ -22,13 +24,15 @@ class SourcingDTInfo:
             rank: int,
             frequency: int,
             distance_km: float = None,
-            duration_hours: float = None
+            duration_hours: float = None,
+            distance_data_source: str = None
     ):
         self.sourcing_terminal = sourcing_terminal
         self.rank = rank
         self.frequency = frequency
         self.distance_km = distance_km
         self.duration_hours = duration_hours
+        self.distance_data_source = distance_data_source
 
     def __str__(self):
         return '{}-Rank({})-Frequency({})'.format(
@@ -45,7 +49,8 @@ class NearbyShipToInfo:
             dder: float,
             rank: int,
             distance_km: float = None,
-            duration_hours: float = None
+            duration_hours: float = None,
+            distance_data_source: str = None
     ):
         self.nearby_shipto = nearby_shipto
         self.shipto_name = shipto_name
@@ -53,6 +58,7 @@ class NearbyShipToInfo:
         self.duration_hours = duration_hours
         self.dder = dder
         self.rank = rank
+        self.distance_data_source = distance_data_source
 
     def __str__(self):
         return self.nearby_shipto
