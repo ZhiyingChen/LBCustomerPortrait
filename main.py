@@ -23,7 +23,7 @@ if __name__ == '__main__':
     local_cur = local_conn.cursor()
 
     root = tk.Tk()
-    root.geometry("1400x800")
+    root.geometry("1500x800")
     root.wm_title("Air Products Forecasting Viz")
     root.resizable(True, True)
     lb_forecast_ui = LBForecastUI(
