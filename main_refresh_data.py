@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     # 保持数据库连接
     db_name = 'AutoSchedule.sqlite'
-    path1 = './test/'
+    path1 = '//shangnt\\Lbshell\\PUAPI\\PU_program\\automation\\autoScheduling'
 
 
     local_conn = connect_sqlite(os.path.join(path1, db_name))
