@@ -536,15 +536,15 @@ class LBForecastUI:
 
 
     def _set_dtd_label(self):
-        columns = ["DT", "距离(km)", "时长(h)", "发车时间"]
-        col_widths = [10, 20, 20, 100]
+        columns = ["DT", "距离(km)", "时长(h)", "发车时间", "数据源"]
+        col_widths = [10, 20, 20, 100, 20]
 
         self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
         self.dtd_table.frame.pack(fill="both", expand=True)
 
     def _set_near_customer_label(self):
-        columns = ["临近客户简称", "距离(km)", "DDER"]
-        col_widths = [100, 20, 10]
+        columns = ["临近客户简称", "距离(km)", "DDER", "数据源"]
+        col_widths = [100, 20, 10, 20]
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,
@@ -637,7 +637,7 @@ class LBForecastUI:
         # 添加 Primary DTD 信息
         primary_info = []
         for row in results:
-            primary_dt, distance, duration = row
+            primary_dt, distance, duration, data_source = row
             primary_info.append('T{}'.format(primary_dt))
             primary_info.append(distance)
             primary_info.append(duration)
@@ -650,13 +650,14 @@ class LBForecastUI:
                 print(e)
 
             primary_info.append(departure_time)
+            primary_info.append(data_source)
 
         results = self.data_manager.get_sourcing_terminal_dtd_info(shipto_id)
         # 添加 Source DTD 信息
         source_list = []
         for row in results:
             source_info = list()
-            source_dt, distance, duration = row
+            source_dt, distance, duration, data_source = row
             source_info.append('S{}'.format(source_dt))
             source_info.append(distance)
             source_info.append(duration)
@@ -668,8 +669,9 @@ class LBForecastUI:
             except Exception as e:
                 print(e)
             source_info.append(departure_time)
-
+            source_info.append(data_source)
             source_list.append(source_info)
+
 
         rows = [primary_info] + source_list
         self.dtd_table.insert_rows(rows)
@@ -680,7 +682,7 @@ class LBForecastUI:
         update_rows = list()
         for row in results:
             update_row = list()
-            to_loc_num, to_cust_acronym, distance_km, dder = row
+            to_loc_num, to_cust_acronym, distance_km, dder, data_source = row
 
             if to_cust_acronym is None or len(to_cust_acronym.strip()) == 0:
                 to_cust_acronym = to_loc_num
@@ -694,6 +696,7 @@ class LBForecastUI:
             update_row.append(to_cust_acronym)
             update_row.append(distance_km)
             update_row.append('{}%'.format(dder))
+            update_row.append(data_source)
 
             update_rows.append(update_row)
 

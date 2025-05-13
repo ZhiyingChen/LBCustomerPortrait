@@ -278,7 +278,7 @@ class LBDataManager:
         # 提取 primary DTD 信息
         cursor = self.cur
         primary_sql = '''
-                    SELECT DT, Distance, Duration FROM DTDInfo 
+                    SELECT DT, Distance, Duration, DataSource FROM DTDInfo 
                     WHERE LocNum={} AND DTType='Primary'
                     '''.format(shipto)
 
@@ -290,7 +290,7 @@ class LBDataManager:
         # 提取 Source DTD 信息
         cursor = self.cur
         source_sql = '''
-                    SELECT DT, Distance, Duration FROM DTDInfo 
+                    SELECT DT, Distance, Duration, DataSource FROM DTDInfo 
                     WHERE LocNum={} AND DTType='Sourcing'
                     ORDER BY Rank
                     '''.format(shipto)
@@ -301,10 +301,10 @@ class LBDataManager:
     def get_near_customer_info(self, shipto):
         cursor = self.cur
         sql_line = '''
-                   SELECT ToLocNum, ToCustAcronym, distanceKM, DDER 
+                   SELECT ToLocNum, ToCustAcronym, distanceKM, DDER, DataSource 
                    FROM ClusterInfo
                    WHERE LocNum={}
-                   ORDER BY DDER DESC
+                   ORDER BY distanceKM ASC
                '''.format(shipto)
 
         cursor.execute(sql_line)
