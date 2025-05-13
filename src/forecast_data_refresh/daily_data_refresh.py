@@ -34,48 +34,6 @@ class ForecastDataRefresh:
         self.dtd_shipto_dict: Dict[str, do.DTDShipto] = dict()
         self.file_dict = dict()
 
-    def refresh_earliest_part_data(
-            self,
-    ):
-        """
-        这些都是冬亮之前写的，单独抽出来，不改了
-        """
-        try:
-            if odbc_master.check_refresh(table_name='odbc_master', cur=self.local_cur):
-                print('今日 Master 已刷新！')
-            else:
-                odbc_master.refresh_odbcMasterData(self.local_cur, self.local_conn)
-
-            if odbc_master.check_refresh(table_name='beforeReading', cur=self.local_cur):
-                print('今日 before 已刷新！')
-            else:
-                odbc_master.refresh_beforeReading(self.local_conn)
-
-            if odbc_master.check_refresh(table_name='odbc_MaxPayloadByShip2', cur=self.local_cur):
-                print('今日 MaxPayloadByShip2 已刷新！')
-            else:
-                odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
-
-            if odbc_master.check_refresh(table_name='t4_t6_data', cur=self.local_cur):
-                print('今日 t4_t6 已刷新')
-            else:
-                odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
-
-            if odbc_master.check_refresh(table_name='odbc_DeliveryWindow', cur=self.local_cur):
-                print('今日 odbc_DeliveryWindow 已刷新')
-            else:
-                odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
-
-
-        except Exception as e:
-            print(e)
-            odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
-            odbc_master.refresh_beforeReading(conn=self.local_conn)
-            odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
-            odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
-            odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
-
-
     def get_lb_tele_shipto_dataframe(self):
         sql_line = '''
             Select CustomerProfile.LocNum, CustomerProfile.CustAcronym, CustomerProfile.PrimaryTerminal,
@@ -644,28 +602,23 @@ class ForecastDataRefresh:
             self.drop_local_table(table_name)
 
     def refresh_lb_daily_data(self):
-        self.refresh_earliest_part_data()
+        """
+        这些都是冬亮之前写的，单独抽出来，不改了
+        """
+        odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_beforeReading(conn=self.local_conn)
+        odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的
         '''
-        try:
-            if (odbc_master.check_refresh(table_name='DTDInfo', cur=self.local_cur) and
-                    odbc_master.check_refresh(table_name='ClusterInfo', cur=self.local_cur)):
-                print('今日 DTD 和 Cluster 已刷新！')
-            else:
-                self.generate_shipto_info()
-                self.prepare_dtd_data()
-                self.refresh_dtd_data()
-                self.refresh_cluster_data()
-                self.drop_local_tables()
-        except Exception as e:
-            print(e)
-            self.generate_shipto_info()
-            self.prepare_dtd_data()
-            self.refresh_dtd_data()
-            self.refresh_cluster_data()
-            self.drop_local_tables()
+        self.generate_shipto_info()
+        self.prepare_dtd_data()
+        self.refresh_dtd_data()
+        self.refresh_cluster_data()
+        self.drop_local_tables()
 
     def refresh_all(self):
         self.refresh_lb_daily_data()
