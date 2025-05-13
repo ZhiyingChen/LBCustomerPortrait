@@ -81,3 +81,13 @@ def rank_product(x):
         return (x, 6)
     else:
         return (x, 7)
+
+def is_file_modified_today(file_path):
+    # 获取文件的最后修改时间
+    file_mod_time = os.path.getmtime(file_path)
+    # 将时间戳转换为日期
+    file_mod_date = datetime.datetime.fromtimestamp(file_mod_time).date()
+    # 获取当前日期
+    today = datetime.date.today()
+    # 比较日期
+    return file_mod_date == today
