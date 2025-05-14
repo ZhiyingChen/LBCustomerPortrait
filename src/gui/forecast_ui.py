@@ -21,6 +21,8 @@ from tkinter import messagebox
 import matplotlib
 import time
 import threading
+from tkcalendar import DateEntry
+from .confirm_order_popup_ui import ConfirmOrderPopupUI
 from . import ui_structure
 from ..utils.dol_api import updateDOL
 from ..utils.lct_api import updateLCT
@@ -624,6 +626,7 @@ class LBForecastUI:
         self._decorate_plot_frame()
 
 
+
         # 建立下半区：信息区域：par_frame
         self.par_frame = tk.LabelFrame(self.root)
         self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
@@ -924,40 +927,28 @@ class LBForecastUI:
     def on_click(self, event):
         '''处理鼠标点击事件'''
 
-        if event.button == 3:  # 右键点击
-            for curve in self.forecast_plot_ax.get_lines():
-                if curve.contains(event)[0]:
-                    graph_id = curve.get_gid()
-                    graph_dict = {'point_history': self.ts_history,
-                                  'point_forecast': self.ts_forecast,
-                                  'point_forecastBeforeTrip': self.ts_forecast_before_trip,
-                                  'point_manual': self.ts_manual}
-                    if graph_id in graph_dict.keys():
-                        df_data = graph_dict[graph_id]
-                        full = self.df_info.FullTrycockGals.values[0]
-                        ind = curve.contains(event)[1]['ind'][0]
-                        pos = (event.xdata, event.ydata)
-                        show_time = df_data.index[ind].strftime("%Y-%m-%d %H:%M")
-                        show_level = int(df_data.values.flatten()[ind])
-                        galsperinch = self.df_info.GalsPerInch.values[0]
-                        unitOfLength = self.df_info.UnitOfLength.values[0]
-                        uom = unitOfLength_dict[unitOfLength]
-                        factor = func.weight_length_factor(uom)
-                        show_level_cm = int(round(show_level / (galsperinch * factor), 1))
-                        loadAMT = int(full - show_level)
-                        loadAMT_cm = int(round(loadAMT / (galsperinch * factor), 1))
-                        text = '''{}\nLevel: {} KG / {} {}\n可卸货量: {} KG / {} {}'''.format(
-                            show_time, show_level, show_level_cm, uom, loadAMT, loadAMT_cm, uom)
-                        # 弹出消息框
-                        self.show_message_box(text)
-                        return
+        if event.button != 3:  # 右键点击
+            return
+        for curve in self.forecast_plot_ax.get_lines():
+            if curve.contains(event)[0]:
+                graph_id = curve.get_gid()
+                graph_dict = {'point_history': self.ts_history,
+                              'point_forecast': self.ts_forecast,
+                              'point_forecastBeforeTrip': self.ts_forecast_before_trip,
+                              'point_manual': self.ts_manual}
+                if graph_id in graph_dict.keys():
+                    df_data = graph_dict[graph_id]
+                    full = self.df_info.FullTrycockGals.values[0]
+                    ind = curve.contains(event)[1]['ind'][0]
+                    pos = (event.xdata, event.ydata)
+                    show_time = df_data.index[ind].strftime("%Y-%m-%d %H:%M")
+                    show_level = int(df_data.values.flatten()[ind])
 
-    def show_message_box(self, message):
-        '''显示消息框'''
+                    loadAMT = int(full - show_level)
 
-        root = tk.Tk()
-        root.withdraw()  # 隐藏主窗口
-        messagebox.showinfo("信息", message)
+                    # 弹出消息框
+                    confirm_order_popup = ConfirmOrderPopupUI(root=self.root, show_time=show_time, loadAMT=loadAMT)
+
 
     def update_annot(self, pos, text):
         '''更新注释'''
