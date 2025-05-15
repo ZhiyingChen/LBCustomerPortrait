@@ -31,6 +31,7 @@ from .lb_data_manager import LBDataManager
 from ..utils import functions as func
 from ..utils.constant import unitOfLength_dict
 from .order_popup_ui import OrderPopupUI
+from .lb_order_data_manager import LBOrderDataManager
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
 # 设置显示中文,与字体配合使用
@@ -56,6 +57,7 @@ class LBForecastUI:
         self.annot = None
         # 提取数据的类
         self.data_manager = LBDataManager()
+        self.order_data_manager = LBOrderDataManager()
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -70,6 +72,7 @@ class LBForecastUI:
 
         # setup ui
         self._setup_ui()
+
 
     def info_cust_frame(self):
         '''建立客户名称的frame,也即第二模块'''
