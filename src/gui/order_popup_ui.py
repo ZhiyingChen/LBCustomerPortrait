@@ -8,7 +8,7 @@ class OrderPopupUI:
         self.window.geometry("1400x800")
 
         # 中间推荐显示标签
-        self.recommendation_var = tk.StringVar(value="")
+        self.recommendation_var = tk.StringVar(value="当前选中客户：")
 
         # 主体区域
         self.main_frame = tk.Frame(self.window)
@@ -21,7 +21,7 @@ class OrderPopupUI:
         columns = ["ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "安排Trip"]
         self.working_tree = self._create_table(
             self.left_frame, title="Working FO List", columns=columns,
-            editable_cols=["From", "To", "KG", "备注"], deletable=True
+            editable_cols=["From", "To", "KG", "备注"], deletable=True, add_so_button=True
         )
         self.oo_tree = self._create_table(
             self.left_frame, title="OO List", columns=columns
@@ -42,7 +42,7 @@ class OrderPopupUI:
         self.right_frame.pack(side='right', fill='both', expand=True)
         tk.Label(self.right_frame, text="Total Trip Draft").pack()
 
-    def _create_table(self, parent, title, columns, editable_cols=None, deletable=False):
+    def _create_table(self, parent, title, columns, editable_cols=None, deletable=False, add_so_button=False):
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -64,10 +64,18 @@ class OrderPopupUI:
         # 双击事件：显示客户简称或编辑
         tree.bind("<Double-1>", lambda e, t=tree: self._on_double_click(e, t, editable_cols))
 
-        # 删除按钮（放在表格下方）
-        if deletable:
-            btn_del = tk.Button(frame, text="删除选中行", command=lambda: self._delete_selected(tree))
-            btn_del.pack(pady=5)
+        # 操作按钮区域
+        if deletable or add_so_button:
+            btn_frame = tk.Frame(frame)
+            btn_frame.pack(pady=5)
+
+            if deletable:
+                btn_del = tk.Button(btn_frame, text="删除选中行", command=lambda: self._delete_selected(tree))
+                btn_del.pack(side='left', padx=5)
+
+            if add_so_button:
+                btn_clear = tk.Button(btn_frame, text="一键在LBShell建立SO订单", command=lambda: self._clear_all_rows(tree))
+                btn_clear.pack(side='left', padx=5)
 
         # 示例数据
         for i in range(3):
@@ -110,4 +118,8 @@ class OrderPopupUI:
     def _delete_selected(self, tree):
         selected = tree.selection()
         for item in selected:
+            tree.delete(item)
+
+    def _clear_all_rows(self, tree):
+        for item in tree.get_children():
             tree.delete(item)
