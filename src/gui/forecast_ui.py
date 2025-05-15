@@ -44,20 +44,18 @@ class LBForecastUI:
     def __init__(
             self,
             root,
-            conn,
-            cur,
             path1: str
     ):
 
         self.root = root
-        self.conn = conn
-        self.cur = cur
+        self.conn = func.connect_sqlite('./AutoSchedule.sqlite')
+        self.cur = self.conn.cursor()
 
         # lock
         self.lock = threading.Lock()
         self.annot = None
         # 提取数据的类
-        self.data_manager = LBDataManager(conn, cur)
+        self.data_manager = LBDataManager(self.conn, self.cur)
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
