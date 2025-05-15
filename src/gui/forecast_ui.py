@@ -30,6 +30,7 @@ from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from .lb_data_manager import LBDataManager
 from ..utils import functions as func
 from ..utils.constant import unitOfLength_dict
+from .order_popup_ui import OrderPopupUI
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
 # 设置显示中文,与字体配合使用
@@ -46,20 +47,18 @@ class LBForecastUI:
     def __init__(
             self,
             root,
-            conn,
-            cur,
             path1: str
     ):
 
         self.root = root
-        self.conn = conn
-        self.cur = cur
+        self.conn = func.connect_sqlite('./AutoSchedule.sqlite')
+        self.cur = self.conn.cursor()
 
         # lock
         self.lock = threading.Lock()
         self.annot = None
         # 提取数据的类
-        self.data_manager = LBDataManager(conn, cur)
+        self.data_manager = LBDataManager(self.conn, self.cur)
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -564,6 +563,9 @@ class LBForecastUI:
         self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
         self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
 
+    def _open_order_window(self):
+        OrderPopupUI(root=self.root)
+
     def _decorate_plot_frame(self):
         # plot_frame column 0, row 0: 筛选区域
         self.plot_frame.columnconfigure(0, weight=1)
@@ -576,10 +578,18 @@ class LBForecastUI:
         self.frame_input.grid(row=1, column=0, padx=2, pady=5)
         self._decorate_input_framework()
 
+        # plot_frame column 0, row 2: 新增按钮区域
+        self.button_order_frame = tk.Frame(self.plot_frame)
+        self.button_order_frame.grid(row=2, column=0, pady=5, sticky="ew")
+
+        self.btn_open_order_window = tk.Button(
+            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window)
+        self.btn_open_order_window.pack(padx=10, pady=5)
+
         # plot_frame column 1, row 0：作图区域
         self.plot_frame.columnconfigure(1, weight=8)
         self.pic_frame = tk.LabelFrame(self.plot_frame)
-        self.pic_frame.grid(row=0, column=1, rowspan=2, sticky=tk.E + tk.W + tk.N + tk.S)
+        self.pic_frame.grid(row=0, column=1, rowspan=3, sticky=tk.E + tk.W + tk.N + tk.S)
         self.pic_frame.rowconfigure(0, weight=1)
         self.pic_frame.columnconfigure(0, weight=1)
         self._set_pic_frame()
@@ -591,7 +601,7 @@ class LBForecastUI:
         # plot_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.plot_frame.columnconfigure(2, weight=3)
         self.dtd_cluster_frame = tk.LabelFrame(self.plot_frame)
-        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=2, padx=2, pady=2, sticky="nsew")
+        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
         self._decorate_dtd_cluster_label()
 
     def _decorate_par_frame(self):
@@ -624,7 +634,6 @@ class LBForecastUI:
         self.plot_frame = tk.LabelFrame(self.root, text='Plot')
         self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
         self._decorate_plot_frame()
-
 
 
         # 建立下半区：信息区域：par_frame
