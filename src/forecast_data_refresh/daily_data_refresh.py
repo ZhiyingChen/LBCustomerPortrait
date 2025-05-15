@@ -144,17 +144,36 @@ class ForecastDataRefresh:
                 dtd_shipto.sourcing_terminal_info_dict[row['SourceOfProduct']] = sourcing_terminal_info
         logging.info('updated')
 
+    @staticmethod
+    def process_trips(df, locnums):
+        # 初始化结果列表
+
+        result_df = pd.DataFrame(columns=['CorporateIdn', 'NewTripIdn', 'LocNum', 'ToLocNum', 'DDER'])
+        # 遍历每个目标 LocNum
+        for locnum in locnums:
+            # 找出包含该 LocNum 的所有行程
+            trip_ids = df[df['ToLocNum'] == locnum][['CorporateIdn', 'NewTripIdn']].drop_duplicates()
+            filtered_df = df.merge(trip_ids, on=['CorporateIdn', 'NewTripIdn'], how='inner')
+            filtered_df = filtered_df[filtered_df['ToLocNum'] != locnum]
+            # 按照 DDER 排序，并对 ToLocNum 去重
+            filtered_df = filtered_df.sort_values(by=['DDER'], ascending=False).drop_duplicates(subset='ToLocNum')
+            filtered_df['LocNum'] = locnum
+            filtered_df = filtered_df.head(3)
+            result_df = pd.concat([result_df, filtered_df], ignore_index=True)
+
+        return result_df
+
     def generate_nearby_shipto_info_for_shipto(self):
         df_nearby_shipto = self.get_nearby_shipto_odbc_df()
+        result_df = self.process_trips(df_nearby_shipto, [k for k, v in self.dtd_shipto_dict.items() if not v.is_full_load])
 
-        for shipto_id, df_shipto in df_nearby_shipto.groupby('LocNum'):
+        for shipto_id, df_shipto in result_df.groupby('LocNum'):
             for idx, row in df_shipto.iterrows():
                 dtd_shipto = self.dtd_shipto_dict[row['LocNum']]
                 nearby_shipto_info = do.NearbyShipToInfo(
                     nearby_shipto=row['ToLocNum'],
                     shipto_name=row['ToCustAcronym'],
-                    dder=row['DDER'],
-                    rank=row['Rank']
+                    dder=row['DDER']
                 )
                 dtd_shipto.nearby_shipto_info_dict[row['ToLocNum']] = nearby_shipto_info
         logging.info('updated')
@@ -438,92 +457,79 @@ class ForecastDataRefresh:
             if not dtd_shipto.is_full_load
         ]
         sql_line = '''
-        WITH TripsWithTargetLoc AS (
-            SELECT DISTINCT
-                s.CorporateIdn,
-                s.TripIdn,
-                s.ToLocNum AS LocNum
-            FROM 
-                Segment s
-            WHERE 
-                s.ToLocNum IN {}  -- <<<<<< 多个 LocNum
-                AND s.ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
+        WITH SegmentWithFlags AS (
+            SELECT *,
+                   CASE WHEN StopType = 3 THEN 1 ELSE 0 END AS IsSplitPoint
+            FROM Segment
+            WHERE ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
         ),
-        TripsWithTwoDelv AS (
-            SELECT 
-                s.CorporateIdn,
-                s.TripIdn
-            FROM 
-                Segment s
-            WHERE 
-                s.ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
-            GROUP BY 
-                s.CorporateIdn,
-                s.TripIdn
-            HAVING 
-                SUM(CASE WHEN s.StopType = '0' THEN 1 ELSE 0 END) = 2
+        SegmentWithGroup AS (
+            SELECT *,
+                   SUM(IsSplitPoint) OVER (
+                       PARTITION BY CorporateIdn, TripIdn 
+                       ORDER BY SegmentIdn 
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                   ) AS GroupNum
+            FROM SegmentWithFlags
         ),
-        TripDetails AS (
-            SELECT 
-                t.CorporateIdn,
-                t.TripIdn,
-                tl.LocNum,
-                s.ToLocNum,
-                1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) AS DDER,
-                ROW_NUMBER() OVER (PARTITION BY s.ToLocNum ORDER BY 
-                    1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) DESC
-                ) AS rn
-            FROM 
-                Trip t
-            INNER JOIN 
-                TripsWithTargetLoc tl
-                ON t.CorporateIdn = tl.CorporateIdn
-                AND t.TripIdn = tl.TripIdn
-            INNER JOIN 
-                TripsWithTwoDelv td
-                ON t.CorporateIdn = td.CorporateIdn
-                AND t.TripIdn = td.TripIdn
-            INNER JOIN 
-                Segment AS s
-                ON t.CorporateIdn = s.CorporateIdn 
-                AND t.TripIdn = s.TripIdn
-            WHERE 
-                s.StopType = '0' 
-                AND tl.LocNum != s.ToLocNum
+        FinalResult AS (
+            SELECT *,
+                   CONCAT(TripIdn, '_', GroupNum + 1) AS NewTripIdn
+            FROM SegmentWithGroup
         ),
-        RankedTrips AS (
+        TripWithTwoDelv AS (
             SELECT 
                 CorporateIdn,
                 TripIdn,
-                LocNum,
-                ToLocNum,
-                DDER,
-                ROW_NUMBER() OVER (PARTITION BY LocNum ORDER BY DDER DESC) AS Rank
+                NewTripIdn
+            FROM FinalResult
+            GROUP BY CorporateIdn, TripIdn, NewTripIdn
+            HAVING SUM(CASE WHEN StopType = 0 THEN 1 ELSE 0 END) = 2
+        ),
+        TripsWithTargetLoc AS (
+            SELECT DISTINCT
+                s.CorporateIdn,
+                s.TripIdn,
+                s.NewTripIdn,
+                s.ToLocNum AS LocNum
             FROM 
-                TripDetails
+                FinalResult s
             WHERE 
-                rn = 1
+                s.ToLocNum IN {}  -- <<<<<< 多个 LocNum
+        ),
+        FinalWithDDER AS (
+            SELECT 
+                f.CorporateIdn,
+                f.TripIdn,
+                f.SegmentIdn,
+                f.StopType,
+                f.NewTripIdn,
+                f.ToLocNum,
+                c.CustAcronym AS ToCustAcronym,
+                f.ActualArrivalTime,
+                1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) AS DDER
+            FROM FinalResult f
+            JOIN TripWithTwoDelv twd
+              ON f.CorporateIdn = twd.CorporateIdn
+             AND f.TripIdn = twd.TripIdn
+             AND f.NewTripIdn = twd.NewTripIdn
+            LEFT JOIN Trip t
+              ON f.CorporateIdn = t.CorporateIdn
+             AND f.TripIdn = t.TripIdn
+            INNER JOIN TripsWithTargetLoc twtl
+            ON f.CorporateIdn = twtl.CorporateIdn
+             AND f.NewTripIdn = twtl.NewTripIdn
+            INNER JOIN CustomerProfile c
+	          ON f.ToLocNum = c.LocNum 
         )
-        SELECT 
-            RankedTrips.CorporateIdn,
-            RankedTrips.TripIdn,
-            RankedTrips.LocNum,
-            RankedTrips.ToLocNum,
-            CustomerProfile.CustAcronym AS ToCustAcronym,
-            RankedTrips.DDER,
-            RankedTrips.Rank
-        FROM 
-            RankedTrips
-        LEFT JOIN CustomerProfile
-        ON RankedTrips.ToLocNum = CustomerProfile.LocNum
-        WHERE 
-            Rank <= 3
-        ORDER BY 
-            LocNum, Rank;
+        SELECT DISTINCT*
+        FROM FinalWithDDER
+        WHERE StopType = 0 AND DDER > 0
+        ORDER BY DDER DESC, CorporateIdn, TripIdn, SegmentIdn;
         '''.format(tuple(non_full_load_shiptos))
         df_nearby_shipto = pd.read_sql(sql_line, self.odbc_conn)
-        df_nearby_shipto['LocNum'] = df_nearby_shipto['LocNum'].astype(str)
         df_nearby_shipto['ToLocNum'] = df_nearby_shipto['ToLocNum'].astype(str)
+
         return df_nearby_shipto
 
     @decorator.record_time_decorator('设置每个客户nearby shipto的距离')
@@ -550,7 +556,7 @@ class ForecastDataRefresh:
 
     def output_cluster_df(self):
         record_lt = []
-        cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'Rank', 'DataSource']
+        cols = ['LocNum', 'CustAcronym','ToLocNum', 'ToCustAcronym', 'distanceKM','DDER', 'DataSource']
         for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
             if dtd_shipto.is_full_load:
                 record = {
@@ -572,7 +578,6 @@ class ForecastDataRefresh:
                     'ToCustAcronym': nearby_shipto_info.shipto_name,
                     'distanceKM': nearby_shipto_info.distance_km,
                     'DDER': nearby_shipto_info.dder,
-                    'Rank': nearby_shipto_info.rank,
                     'DataSource': nearby_shipto_info.distance_data_source
                 }
                 record_lt.append(record)
