@@ -51,14 +51,11 @@ class LBForecastUI:
     ):
 
         self.root = root
-        self.conn = func.connect_sqlite('./AutoSchedule.sqlite')
-        self.cur = self.conn.cursor()
-
         # lock
         self.lock = threading.Lock()
         self.annot = None
         # 提取数据的类
-        self.data_manager = LBDataManager(self.conn, self.cur)
+        self.data_manager = LBDataManager()
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -70,7 +67,6 @@ class LBForecastUI:
         # 日志记录
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
-
 
         # setup ui
         self._setup_ui()
@@ -364,7 +360,6 @@ class LBForecastUI:
     def _set_manual_input_label(self):
         '''for schedulers manually input their estimation about hourly usage'''
 
-        conn = self.conn
         pad_y = 0
         lb_cm = tk.Label(self.frame_manual, text='CM Hourly')
         lb_cm.grid(row=0, column=0, padx=1, pady=pad_y)
@@ -399,28 +394,27 @@ class LBForecastUI:
         lb_time1 = tk.Label(self.frame_manual, text='Last Time: ')
         lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
         sql = 'select MAX(ReadingDate) from historyReading '
-        lastTime = pd.read_sql(sql, conn).values.flatten()[0]
+        lastTime = pd.read_sql(sql, self.data_manager.conn).values.flatten()[0]
         lb_time2 = tk.Label(self.frame_manual, text='{}'.format(lastTime))
         lb_time2.grid(row=7, column=1, padx=1, pady=pad_y)
 
 
     def create_manual_forecast_data(self, shipto, input_value):
         '''create_manual_forecast_data'''
-        conn = self.conn
         table_name = 'forecastBeforeTrip'
         sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-        df = pd.read_sql(sql, conn)
+        df = pd.read_sql(sql, self.data_manager.conn)
         if len(df) == 0:
             table_name = 'historyReading'
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-            df = pd.read_sql(sql, conn)
+            df = pd.read_sql(sql, self.data_manager.conn)
             if len(df) == 0:
                 messagebox.showinfo( title='Warning', message='No history Data To Show')
                 return
         else:
             table_name = 'forecastReading'
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-            df = pd.read_sql(sql, conn)
+            df = pd.read_sql(sql, self.data_manager.conn)
             df = df[df.Forecasted_Reading.notna()].reset_index(drop=True)
             if len(df) == 0:
                 messagebox.showinfo( title='Warning', message='No forecast_data_refresh Data To Show')
@@ -447,8 +441,8 @@ class LBForecastUI:
 
 
     def calculate_by_manual(self):
-        cur = self.cur
-        conn = self.conn
+        cur = self.data_manager.cur
+        conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
         input_value1 = self.box_kg.get()
@@ -1049,7 +1043,7 @@ class LBForecastUI:
 
     def main_plot(self):
         '''作图主函数'''
-        conn = self.conn
+        conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
         custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
@@ -1291,8 +1285,8 @@ class LBForecastUI:
     # region 刷新数据
     def refresh_data(self, show_message=True):
         try:
-            conn = self.conn
-            cur = self.cur
+            conn = self.data_manager.conn
+            cur = self.data_manager.cur
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
             func.log_connection(self.log_file, 'refreshed')
