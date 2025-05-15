@@ -1,42 +1,14 @@
-from src.utils.Email_forecast import send_email
-from matplotlib.lines import Line2D
-from src.forecast_data_refresh.odbc_master import check_refresh_deliveryWindow
-from src.utils import decorator
-from datetime import datetime
-from datetime import timedelta
-import matplotlib.pylab as pylab
-import tkinter as tk
-from tkinter import ttk
 import pandas as pd
-import numpy as np
-import sqlite3
-import os
-from matplotlib.backends.backend_tkagg import (
-    FigureCanvasTkAgg, NavigationToolbar2Tk)
-from matplotlib.figure import Figure
-import matplotlib.dates as mdates
-from matplotlib.dates import DayLocator
-from tkinter import messagebox
-# from dateEntry import DateEntry
-import matplotlib
-import time
-import threading
-from ..utils.dol_api import updateDOL
-from ..utils.lct_api import updateLCT
-from ..forecast_data_refresh.daily_data_refresh import ForecastDataRefresh
 from ..utils import functions as func
 
 
 
 class LBDataManager:
     def __init__(
-            self,
-            conn,
-            cur
+            self
     ):
-        self.conn = conn
-        self.cur = cur
-
+        self.conn = func.connect_sqlite('./AutoSchedule.sqlite')
+        self.cur = self.conn.cursor()
 
     def get_history_reading(self, shipto, fromTime, toTime):
         conn = self.conn
