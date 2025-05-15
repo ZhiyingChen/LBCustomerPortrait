@@ -47,7 +47,6 @@ class NearbyShipToInfo:
             nearby_shipto: str,
             shipto_name: str,
             dder: float,
-            rank: int,
             distance_km: float = None,
             duration_hours: float = None,
             distance_data_source: str = None
@@ -57,7 +56,6 @@ class NearbyShipToInfo:
         self.distance_km = distance_km
         self.duration_hours = duration_hours
         self.dder = dder
-        self.rank = rank
         self.distance_data_source = distance_data_source
 
     def __str__(self):
