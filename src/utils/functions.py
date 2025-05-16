@@ -33,7 +33,7 @@ def log_connection(filename: str, action: str):
 def connect_sqlite(db_name: str):
     '''连接 SQLITE'''
     conn = sqlite3.connect(db_name, check_same_thread=False)
-    print('sqlite connected')
+    print('sqlite {} connected'.format(db_name))
     return conn
 
 def weight_length_factor(uom):
