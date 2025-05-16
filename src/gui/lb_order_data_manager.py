@@ -4,6 +4,8 @@ import logging
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
+from ..utils import enums
+
 
 class LBOrderDataManager:
     def __init__(
@@ -109,10 +111,40 @@ class LBOrderDataManager:
             )
             self.conn.commit()
 
+    def get_forecast_order_result_list(self):
+        '''
+        从数据库中读取预测订单数据，生成预测订单结果列表
+        '''
+        oh = fd.OrderListHeader
+        sql_line = '''SELECT * FROM {}'''.format(fd.FO_LIST_TABLE)
+        forecast_order_df = pd.read_sql(
+            sql_line,
+            self.conn
+        )
+        forecast_order_df[oh.from_time] = pd.to_datetime(forecast_order_df[oh.from_time])
+        forecast_order_df[oh.to_time] = pd.to_datetime(forecast_order_df[oh.to_time])
+        forecast_order_df[oh.comment] = forecast_order_df[oh.comment].fillna('')
+        return forecast_order_df
+
     def generate_forecast_order_dict(self):
         '''
         从数据库中读取预测订单数据，生成预测订单字典
         '''
-        pass
+        oh = fd.OrderListHeader
+        forecast_order_df = self.get_forecast_order_result_list()
+
+        for index, row in forecast_order_df.iterrows():
+            forecast_order = do.Order(
+                shipto=row[oh.shipto],
+                cust_name=row[oh.cust_name],
+                product=row[oh.product],
+                from_time=row[oh.from_time],
+                to_time=row[oh.to_time],
+                drop_kg=row[oh.drop_kg],
+                comments=row[oh.comment],
+                order_type=enums.OrderType.FO
+            )
+            self.forecast_order_dict[forecast_order.shipto] = forecast_order
+        logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
 
     # endregion
