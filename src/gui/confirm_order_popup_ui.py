@@ -28,16 +28,14 @@ class ConfirmOrderPopupUI:
         self.popup.title("编辑FO订单信息")
         self._setup_popup()
 
+        self.confirm_submit = False
 
     def _submit(self):
         self.from_time = self.from_entry.get()
         self.to_time = self.to_entry.get()
         self.amt = self.amt_entry.get()
         self.note = self.note_entry.get("1.0", tk.END).strip()
-        print("From: ", self.from_time)
-        print("To: ", self.to_time)
-        print("Amt: ", self.amt)
-        print("Note: ", self.note)
+        self.confirm_submit = True
         self.popup.destroy()
         self.popup.destroy()
 
@@ -68,5 +66,5 @@ class ConfirmOrderPopupUI:
         self.note_entry.grid(row=3, column=1, padx=5, pady=5)
 
         # 提交按钮
-        self.submit_btn = ttk.Button(self.popup, text="提交", command=self._submit)
+        self.submit_btn = ttk.Button(self.popup, text="提交：建立FO订单", command=self._submit)
         self.submit_btn.grid(row=4, column=0, columnspan=2, pady=10)
