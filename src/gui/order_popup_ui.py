@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
+from ..utils import enums
 
 
 class OrderPopupUI:
@@ -47,6 +48,7 @@ class OrderPopupUI:
         self.right_frame.pack(side='right', fill='both', expand=True)
         tk.Label(self.right_frame, text="Total Trip Draft").pack()
 
+    # region 创建初始界面
     def _create_working_tree(self):
         insert_data = []
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
@@ -138,8 +140,9 @@ class OrderPopupUI:
                 tree.insert("", "end", values=tuple(data))
 
         return tree
+    # endregion
 
-
+    # region 事件处理
     def _on_double_click(self, event, tree, editable_cols):
         item_id = tree.focus()
         if not item_id:
@@ -175,7 +178,22 @@ class OrderPopupUI:
     def _delete_selected(self, tree):
         selected = tree.selection()
         for item in selected:
+            shipto = tree.item(item, "values")[0]
+            #   FOList里面删除原来的行
+            self.order_data_manager.delete_forecast_order_from_fo_list(
+                shipto=shipto
+            )
+
+            #   FORecordList 增加一行 EditType 为 Delete 的信息
+            self.order_data_manager.insert_order_record_in_fo_record_list(
+                order=self.order_data_manager.forecast_order_dict[shipto],
+                edit_type=enums.EditType.Delete
+            )
+            #   界面里面删除本行
             tree.delete(item)
+
+            #   删除缓存中该ShipTo的FO订单的信息
+            del self.order_data_manager.forecast_order_dict[shipto]
 
     def _clear_all_rows(self, tree):
         for item in tree.get_children():
@@ -200,3 +218,4 @@ class OrderPopupUI:
             "是" if order.is_in_trip() else "否"
         ]
         self.working_tree.insert("", "end", values=tuple(data))
+    # endregion

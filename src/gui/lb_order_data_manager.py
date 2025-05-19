@@ -234,7 +234,7 @@ class LBOrderDataManager:
         # 缓存中增加一个FO订单
         self.forecast_order_dict.update({order.shipto: order})
 
-        self.delete_forecast_order_from_fo_list(order=order)
+        self.delete_forecast_order_from_fo_list(shipto=order.shipto)
         self.insert_order_in_fo_list(order=order)
         self.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Create)
 
@@ -242,7 +242,7 @@ class LBOrderDataManager:
 
     def delete_forecast_order_from_fo_list(
             self,
-            order: do.Order
+            shipto: str
     ):
         # 从数据库中删除记录
         oh = fd.OrderListHeader
@@ -251,9 +251,9 @@ class LBOrderDataManager:
                '''.format(fd.FO_LIST_TABLE, oh.shipto)
         self.cur.execute(
             delete_sql_line,
-            (order.shipto,)
+            (shipto,)
         )
 
         self.conn.commit()
-        logging.info('Forecast order deleted from FOList: {}'.format(order.shipto))
+        logging.info('Forecast order deleted from FOList: {}'.format(shipto))
     # endregion
