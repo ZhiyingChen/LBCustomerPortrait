@@ -1,11 +1,21 @@
 import tkinter as tk
 from tkinter import ttk
+from .lb_order_data_manager import LBOrderDataManager
+
 
 class OrderPopupUI:
-    def __init__(self, root):
+    def __init__(
+            self,
+            root,
+            order_data_manager: LBOrderDataManager
+    ):
+        self.closed = False
+        self.order_data_manager = order_data_manager
+
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
         self.window.geometry("1400x800")
+        self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # 中间推荐显示标签
         self.recommendation_var = tk.StringVar(value="当前选中客户：")
@@ -18,14 +28,8 @@ class OrderPopupUI:
         self.left_frame = tk.Frame(self.main_frame)
         self.left_frame.pack(side='left', fill='y')
 
-        columns = ["ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "安排Trip"]
-        self.working_tree = self._create_table(
-            self.left_frame, title="Working FO List", columns=columns,
-            editable_cols=["From", "To", "KG", "备注"], deletable=True, add_so_button=True
-        )
-        self.oo_tree = self._create_table(
-            self.left_frame, title="OO List", columns=columns
-        )
+        self._create_working_tree()
+        self._create_oo_tree()
 
         # 中间：Single Ship To Trip Recommendation
         self.center_frame = tk.Frame(self.main_frame)
@@ -42,7 +46,59 @@ class OrderPopupUI:
         self.right_frame.pack(side='right', fill='both', expand=True)
         tk.Label(self.right_frame, text="Total Trip Draft").pack()
 
-    def _create_table(self, parent, title, columns, editable_cols=None, deletable=False, add_so_button=False):
+    def _create_working_tree(self):
+        insert_data = []
+        for shipto, fo in self.order_data_manager.forecast_order_dict.items():
+            data = [
+                fo.shipto,
+                fo.cust_name,
+                fo.product,
+                fo.from_time.strftime("%Y/%m/%d %H:%M"),
+                fo.to_time.strftime("%Y/%m/%d %H:%M"),
+                int(fo.drop_kg),
+                fo.comments,
+                "否"
+            ]
+            insert_data.append(data)
+
+        self.working_tree = self._create_table(
+            self.left_frame, title="Working FO List",
+            editable_cols=["From", "To", "KG", "备注"], deletable=True, add_so_button=True,
+            insert_data=insert_data
+        )
+
+    def _create_oo_tree(self):
+
+
+        insert_data = []
+        for shipto, oo in self.order_data_manager.order_only_dict.items():
+            data = [
+                oo.shipto,
+                oo.cust_name,
+                oo.product,
+                oo.from_time.strftime("%Y/%m/%d %H:%M"),
+                oo.to_time.strftime("%Y/%m/%d %H:%M"),
+                int(oo.drop_kg),
+                oo.comments,
+                "否"
+            ]
+            insert_data.append(data)
+
+        self.oo_tree = self._create_table(
+            self.left_frame, title="OO List", insert_data=insert_data
+        )
+
+    def _create_table(
+            self,
+            parent,
+            title,
+            editable_cols=None,
+            deletable=False,
+            add_so_button=False,
+            insert_data=None
+    ):
+        columns = ["ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "InTrip"]
+        widths = [70, 80, 40, 110, 110, 60, 80, 40]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -51,9 +107,9 @@ class OrderPopupUI:
         table_container.pack(fill='both', expand=True)
 
         tree = ttk.Treeview(table_container, columns=columns, show="headings", height=6)
-        for col in columns:
+        for i, col in enumerate(columns):
             tree.heading(col, text=col)
-            tree.column(col, width=60, anchor='center')
+            tree.column(col, width=widths[i], anchor='center')
         tree.pack(side='left', fill='both', expand=True)
 
         # 滚动条
@@ -78,8 +134,9 @@ class OrderPopupUI:
                 btn_clear.pack(side='left', padx=5)
 
         # 示例数据
-        for i in range(3):
-            tree.insert("", "end", values=(f"{i+1}", f"客户{i+1}", "产品A", "HK", "SH", "100", "无", "否"))
+        if insert_data:
+            for data in insert_data:
+                tree.insert("", "end", values=tuple(data))
 
         return tree
 
@@ -123,3 +180,8 @@ class OrderPopupUI:
     def _clear_all_rows(self, tree):
         for item in tree.get_children():
             tree.delete(item)
+
+
+    def _on_close(self):
+        self.closed = True
+        self.window.destroy()
