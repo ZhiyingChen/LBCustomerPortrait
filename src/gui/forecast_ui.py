@@ -73,6 +73,7 @@ class LBForecastUI:
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
 
+        self.order_popup_ui = None
         # setup ui
         self._setup_ui()
 

@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums
@@ -66,9 +67,10 @@ class OrderPopupUI:
 
         self.working_tree = self._create_table(
             self.left_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注"], deletable=True, add_so_button=True,
+            editable_cols=["From", "To", "KG", "备注"], add_so_button=True,
             insert_data=insert_data
         )
+        self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
 
     def _create_oo_tree(self):
         insert_data = []
@@ -94,7 +96,6 @@ class OrderPopupUI:
             parent,
             title,
             editable_cols=None,
-            deletable=False,
             add_so_button=False,
             insert_data=None
     ):
@@ -122,13 +123,9 @@ class OrderPopupUI:
         tree.bind("<Double-1>", lambda e, t=tree: self._on_double_click(e, t, editable_cols))
 
         # 操作按钮区域
-        if deletable or add_so_button:
+        if add_so_button:
             btn_frame = tk.Frame(frame)
             btn_frame.pack(pady=5)
-
-            if deletable:
-                btn_del = tk.Button(btn_frame, text="删除选中行", command=lambda: self._delete_selected(tree))
-                btn_del.pack(side='left', padx=5)
 
             if add_so_button:
                 btn_clear = tk.Button(btn_frame, text="一键在LBShell建立SO订单", command=lambda: self._clear_all_rows(tree))
@@ -143,6 +140,21 @@ class OrderPopupUI:
     # endregion
 
     # region 事件处理
+    def _on_right_click(self, event, tree):
+        if event.num != 3:  # 右键点击
+            return
+
+        if not tree.selection():
+            return
+
+        confirm = messagebox.askyesno(
+            title="提示",
+            message="确认删除选中的行吗？",
+            parent = self.window
+        )
+        if confirm:
+            self._delete_selected(tree=tree)
+
     def _on_double_click(self, event, tree, editable_cols):
         item_id = tree.focus()
         if not item_id:
