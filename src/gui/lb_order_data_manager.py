@@ -1,6 +1,7 @@
 from typing import Dict, List
 import pandas as pd
 import logging
+import datetime
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
@@ -40,6 +41,67 @@ class LBOrderDataManager:
         '''
         pass
 
+    def create_new_fo_list(self):
+        oh = fd.OrderListHeader
+
+        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_LIST_TABLE))
+        self.cur.execute(
+            """
+                CREATE TABLE {} (
+                    {} TEXT PRIMARY KEY,   -- shipto
+                    {} TEXT NOT NULL, -- cust_name
+                    {} TEXT NOT NULL, -- product
+                    {} TEXT NOT NULL, -- from_time
+                    {} TEXT NOT NULL, -- to_time
+                    {} REAL NOT NULL, -- drop_kg
+                    {} TEXT NOT NULL -- comment
+                );
+            """.format(
+                fd.FO_LIST_TABLE,
+                oh.shipto,
+                oh.cust_name,
+                oh.product,
+                oh.from_time,
+                oh.to_time,
+                oh.drop_kg,
+                oh.comment
+            )
+        )
+        self.conn.commit()
+
+    def create_new_fo_record_list(self):
+        oh = fd.OrderListHeader
+        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_RECORD_LIST_TABLE))
+        self.cur.execute(
+            """
+                CREATE TABLE {} (
+                    {} TEXT NOT NULL,   -- shipto
+                    {} TEXT NOT NULL, -- cust_name
+                    {} TEXT NOT NULL, -- product
+                    {} TEXT NOT NULL, -- from_time
+                    {} TEXT NOT NULL, -- to_time
+                    {} REAL NOT NULL, -- drop_kg
+                    {} TEXT, -- comment
+                    {} TEXT NOT NULL, -- edit_type
+                    {} TEXT NOT NULL -- timestamp
+
+                );
+            """.format(
+                fd.FO_RECORD_LIST_TABLE,
+                oh.shipto,
+                oh.cust_name,
+                oh.product,
+                oh.from_time,
+                oh.to_time,
+                oh.drop_kg,
+                oh.comment,
+                oh.edit_type,
+                oh.timestamp
+            )
+        )
+        self.conn.commit()
+
+
     def check_forecast_order_table(self):
         '''
           检查OrderTrip.sqlite中是否存有 FOList 和 FORecordList 这两张表，如果没有则新建空表
@@ -57,59 +119,10 @@ class LBOrderDataManager:
         if not self.cur.fetchone():
             logging.info('FOList table not found, creating...')
             # 如果表不存在，则创建表
-            self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_LIST_TABLE))
-            self.cur.execute(
-                """
-                    CREATE TABLE {} (
-                        {} TEXT PRIMARY KEY,   -- shipto
-                        {} TEXT NOT NULL, -- cust_name
-                        {} TEXT NOT NULL, -- product
-                        {} TEXT NOT NULL, -- from_time
-                        {} TEXT NOT NULL, -- to_time
-                        {} REAL NOT NULL, -- drop_kg
-                        {} TEXT NOT NULL -- comment
-                    );
-                """.format(
-                    fd.FO_LIST_TABLE,
-                    oh.shipto,
-                    oh.cust_name,
-                    oh.product,
-                    oh.from_time,
-                    oh.to_time,
-                    oh.drop_kg,
-                    oh.comment
-                )
-            )
+            self.create_new_fo_list()
+            self.create_new_fo_record_list()
 
-            self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_RECORD_LIST_TABLE))
-            self.cur.execute(
-                """
-                    CREATE TABLE {} (
-                        {} TEXT PRIMARY KEY,   -- shipto
-                        {} TEXT NOT NULL, -- cust_name
-                        {} TEXT NOT NULL, -- product
-                        {} TEXT NOT NULL, -- from_time
-                        {} TEXT NOT NULL, -- to_time
-                        {} REAL NOT NULL, -- drop_kg
-                        {} TEXT, -- comment
-                        {} TEXT NOT NULL, -- edit_type
-                        {} TEXT NOT NULL -- timestamp
-                        
-                    );
-                """.format(
-                    fd.FO_RECORD_LIST_TABLE,
-                    oh.shipto,
-                    oh.cust_name,
-                    oh.product,
-                    oh.from_time,
-                    oh.to_time,
-                    oh.drop_kg,
-                    oh.comment,
-                    oh.edit_type,
-                    oh.timestamp
-                )
-            )
-            self.conn.commit()
+
 
     def get_forecast_order_result_list(self):
         '''
@@ -147,4 +160,100 @@ class LBOrderDataManager:
             self.forecast_order_dict[forecast_order.shipto] = forecast_order
         logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
 
+    # endregion
+
+    # region 订单数据操作区域
+
+    def insert_order_in_fo_list(self, order: do.Order):
+        fo_sql_line = '''
+                   INSERT INTO {} VALUES 
+                   (
+                       ?, -- shipto
+                       ?, -- cust_name
+                       ?, -- product
+                       ?, -- from_time
+                       ?, -- to_time
+                       ?, -- drop_kg
+                       ? -- comment
+                   )
+               '''.format(fd.FO_LIST_TABLE)
+        self.cur.execute(
+            fo_sql_line,
+            (
+                order.shipto,
+                order.cust_name,
+                order.product,
+                order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.drop_kg,
+                order.comments
+            )
+        )
+
+        self.conn.commit()
+        logging.info('Order added to FOList: {}'.format(order.shipto))
+
+    def insert_order_record_in_fo_record_list(self, order: do.Order, edit_type: enums.EditType):
+        fo_sql_line = '''
+                   INSERT INTO {} VALUES 
+                   (
+                       ?, -- shipto
+                       ?, -- cust_name
+                       ?, -- product
+                       ?, -- from_time
+                       ?, -- to_time
+                       ?, -- drop_kg
+                       ?, -- comment
+                       ?, -- edit_type
+                       ? -- timestamp
+                   )
+               '''.format(fd.FO_RECORD_LIST_TABLE)
+        self.cur.execute(
+            fo_sql_line,
+            (
+                order.shipto,
+                order.cust_name,
+                order.product,
+                order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.drop_kg,
+                order.comments,
+                edit_type,
+                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+            )
+        )
+
+        self.conn.commit()
+        logging.info('Order record added to FORecordList: {}, {}'.format(order.shipto, edit_type))
+
+    def add_forecast_order(
+            self, order: do.Order
+    ):
+        if order.shipto in self.forecast_order_dict:
+            return
+        # 缓存中增加一个FO订单
+        self.forecast_order_dict.update({order.shipto: order})
+
+        self.delete_forecast_order_from_fo_list(order=order)
+        self.insert_order_in_fo_list(order=order)
+        self.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Create)
+
+
+
+    def delete_forecast_order_from_fo_list(
+            self,
+            order: do.Order
+    ):
+        # 从数据库中删除记录
+        oh = fd.OrderListHeader
+        delete_sql_line = '''
+                   DELETE FROM {} WHERE {} = ?;
+               '''.format(fd.FO_LIST_TABLE, oh.shipto)
+        self.cur.execute(
+            delete_sql_line,
+            (order.shipto,)
+        )
+
+        self.conn.commit()
+        logging.info('Forecast order deleted from FOList: {}'.format(order.shipto))
     # endregion
