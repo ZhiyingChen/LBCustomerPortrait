@@ -42,6 +42,35 @@ class ConfirmOrderPopupUI:
 
 
     def _submit(self):
+        try:
+            from_time = pd.to_datetime(self.from_entry.get())
+            to_time = pd.to_datetime(self.to_entry.get())
+        except ValueError:
+            messagebox.showwarning(
+                parent=self.popup,
+                title='时间格式错误提示',
+                message='请输入正确的From时间格式，如2021-01-01 00:00'
+            )
+            return
+
+        if from_time >= to_time:
+            messagebox.showwarning(
+                parent=self.popup,
+                title='时间范围错误提示',
+                message='From时间必须小于To时间'
+            )
+            return
+
+        try:
+            amt = float(self.amt_entry.get())
+        except ValueError:
+            messagebox.showwarning(
+                parent=self.popup,
+                title='可卸货量格式错误提示',
+                message='请输入正确的可卸货量格式，如100.0'
+            )
+            return
+
         self.from_time = self.from_entry.get()
         self.to_time = self.to_entry.get()
         self.amt = self.amt_entry.get()
@@ -55,7 +84,9 @@ class ConfirmOrderPopupUI:
         shipto = str(self.df_info.LocNum.values[0])
         if shipto in self.order_data_manager.forecast_order_dict:
             messagebox.showwarning(
-                '订单已存在提示', '{}的FO订单已存在中，请勿重复添加'.format(shipto)
+                parent = self.root,
+                title='订单已存在提示',
+                message='{}的FO订单已存在中，请勿重复添加'.format(shipto)
             )
             return
         # 生成一个订单

@@ -74,6 +74,7 @@ class LBForecastUI:
         func.log_connection(self.log_file, 'opened')
 
         self.order_popup_ui = None
+        self.confirm_order_popup = None
         # setup ui
         self._setup_ui()
 
@@ -960,7 +961,7 @@ class LBForecastUI:
                     loadAMT = int(full - show_level)
 
                     # 弹出消息框
-                    confirm_order_popup = ConfirmOrderPopupUI(
+                    self.confirm_order_popup = ConfirmOrderPopupUI(
                         root=self.root,
                         order_data_manager=self.order_data_manager,
                         df_info = self.df_info,
