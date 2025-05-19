@@ -16,8 +16,8 @@ class Order:
         self.shipto = shipto
         self.cust_name = cust_name
         self.product = product
-        self.from_time = from_time
-        self.to_time = to_time
+        self.from_time = pd.to_datetime(from_time) if isinstance(from_time, str) else from_time
+        self.to_time = pd.to_datetime(to_time) if isinstance(to_time, str) else to_time
         self.drop_kg = drop_kg
         self.comments = comments
         self.order_type = order_type
