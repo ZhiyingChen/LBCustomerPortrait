@@ -127,7 +127,8 @@ class OrderPopupUI:
             btn_frame.pack(pady=5)
 
             if add_so_button:
-                btn_clear = tk.Button(btn_frame, text="一键在LBShell建立SO订单", command=lambda: self._clear_all_rows(tree))
+                btn_clear = tk.Button(btn_frame, text="一键在LBShell建立SO订单",
+                                      command=lambda: self._send_data_to_lb_shell(tree))
                 btn_clear.pack(side='left', padx=5)
 
         # 示例数据
@@ -221,6 +222,18 @@ class OrderPopupUI:
 
             #   删除缓存中该ShipTo的FO订单的信息
             del self.order_data_manager.forecast_order_dict[shipto]
+
+    def _send_data_to_lb_shell(self, tree):
+        # todo: 执行RPA功能
+
+        # todo: 将FOList和RecordList全部上传至SharepointList
+
+        # 清空FOList和RecordList, 清空缓存中的所有FO订单信息
+        self.order_data_manager.remove_all_forecast_orders()
+
+        # 把FO界面上的信息清空
+        self._clear_all_rows(tree)
+
 
     def _clear_all_rows(self, tree):
         for item in tree.get_children():

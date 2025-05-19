@@ -292,4 +292,13 @@ class LBOrderDataManager:
 
         self.conn.commit()
         logging.info('Forecast order deleted from FOList: {}'.format(shipto))
+
+    def remove_all_forecast_orders(self):
+        '''
+          3. 清空FOList和RecordList
+          4. 清空缓存中的所有FO订单信息
+        '''
+        self.create_new_fo_list()
+        self.create_new_fo_record_list()
+        self.forecast_order_dict.clear()
     # endregion
