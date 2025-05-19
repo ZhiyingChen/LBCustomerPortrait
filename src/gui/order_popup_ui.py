@@ -3,7 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
-from ..utils import enums
+from ..utils import enums, constant
 
 
 class OrderPopupUI:
@@ -64,7 +64,6 @@ class OrderPopupUI:
                 "是" if fo.is_in_trip() else "否"
             ]
             insert_data.append(data)
-
         self.working_tree = self._create_table(
             self.left_frame, title="Working FO List",
             editable_cols=["From", "To", "KG", "备注"], add_so_button=True,
@@ -184,6 +183,22 @@ class OrderPopupUI:
                 tree.item(item_id, values=values)
                 entry.destroy()
 
+                shipto = values[0]
+                order = self.order_data_manager.forecast_order_dict[shipto]
+
+                # 1. 更新缓存中该ShipTo的FO订单的信息
+                setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
+
+                # 2. FOList里面删除原来的行，换成最新修改的一行
+                self.order_data_manager.update_forecast_order_in_fo_list(
+                    order=order
+                )
+                # 3. FORecordList 增加一行 EditType 为Modify 的信息
+                self.order_data_manager.insert_order_record_in_fo_record_list(
+                    order=order,
+                    edit_type=enums.EditType.Modify
+                )
+
             entry.bind("<Return>", save_edit)
             entry.bind("<FocusOut>", lambda e: entry.destroy())
 
@@ -231,3 +246,4 @@ class OrderPopupUI:
         ]
         self.working_tree.insert("", "end", values=tuple(data))
     # endregion
+

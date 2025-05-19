@@ -193,6 +193,42 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order added to FOList: {}'.format(order.shipto))
 
+    def update_forecast_order_in_fo_list(self, order: do.Order):
+        oh = fd.OrderListHeader
+        fo_sql_line = '''
+                   UPDATE {} SET 
+                   {} = ?, -- cust_name
+                   {} = ?, -- product
+                   {} = ?, -- from_time
+                   {} = ?, -- to_time
+                   {} = ?, -- drop_kg
+                   {} = ? -- comment
+                   WHERE {} = ?
+                '''.format(
+            fd.FO_LIST_TABLE,
+                    oh.cust_name,
+                    oh.product,
+                    oh.from_time,
+                    oh.to_time,
+                    oh.drop_kg,
+                    oh.comment,
+                    oh.shipto
+        )
+        self.cur.execute(
+            fo_sql_line,
+            (
+                order.cust_name,
+                order.product,
+                order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
+                order.drop_kg,
+                order.comments,
+                order.shipto
+            )
+        )
+        self.conn.commit()
+        logging.info('Order modified in FOList: {}'.format(order.shipto))
+
     def insert_order_record_in_fo_record_list(self, order: do.Order, edit_type: enums.EditType):
         fo_sql_line = '''
                    INSERT INTO {} VALUES 
