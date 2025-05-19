@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+import pandas as pd
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
@@ -180,12 +181,39 @@ class OrderPopupUI:
             def save_edit(event):
                 new_value = entry.get()
                 values = list(tree.item(item_id, "values"))
-                values[col_index] = new_value
-                tree.item(item_id, values=values)
-                entry.destroy()
-
                 shipto = values[0]
                 order = self.order_data_manager.forecast_order_dict[shipto]
+                # 校验
+                if col_name in ["From", "To"]:
+                    try:
+                        new_value = pd.to_datetime(new_value)
+                    except ValueError:
+                        messagebox.showerror(
+                            title="错误",
+                            message="时间格式不正确，应该为 %Y/%m/%d %H:%M 格式，请重新输入！",
+                            parent=self.window
+                        )
+                        return
+                    if (col_name == "From" and new_value >= order.to_time or
+                            col_name == "To" and new_value <= order.from_time):
+                        messagebox.showerror(
+                            title="错误",
+                            message="时间范围不正确，应该在订单开始和结束时间之间！",
+                            parent=self.window
+                        )
+                        return
+
+                elif col_name == "KG":
+                    try:
+                        new_value = float(new_value)
+                    except ValueError:
+                        messagebox.showerror(
+                            title="错误",
+                            message="KG格式不正确，应该为数值类型，请重新输入！",
+                            parent=self.window
+                        )
+                        return
+
 
                 # 1. 更新缓存中该ShipTo的FO订单的信息
                 setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
@@ -199,6 +227,10 @@ class OrderPopupUI:
                     order=order,
                     edit_type=enums.EditType.Modify
                 )
+
+                values[col_index] = new_value
+                tree.item(item_id, values=values)
+                entry.destroy()
 
             entry.bind("<Return>", save_edit)
             entry.bind("<FocusOut>", lambda e: entry.destroy())
