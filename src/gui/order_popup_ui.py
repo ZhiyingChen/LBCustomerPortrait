@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from .lb_order_data_manager import LBOrderDataManager
+from .. import domain_object as do
 
 
 class OrderPopupUI:
@@ -57,7 +58,7 @@ class OrderPopupUI:
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
                 fo.comments,
-                "否"
+                "是" if fo.is_in_trip() else "否"
             ]
             insert_data.append(data)
 
@@ -68,8 +69,6 @@ class OrderPopupUI:
         )
 
     def _create_oo_tree(self):
-
-
         insert_data = []
         for shipto, oo in self.order_data_manager.order_only_dict.items():
             data = [
@@ -80,7 +79,7 @@ class OrderPopupUI:
                 oo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(oo.drop_kg),
                 oo.comments,
-                "否"
+                 "是" if oo.is_in_trip() else "否"
             ]
             insert_data.append(data)
 
@@ -140,6 +139,7 @@ class OrderPopupUI:
 
         return tree
 
+
     def _on_double_click(self, event, tree, editable_cols):
         item_id = tree.focus()
         if not item_id:
@@ -185,3 +185,18 @@ class OrderPopupUI:
     def _on_close(self):
         self.closed = True
         self.window.destroy()
+
+    def add_order_display_in_working_tree(
+            self, order: do.Order
+    ):
+        data = [
+            order.shipto,
+            order.cust_name,
+            order.product,
+            order.from_time.strftime("%Y/%m/%d %H:%M"),
+            order.to_time.strftime("%Y/%m/%d %H:%M"),
+            int(order.drop_kg),
+            order.comments,
+            "是" if order.is_in_trip() else "否"
+        ]
+        self.working_tree.insert("", "end", values=tuple(data))

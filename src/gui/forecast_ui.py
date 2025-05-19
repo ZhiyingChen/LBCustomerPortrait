@@ -17,7 +17,7 @@ from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 from matplotlib.dates import DayLocator
 from tkinter import messagebox
-# from dateEntry import DateEntry
+import logging
 import matplotlib
 import time
 import threading
@@ -32,6 +32,9 @@ from ..utils import functions as func
 from ..utils.constant import unitOfLength_dict
 from .order_popup_ui import OrderPopupUI
 from .lb_order_data_manager import LBOrderDataManager
+from .. import domain_object as do
+from ..utils import enums
+
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
 # 设置显示中文,与字体配合使用
@@ -561,7 +564,10 @@ class LBForecastUI:
         self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
 
     def _open_order_window(self):
-        OrderPopupUI(root=self.root)
+        self.order_popup_ui = OrderPopupUI(
+            root=self.root,
+            order_data_manager=self.order_data_manager
+        )
 
     def _decorate_plot_frame(self):
         # plot_frame column 0, row 0: 筛选区域
@@ -953,7 +959,16 @@ class LBForecastUI:
                     loadAMT = int(full - show_level)
 
                     # 弹出消息框
-                    confirm_order_popup = ConfirmOrderPopupUI(root=self.root, show_time=show_time, loadAMT=loadAMT)
+                    confirm_order_popup = ConfirmOrderPopupUI(
+                        root=self.root,
+                        order_data_manager=self.order_data_manager,
+                        df_info = self.df_info,
+                        show_time=show_time,
+                        loadAMT=loadAMT,
+                        order_popup_ui=self.order_popup_ui
+                    )
+
+
 
 
     def update_annot(self, pos, text):

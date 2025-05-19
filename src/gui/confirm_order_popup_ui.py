@@ -1,10 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 from datetime import datetime, timedelta
 import pandas as pd
 from ..utils import enums
 from .. import domain_object as do
 from .lb_order_data_manager import LBOrderDataManager
+from .order_popup_ui import OrderPopupUI
 
 class ConfirmOrderPopupUI:
     def __init__(
@@ -13,12 +15,14 @@ class ConfirmOrderPopupUI:
             order_data_manager: LBOrderDataManager,
             df_info: pd.DataFrame,
             show_time,
-            loadAMT
+            loadAMT,
+            order_popup_ui: OrderPopupUI
     ):
         super().__init__()
         self.root = root
         self.df_info = df_info
         self.order_data_manager = order_data_manager
+        self.order_popup_ui = order_popup_ui
         # 默认时间
         dt = datetime.strptime(show_time, "%Y-%m-%d %H:%M")
         self.from_time = (dt - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
@@ -50,7 +54,7 @@ class ConfirmOrderPopupUI:
     def add_forecast_order(self):
         shipto = str(self.df_info.LocNum.values[0])
         if shipto in self.order_data_manager.forecast_order_dict:
-            tk.messagebox.showwarning(
+            messagebox.showwarning(
                 '订单已存在提示', '{}的FO订单已存在中，请勿重复添加'.format(shipto)
             )
             return
@@ -67,8 +71,16 @@ class ConfirmOrderPopupUI:
         )
         self.order_data_manager.add_forecast_order(forecast_order)
 
-        #todo: 如果界面是打开的，在FO订单界面展示出来
+        # 如果界面是打开的，在FO订单界面展示出来
+        if self.order_popup_ui is None or (self.order_popup_ui is not None and self.order_popup_ui.closed):
+            return
 
+        self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
+
+
+
+    def display_in_order_popup_ui(self):
+        pass
 
     def _setup_popup(self):
         '''弹出可编辑的界面'''
