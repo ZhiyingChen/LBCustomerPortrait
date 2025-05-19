@@ -78,10 +78,6 @@ class ConfirmOrderPopupUI:
         self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
 
 
-
-    def display_in_order_popup_ui(self):
-        pass
-
     def _setup_popup(self):
         '''弹出可编辑的界面'''
 
