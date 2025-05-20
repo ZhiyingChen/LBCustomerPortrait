@@ -7,6 +7,7 @@ from ..utils import enums
 from .. import domain_object as do
 from .lb_order_data_manager import LBOrderDataManager
 from .order_popup_ui import OrderPopupUI
+from ..utils import functions as func
 
 class ConfirmOrderPopupUI:
     def __init__(
@@ -82,15 +83,17 @@ class ConfirmOrderPopupUI:
 
     def add_forecast_order(self):
         shipto = str(self.df_info.LocNum.values[0])
-        if shipto in self.order_data_manager.forecast_order_dict:
-            messagebox.showwarning(
-                parent = self.root,
+        if shipto in {v.shipto for v in self.order_data_manager.forecast_order_dict.values()}:
+            confirm =messagebox.askyesno(
+                parent=self.popup,
                 title='订单已存在提示',
-                message='{}的FO订单已存在中，请勿重复添加'.format(shipto)
+                message='该shipto已存在FO订单，是否创建一个新的？'
             )
-            return
+            if not confirm:
+                return
         # 生成一个订单
         forecast_order = do.Order(
+            order_id=func.generate_new_forecast_order_id(),
             shipto=shipto,
             cust_name=str(self.df_info.CustAcronym.values[0]),
             product=str(self.df_info.ProductClass.values[0]),

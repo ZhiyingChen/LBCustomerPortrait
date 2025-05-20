@@ -19,7 +19,6 @@ class LBOrderDataManager:
         self.forecast_order_dict: Dict[str, do.Order] = dict()
 
         self._initialize()
-
     # region 初始化数据区域
     def _initialize(self):
         self.create_order_only_list_table()
@@ -48,7 +47,8 @@ class LBOrderDataManager:
         self.cur.execute(
             """
                 CREATE TABLE {} (
-                    {} TEXT PRIMARY KEY,   -- shipto
+                    {} TEXT PRIMARY KEY,   -- order_id
+                    {} TEXT NOT NULL, -- shipto
                     {} TEXT NOT NULL, -- cust_name
                     {} TEXT NOT NULL, -- product
                     {} TEXT NOT NULL, -- from_time
@@ -58,6 +58,7 @@ class LBOrderDataManager:
                 );
             """.format(
                 fd.FO_LIST_TABLE,
+                oh.order_id,
                 oh.shipto,
                 oh.cust_name,
                 oh.product,
@@ -75,6 +76,7 @@ class LBOrderDataManager:
         self.cur.execute(
             """
                 CREATE TABLE {} (
+                     {} TEXT NOT NULL,   -- order_id
                     {} TEXT NOT NULL,   -- shipto
                     {} TEXT NOT NULL, -- cust_name
                     {} TEXT NOT NULL, -- product
@@ -88,6 +90,7 @@ class LBOrderDataManager:
                 );
             """.format(
                 fd.FO_RECORD_LIST_TABLE,
+                oh.order_id,
                 oh.shipto,
                 oh.cust_name,
                 oh.product,
@@ -148,6 +151,7 @@ class LBOrderDataManager:
 
         for index, row in forecast_order_df.iterrows():
             forecast_order = do.Order(
+                order_id=row[oh.order_id],
                 shipto=row[oh.shipto],
                 cust_name=row[oh.cust_name],
                 product=row[oh.product],
@@ -157,7 +161,7 @@ class LBOrderDataManager:
                 comments=row[oh.comment],
                 order_type=enums.OrderType.FO
             )
-            self.forecast_order_dict[forecast_order.shipto] = forecast_order
+            self.forecast_order_dict[forecast_order.order_id] = forecast_order
         logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
 
     # endregion
@@ -168,6 +172,7 @@ class LBOrderDataManager:
         fo_sql_line = '''
                    INSERT INTO {} VALUES 
                    (
+                       ?, -- order_id
                        ?, -- shipto
                        ?, -- cust_name
                        ?, -- product
@@ -180,6 +185,7 @@ class LBOrderDataManager:
         self.cur.execute(
             fo_sql_line,
             (
+                order.order_id,
                 order.shipto,
                 order.cust_name,
                 order.product,
@@ -197,8 +203,6 @@ class LBOrderDataManager:
         oh = fd.OrderListHeader
         fo_sql_line = '''
                    UPDATE {} SET 
-                   {} = ?, -- cust_name
-                   {} = ?, -- product
                    {} = ?, -- from_time
                    {} = ?, -- to_time
                    {} = ?, -- drop_kg
@@ -206,13 +210,11 @@ class LBOrderDataManager:
                    WHERE {} = ?
                 '''.format(
             fd.FO_LIST_TABLE,
-                    oh.cust_name,
-                    oh.product,
                     oh.from_time,
                     oh.to_time,
                     oh.drop_kg,
                     oh.comment,
-                    oh.shipto
+                    oh.order_id
         )
         self.cur.execute(
             fo_sql_line,
@@ -223,7 +225,7 @@ class LBOrderDataManager:
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
-                order.shipto
+                order.order_id
             )
         )
         self.conn.commit()
@@ -233,6 +235,7 @@ class LBOrderDataManager:
         fo_sql_line = '''
                    INSERT INTO {} VALUES 
                    (
+                        ?, -- order_id
                        ?, -- shipto
                        ?, -- cust_name
                        ?, -- product
@@ -247,6 +250,7 @@ class LBOrderDataManager:
         self.cur.execute(
             fo_sql_line,
             (
+                order.order_id,
                 order.shipto,
                 order.cust_name,
                 order.product,
@@ -265,12 +269,9 @@ class LBOrderDataManager:
     def add_forecast_order(
             self, order: do.Order
     ):
-        if order.shipto in self.forecast_order_dict:
-            return
         # 缓存中增加一个FO订单
-        self.forecast_order_dict.update({order.shipto: order})
+        self.forecast_order_dict.update({order.order_id: order})
 
-        self.delete_forecast_order_from_fo_list(shipto=order.shipto)
         self.insert_order_in_fo_list(order=order)
         self.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Create)
 
@@ -278,20 +279,20 @@ class LBOrderDataManager:
 
     def delete_forecast_order_from_fo_list(
             self,
-            shipto: str
+            order_id: str
     ):
         # 从数据库中删除记录
         oh = fd.OrderListHeader
         delete_sql_line = '''
                    DELETE FROM {} WHERE {} = ?;
-               '''.format(fd.FO_LIST_TABLE, oh.shipto)
+               '''.format(fd.FO_LIST_TABLE, oh.order_id)
         self.cur.execute(
             delete_sql_line,
-            (shipto,)
+            (order_id,)
         )
 
         self.conn.commit()
-        logging.info('Forecast order deleted from FOList: {}'.format(shipto))
+        logging.info('Forecast order deleted from FOList: {}'.format(order_id))
 
     def remove_all_forecast_orders(self):
         '''

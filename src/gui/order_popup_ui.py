@@ -55,6 +55,7 @@ class OrderPopupUI:
         insert_data = []
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
             data = [
+                fo.order_id,
                 fo.shipto,
                 fo.cust_name,
                 fo.product,
@@ -76,6 +77,7 @@ class OrderPopupUI:
         insert_data = []
         for shipto, oo in self.order_data_manager.order_only_dict.items():
             data = [
+                oo.order_id,
                 oo.shipto,
                 oo.cust_name,
                 oo.product,
@@ -99,8 +101,8 @@ class OrderPopupUI:
             add_so_button=False,
             insert_data=None
     ):
-        columns = ["ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "InTrip"]
-        widths = [70, 80, 40, 110, 110, 60, 80, 40]
+        columns = ["OrderId", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "InTrip"]
+        widths = [100, 70, 80, 40, 110, 110, 60, 80, 40]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -163,11 +165,13 @@ class OrderPopupUI:
         col = tree.identify_column(event.x)
         col_index = int(col.replace("#", "")) - 1
         col_name = tree["columns"][col_index]
-        value = tree.item(item_id, "values")[col_index]
+        values = tree.item(item_id, "values")
+        value = values[col_index]
 
         # 显示客户简称
         if col_name == "客户简称":
-            self.recommendation_var.set(f"当前选中客户：{value}")
+            order_id = values[0]
+            self.recommendation_var.set(f"当前选中客户：{value} ({order_id})")
             return
 
         # 可编辑列
@@ -181,8 +185,8 @@ class OrderPopupUI:
             def save_edit(event):
                 new_value = entry.get()
                 values = list(tree.item(item_id, "values"))
-                shipto = values[0]
-                order = self.order_data_manager.forecast_order_dict[shipto]
+                order_id = values[0]
+                order = self.order_data_manager.forecast_order_dict[order_id]
                 # 校验
                 if col_name in ["From", "To"]:
                     try:
@@ -238,22 +242,22 @@ class OrderPopupUI:
     def _delete_selected(self, tree):
         selected = tree.selection()
         for item in selected:
-            shipto = tree.item(item, "values")[0]
+            order_id = tree.item(item, "values")[0]
             #   FOList里面删除原来的行
             self.order_data_manager.delete_forecast_order_from_fo_list(
-                shipto=shipto
+                order_id=order_id
             )
 
             #   FORecordList 增加一行 EditType 为 Delete 的信息
             self.order_data_manager.insert_order_record_in_fo_record_list(
-                order=self.order_data_manager.forecast_order_dict[shipto],
+                order=self.order_data_manager.forecast_order_dict[order_id],
                 edit_type=enums.EditType.Delete
             )
             #   界面里面删除本行
             tree.delete(item)
 
             #   删除缓存中该ShipTo的FO订单的信息
-            del self.order_data_manager.forecast_order_dict[shipto]
+            del self.order_data_manager.forecast_order_dict[order_id]
 
     def _send_data_to_lb_shell(self, tree):
         # todo: 执行RPA功能
@@ -280,6 +284,7 @@ class OrderPopupUI:
             self, order: do.Order
     ):
         data = [
+            order.order_id,
             order.shipto,
             order.cust_name,
             order.product,

@@ -7,6 +7,7 @@ FO_RECORD_LIST_TABLE = "FORecordList"
 OO_LIST_TABLE = "OOList"
 
 class OrderListHeader:
+    order_id = "OrderID"
     shipto = "ShipTo"
     cust_name = "CustName"
     product = "Product"

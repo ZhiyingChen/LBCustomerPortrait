@@ -91,3 +91,10 @@ def is_file_modified_today(file_path):
     today = datetime.date.today()
     # 比较日期
     return file_mod_date == today
+
+def generate_new_forecast_order_id():
+    '''
+    生成新的订单ID
+    '''
+    now = datetime.datetime.now()
+    return now.strftime('%m%d%H%M%S')
