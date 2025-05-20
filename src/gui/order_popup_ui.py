@@ -18,37 +18,16 @@ class OrderPopupUI:
 
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
-        self.window.geometry("1600x800")
+        self.window.geometry("1000x600")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
-
-        # 中间推荐显示标签
-        self.recommendation_var = tk.StringVar(value="当前选中客户：")
 
         # 主体区域
         self.main_frame = tk.Frame(self.window)
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
         # 左侧：Working FO List 和 OO List
-        self.left_frame = tk.Frame(self.main_frame)
-        self.left_frame.pack(side='left', fill='y')
-
         self._create_working_tree()
-        self._create_oo_tree()
 
-        # 中间：Single Ship To Trip Recommendation
-        self.center_frame = tk.Frame(self.main_frame)
-        self.center_frame.pack(side='left', fill='both', expand=True)
-        tk.Label(self.center_frame, text="Single ShipTo Trip Recommendation").pack()
-        self.recommendation_label = tk.Label(
-            self.center_frame, textvariable=self.recommendation_var,
-            fg="blue", font=("Arial", 12)
-        )
-        self.recommendation_label.pack(pady=10)
-
-        # 右侧：Trip Draft（占位）
-        self.right_frame = tk.Frame(self.main_frame)
-        self.right_frame.pack(side='right', fill='both', expand=True)
-        tk.Label(self.right_frame, text="Total Trip Draft").pack()
 
     # region 创建初始界面
     def _create_working_tree(self):
@@ -62,36 +41,15 @@ class OrderPopupUI:
                 fo.from_time.strftime("%Y/%m/%d %H:%M"),
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
-                fo.comments,
-                "是" if fo.is_in_trip() else "否"
+                fo.comments
             ]
             insert_data.append(data)
         self.working_tree = self._create_table(
-            self.left_frame, title="Working FO List",
+            self.main_frame, title="Working FO List",
             editable_cols=["From", "To", "KG", "备注"], add_so_button=True,
             insert_data=insert_data
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
-
-    def _create_oo_tree(self):
-        insert_data = []
-        for shipto, oo in self.order_data_manager.order_only_dict.items():
-            data = [
-                oo.order_id,
-                oo.shipto,
-                oo.cust_name,
-                oo.product,
-                oo.from_time.strftime("%Y/%m/%d %H:%M"),
-                oo.to_time.strftime("%Y/%m/%d %H:%M"),
-                int(oo.drop_kg),
-                oo.comments,
-                 "是" if oo.is_in_trip() else "否"
-            ]
-            insert_data.append(data)
-
-        self.oo_tree = self._create_table(
-            self.left_frame, title="OO List", insert_data=insert_data
-        )
 
     def _create_table(
             self,
@@ -101,8 +59,8 @@ class OrderPopupUI:
             add_so_button=False,
             insert_data=None
     ):
-        columns = ["OrderId", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "InTrip"]
-        widths = [100, 70, 80, 40, 110, 110, 60, 80, 40]
+        columns = ["TempOrderId", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注"]
+        widths = [100, 70, 80, 40, 110, 110, 60, 80]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -167,13 +125,6 @@ class OrderPopupUI:
         col_name = tree["columns"][col_index]
         values = tree.item(item_id, "values")
         value = values[col_index]
-
-        # 显示客户简称
-        if col_name == "客户简称":
-            order_id = values[0]
-            self.recommendation_var.set(f"当前选中客户：{value} ({order_id})")
-            return
-
         # 可编辑列
         if editable_cols and col_name in editable_cols:
             x, y, width, height = tree.bbox(item_id, col)
@@ -291,8 +242,7 @@ class OrderPopupUI:
             order.from_time.strftime("%Y/%m/%d %H:%M"),
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
-            order.comments,
-            "是" if order.is_in_trip() else "否"
+            order.comments
         ]
         self.working_tree.insert("", "end", values=tuple(data))
     # endregion
