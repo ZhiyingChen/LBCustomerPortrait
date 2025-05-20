@@ -18,7 +18,7 @@ class OrderPopupUI:
 
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
-        self.window.geometry("1400x800")
+        self.window.geometry("1600x800")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # 中间推荐显示标签

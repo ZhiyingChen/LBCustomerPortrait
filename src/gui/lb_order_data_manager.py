@@ -219,8 +219,6 @@ class LBOrderDataManager:
         self.cur.execute(
             fo_sql_line,
             (
-                order.cust_name,
-                order.product,
                 order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
