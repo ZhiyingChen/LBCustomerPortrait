@@ -71,7 +71,7 @@ class OrderPopupUI:
             editable_cols=None,
             insert_data=None
     ):
-        columns = ["TempOrderId", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注"]
+        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注"]
         widths = [100, 70, 80, 40, 110, 110, 60, 80]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
