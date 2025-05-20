@@ -300,4 +300,15 @@ class LBOrderDataManager:
         self.create_new_fo_list()
         self.create_new_fo_record_list()
         self.forecast_order_dict.clear()
+
+    def get_last_modified_time(self):
+        try:
+            last_modified_time = (
+                self.cur.execute("SELECT max(TimeStamp) FROM FORecordList").fetchone())[0]
+        except Exception as e:
+            logging.error(f"查询上次修改时间失败：{e}")
+            last_modified_time = ""
+        if last_modified_time is None:
+            last_modified_time = ""
+        return last_modified_time
     # endregion

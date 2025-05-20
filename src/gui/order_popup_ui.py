@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 import pandas as pd
+import logging
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
@@ -21,13 +22,25 @@ class OrderPopupUI:
         self.window.geometry("1000x600")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # 上方框架
+        top_frame = tk.Frame(self.window)
+        top_frame.pack(side='top', fill='x', padx=10, pady=5)
+
+        # 上次修改时间标签
+        self.last_modified_label = tk.Label(top_frame, text=f"上次修改时间: ", anchor='w')
+        self.last_modified_label.pack(side='left', fill='x', expand=True)
+        self.update_last_modified_time()
+        # 创建按钮
+        btn_clear = tk.Button(top_frame, text="一键在LBShell建立SO订单",
+                              command=lambda: self._send_data_to_lb_shell(self.working_tree))
+        btn_clear.pack(side='right', padx=5)
+
         # 主体区域
         self.main_frame = tk.Frame(self.window)
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
         # 左侧：Working FO List 和 OO List
         self._create_working_tree()
-
 
     # region 创建初始界面
     def _create_working_tree(self):
@@ -46,7 +59,7 @@ class OrderPopupUI:
             insert_data.append(data)
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注"], add_so_button=True,
+            editable_cols=["From", "To", "KG", "备注"],
             insert_data=insert_data
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
@@ -56,7 +69,6 @@ class OrderPopupUI:
             parent,
             title,
             editable_cols=None,
-            add_so_button=False,
             insert_data=None
     ):
         columns = ["TempOrderId", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注"]
@@ -82,22 +94,13 @@ class OrderPopupUI:
         # 双击事件：显示客户简称或编辑
         tree.bind("<Double-1>", lambda e, t=tree: self._on_double_click(e, t, editable_cols))
 
-        # 操作按钮区域
-        if add_so_button:
-            btn_frame = tk.Frame(frame)
-            btn_frame.pack(pady=5)
-
-            if add_so_button:
-                btn_clear = tk.Button(btn_frame, text="一键在LBShell建立SO订单",
-                                      command=lambda: self._send_data_to_lb_shell(tree))
-                btn_clear.pack(side='left', padx=5)
-
         # 示例数据
         if insert_data:
             for data in insert_data:
                 tree.insert("", "end", values=tuple(data))
 
         return tree
+
     # endregion
 
     # region 事件处理
@@ -111,7 +114,7 @@ class OrderPopupUI:
         confirm = messagebox.askyesno(
             title="提示",
             message="确认删除选中的行吗？",
-            parent = self.window
+            parent=self.window
         )
         if confirm:
             self._delete_selected(tree=tree)
@@ -169,7 +172,6 @@ class OrderPopupUI:
                         )
                         return
 
-
                 # 1. 更新缓存中该ShipTo的FO订单的信息
                 setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
 
@@ -186,6 +188,7 @@ class OrderPopupUI:
                 values[col_index] = new_value
                 tree.item(item_id, values=values)
                 entry.destroy()
+                self.update_last_modified_time()
 
             entry.bind("<Return>", save_edit)
             entry.bind("<FocusOut>", lambda e: entry.destroy())
@@ -210,7 +213,21 @@ class OrderPopupUI:
             #   删除缓存中该ShipTo的FO订单的信息
             del self.order_data_manager.forecast_order_dict[order_id]
 
+        self.update_last_modified_time()
+
+    def update_last_modified_time(self):
+        last_modified_time = self.order_data_manager.get_last_modified_time()
+        self.last_modified_label.config(text=f"上次修改时间：{last_modified_time}")
+
     def _send_data_to_lb_shell(self, tree):
+        confirm = messagebox.askyesno(
+            title="提示",
+            message="确认一键在LBShell建立SO订单吗？",
+            parent=self.window
+        )
+        if not confirm:
+            return
+
         # todo: 执行RPA功能
 
         # todo: 将FOList和RecordList全部上传至SharepointList
@@ -221,11 +238,12 @@ class OrderPopupUI:
         # 把FO界面上的信息清空
         self._clear_all_rows(tree)
 
+        # 更新上次修改时间
+        self.update_last_modified_time()
 
     def _clear_all_rows(self, tree):
         for item in tree.get_children():
             tree.delete(item)
-
 
     def _on_close(self):
         self.closed = True
@@ -245,5 +263,4 @@ class OrderPopupUI:
             order.comments
         ]
         self.working_tree.insert("", "end", values=tuple(data))
-    # endregion
-
+        self.update_last_modified_time()
