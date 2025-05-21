@@ -268,7 +268,9 @@ class OrderPopupUI:
     def _send_data_to_lb_shell(self, tree):
         confirm = messagebox.askyesno(
             title="提示",
-            message="确认一键在LBShell建立SO订单吗？",
+            message="确认一键在LBShell建立SO订单吗？\n"
+                    "如果确认，则在建完所有订单前，请勿使用鼠标，"
+                    "请耐心等待。",
             parent=self.window
         )
         if not confirm:
