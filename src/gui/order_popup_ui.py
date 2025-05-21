@@ -6,7 +6,7 @@ import logging
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
-
+from ..rpa.main import BuildOrder
 
 class OrderPopupUI:
     def __init__(
@@ -41,6 +41,34 @@ class OrderPopupUI:
 
         # 左侧：Working FO List 和 OO List
         self._create_working_tree()
+
+    def _run_rpa(self, rpa_order_list: List[Dict[str, str]]):
+        rpa_order_list = []
+        for o_id, order in self.order_data_manager.forecast_order_dict.items():
+            rpa_order_list.append(
+                {
+                    'OrderId': order.order_id,
+                    'LocNum': order.shipto,
+                    'from': order.from_time.strftime("%Y/%m/%d %H:%M"),
+                    'to': order.to_time.strftime("%Y/%m/%d %H:%M"),
+                    'kg': order.drop_kg,
+                    'comment': order.comments,
+                    'sonumber': pd.NaT
+                }
+            )
+
+        pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
+        lbshell_exe_name = "LbShell32.exe"
+        lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
+
+        result_rpa_order_list = BuildOrder.get_sonumber(
+            path_pic=pic_dir,
+            file_name=lbshell_exe_name,
+            search_path=lb_shell_path,
+            data_list=rpa_order_list
+        )
+        return result_rpa_order_list
+
 
     # region 创建初始界面
     def _create_working_tree(self):
