@@ -43,25 +43,35 @@ class OrderPopupUI:
         self._create_working_tree()
 
     def _run_rpa(self):
+        if len(self.order_data_manager.forecast_order_dict) == 0:
+            messagebox.showerror(
+                title="错误",
+                message="没有订单数据，请先添加订单！",
+                parent=self.window
+            )
+            return
+
         rpa_order_list = []
         for o_id, order in self.order_data_manager.forecast_order_dict.items():
             rpa_order_list.append(
                 {
                     'OrderId': order.order_id,
                     'LocNum': order.shipto,
-                    'from': order.from_time.strftime("%Y/%m/%d %H:%M"),
-                    'to': order.to_time.strftime("%Y/%m/%d %H:%M"),
+                    'from': order.from_time.strftime('%d/%m/%y %H:%M'),
+                    'to': order.to_time.strftime('%d/%m/%y %H:%M'),
                     'kg': order.drop_kg,
                     'comment': order.comments,
                     'sonumber': pd.NaT
                 }
             )
+        input_df = pd.DataFrame(rpa_order_list)
+        input_df.to_csv('./output/rpa_input.csv', encoding='gbk', index=False)
 
         pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
         lbshell_exe_name = "LbShell32.exe"
         lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
 
-        result_rpa_order_list = BuildOrder.get_sonumber(
+        result_rpa_order_list = BuildOrder().get_sonumber(
             path_pic=pic_dir,
             file_name=lbshell_exe_name,
             search_path=lb_shell_path,
@@ -75,7 +85,7 @@ class OrderPopupUI:
             order.complete_so_number(so_number=so_number)
 
         result_df = pd.DataFrame(result_rpa_order_list)
-        result_df.to_csv('./output/rpa_result.csv', index=False)
+        result_df.to_csv('./output/rpa_result.csv', index=False, encoding='gbk')
 
 
     # region 创建初始界面
