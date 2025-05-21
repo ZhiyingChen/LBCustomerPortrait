@@ -106,10 +106,10 @@ class ConfirmOrderPopupUI:
         self.order_data_manager.add_forecast_order(forecast_order)
 
         # 如果界面是打开的，在FO订单界面展示出来
-        if self.order_popup_ui is None or (self.order_popup_ui is not None and self.order_popup_ui.closed):
-            return
-
-        self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
+        try:
+            self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
+        except Exception as e:
+            print(e)
 
 
     def _setup_popup(self):
