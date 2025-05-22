@@ -20,6 +20,7 @@ class ConfirmOrderPopupUI:
             order_popup_ui: OrderPopupUI
     ):
         super().__init__()
+        self.closed = False
         self.root = root
         self.df_info = df_info
         self.order_data_manager = order_data_manager
@@ -63,13 +64,21 @@ class ConfirmOrderPopupUI:
             return
 
         try:
-            amt = float(self.amt_entry.get())
+            amt = int(self.amt_entry.get())
         except ValueError:
             messagebox.showwarning(
                 parent=self.popup,
                 title='可卸货量格式错误提示',
-                message='请输入正确的可卸货量格式，如100.0'
+                message='请输入正确的可卸货量格式且是整数，如100'
             )
+            return
+
+        if amt <= 0:
+            messagebox.showwarning(
+                parent=self.popup,
+                title='可卸货量错误提示',
+                message='请输入正确的可卸货量，必须大于0'
+                )
             return
 
         self.from_time = self.from_entry.get()
@@ -79,6 +88,7 @@ class ConfirmOrderPopupUI:
 
         self.add_forecast_order()
         print('current orders: {}'.format(self.order_data_manager.forecast_order_dict.keys()))
+        self.closed = True
         self.popup.destroy()
 
     def add_forecast_order(self):
@@ -141,3 +151,7 @@ class ConfirmOrderPopupUI:
         # 提交按钮
         self.submit_btn = ttk.Button(self.popup, text="提交：建立FO订单", command=self._submit)
         self.submit_btn.grid(row=4, column=0, columnspan=2, pady=10)
+
+    def _on_close(self):
+        self.closed = True
+        self.popup.destroy()

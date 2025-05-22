@@ -248,11 +248,18 @@ class OrderPopupUI:
 
                 elif col_name == "KG":
                     try:
-                        new_value = float(new_value)
+                        new_value = int(new_value)
                     except ValueError:
                         messagebox.showerror(
                             title="错误",
-                            message="KG格式不正确，应该为数值类型，请重新输入！",
+                            message="KG格式不正确，应该为整数，请重新输入！",
+                            parent=self.window
+                        )
+                        return
+                    if new_value <= 0:
+                        messagebox.showerror(
+                            title="错误",
+                            message="KG应该大于0！",
                             parent=self.window
                         )
                         return

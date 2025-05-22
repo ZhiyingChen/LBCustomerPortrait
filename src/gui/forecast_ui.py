@@ -946,6 +946,13 @@ class LBForecastUI:
 
         if event.button != 3:  # 右键点击
             return
+
+        if self.confirm_order_popup is not None and not self.confirm_order_popup.closed:
+            """
+            已经弹出确认订单的弹窗，不再弹出
+            """
+            return
+
         for curve in self.forecast_plot_ax.get_lines():
             if curve.contains(event)[0]:
                 graph_id = curve.get_gid()
