@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 import pandas as pd
 import logging
+import os
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
@@ -65,7 +66,21 @@ class OrderPopupUI:
                 }
             )
         input_df = pd.DataFrame(rpa_order_list)
-        input_df.to_csv('./output/rpa_input.csv', encoding='gbk', index=False)
+
+        # Add timestamp column
+        input_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Define the output file path
+        input_file_path = './output/rpa_input.xlsx'
+
+        # Check if the file exists
+        if os.path.exists(input_file_path):
+            # Append to existing file
+            with pd.ExcelWriter(input_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
+                input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=writer.sheets['Sheet1'].max_row)
+        else:
+            # Create a new file
+            input_df.to_excel(input_file_path, index=False, engine='openpyxl')
 
         pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
         lbshell_exe_name = "LbShell32.exe"
@@ -85,8 +100,21 @@ class OrderPopupUI:
             order.complete_so_number(so_number=so_number)
 
         result_df = pd.DataFrame(result_rpa_order_list)
-        result_df.to_csv('./output/rpa_result.csv', index=False, encoding='gbk')
 
+        # Add timestamp column
+        result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Define the output file path
+        result_file_path = './output/rpa_result.xlsx'
+
+        # Check if the file exists
+        if os.path.exists(result_file_path):
+            # Append to existing file
+            with pd.ExcelWriter(result_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
+                result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=writer.sheets['Sheet1'].max_row)
+        else:
+            # Create a new file
+            result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
     # region 创建初始界面
     def _create_working_tree(self):
