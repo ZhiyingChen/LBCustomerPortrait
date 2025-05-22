@@ -133,7 +133,7 @@ class OrderPopupUI:
 
     def _send_result_to_email(self, result_df):
         user_name = func.get_user_name()
-        emailer = '{}@airproducts.com'.format(user_name)
+        emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
 
         success_df = result_df[result_df['是否成功'] == '成功']
         fail_df = result_df[result_df['是否成功'] == '失败']
