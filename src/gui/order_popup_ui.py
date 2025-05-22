@@ -129,7 +129,10 @@ class OrderPopupUI:
             # Create a new file
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
-        self._send_result_to_email(result_df)
+        try:
+            self._send_result_to_email(result_df)
+        except Exception as e:
+            logging.error(f"邮件发送失败：{e}")
 
     def _send_result_to_email(self, result_df):
         user_name = func.get_user_name()
@@ -156,9 +159,9 @@ class OrderPopupUI:
             "{}  \n\n".format(
                 total_number,
             fail_number,
-            fail_df,
+            fail_df.to_html(index=False),
             success_number,
-            success_df
+            success_df.to_html(index=False)
         )
         )
 
