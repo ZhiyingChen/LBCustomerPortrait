@@ -213,79 +213,86 @@ class OrderPopupUI:
         values = tree.item(item_id, "values")
         value = values[col_index]
         # 可编辑列
-        if editable_cols and col_name in editable_cols:
-            x, y, width, height = tree.bbox(item_id, col)
-            entry = tk.Entry(tree)
-            entry.place(x=x, y=y, width=width, height=height)
-            entry.insert(0, value)
-            entry.focus()
+        x, y, width, height = tree.bbox(item_id, col)
+        entry = tk.Entry(tree)
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.insert(0, value)
+        entry.focus()
 
-            def save_edit(event):
-                new_value = entry.get()
-                values = list(tree.item(item_id, "values"))
-                order_id = values[0]
-                order = self.order_data_manager.forecast_order_dict[order_id]
-                # 校验
-                if col_name in ["From", "To"]:
-                    try:
-                        new_value = pd.to_datetime(new_value)
-                    except ValueError:
-                        messagebox.showerror(
-                            title="错误",
-                            message="时间格式不正确，应该为 %Y/%m/%d %H:%M 格式，请重新输入！",
-                            parent=self.window
-                        )
-                        return
-                    if (col_name == "From" and new_value >= order.to_time or
-                            col_name == "To" and new_value <= order.from_time):
-                        messagebox.showerror(
-                            title="错误",
-                            message="时间范围不正确，应该在订单开始和结束时间之间！",
-                            parent=self.window
-                        )
-                        return
-
-
-                elif col_name == "KG":
-                    try:
-                        new_value = int(new_value)
-                    except ValueError:
-                        messagebox.showerror(
-                            title="错误",
-                            message="KG格式不正确，应该为整数，请重新输入！",
-                            parent=self.window
-                        )
-                        return
-                    if new_value <= 0:
-                        messagebox.showerror(
-                            title="错误",
-                            message="KG应该大于0！",
-                            parent=self.window
-                        )
-                        return
-
-                # 1. 更新缓存中该ShipTo的FO订单的信息
-                setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
-
-                # 2. FOList里面删除原来的行，换成最新修改的一行
-                self.order_data_manager.update_forecast_order_in_fo_list(
-                    order=order
+        def save_edit(event):
+            if not (editable_cols and col_name in editable_cols):
+                messagebox.showerror(
+                    parent=self.window,
+                    title="错误",
+                    message="该列不允许编辑！"
                 )
-                # 3. FORecordList 增加一行 EditType 为Modify 的信息
-                self.order_data_manager.insert_order_record_in_fo_record_list(
-                    order=order,
-                    edit_type=enums.EditType.Modify
-                )
-                if col_name in ["From", "To"]:
-                    new_value = new_value.strftime("%Y/%m/%d %H:%M")
+                return
+            new_value = entry.get()
+            values = list(tree.item(item_id, "values"))
+            order_id = values[0]
+            order = self.order_data_manager.forecast_order_dict[order_id]
+            # 校验
+            if col_name in ["From", "To"]:
+                try:
+                    new_value = pd.to_datetime(new_value)
+                except ValueError:
+                    messagebox.showerror(
+                        title="错误",
+                        message="时间格式不正确，应该为 %Y/%m/%d %H:%M 格式，请重新输入！",
+                        parent=self.window
+                    )
+                    return
+                if (col_name == "From" and new_value >= order.to_time or
+                        col_name == "To" and new_value <= order.from_time):
+                    messagebox.showerror(
+                        title="错误",
+                        message="时间范围不正确，应该在订单开始和结束时间之间！",
+                        parent=self.window
+                    )
+                    return
 
-                values[col_index] = new_value
-                tree.item(item_id, values=values)
-                entry.destroy()
-                self.update_last_modified_time()
 
-            entry.bind("<Return>", save_edit)
-            entry.bind("<FocusOut>", lambda e: entry.destroy())
+            elif col_name == "KG":
+                try:
+                    new_value = int(new_value)
+                except ValueError:
+                    messagebox.showerror(
+                        title="错误",
+                        message="KG格式不正确，应该为整数，请重新输入！",
+                        parent=self.window
+                    )
+                    return
+                if new_value <= 0:
+                    messagebox.showerror(
+                        title="错误",
+                        message="KG应该大于0！",
+                        parent=self.window
+                    )
+                    return
+
+            # 1. 更新缓存中该ShipTo的FO订单的信息
+            setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
+
+            # 2. FOList里面删除原来的行，换成最新修改的一行
+            self.order_data_manager.update_forecast_order_in_fo_list(
+                order=order
+            )
+            # 3. FORecordList 增加一行 EditType 为Modify 的信息
+            self.order_data_manager.insert_order_record_in_fo_record_list(
+                order=order,
+                edit_type=enums.EditType.Modify
+            )
+            if col_name in ["From", "To"]:
+                new_value = new_value.strftime("%Y/%m/%d %H:%M")
+
+            values[col_index] = new_value
+            tree.item(item_id, values=values)
+            entry.destroy()
+            self.update_last_modified_time()
+
+
+        entry.bind("<Return>", save_edit)
+        entry.bind("<FocusOut>", lambda e: entry.destroy())
 
     def _delete_selected(self, tree):
         selected = tree.selection()
