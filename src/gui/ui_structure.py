@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-
+from tkinter import messagebox
 
 class SimpleTable:
     def __init__(self, parent, columns, col_widths=None, height=10):
@@ -53,15 +53,31 @@ class SimpleTable:
 
     def on_double_click(self, event):
         item_id = self.tree.focus()
-        if item_id:
-            values = self.tree.item(item_id, "values")
-            # 弹出一个简单的窗口显示内容
-            popup = tk.Toplevel()
-            popup.title("复制内容")
-            text = tk.Text(popup, wrap="word", height=10, width=50)
-            text.insert("1.0", '\t'.join(values))  # 用 tab 分隔列
-            text.pack(padx=10, pady=10)
-            text.focus()
+        if not item_id:
+            return
+        values = self.tree.item(item_id, "values")
+        col = self.tree.identify_column(event.x)
+        col_index = int(col.replace("#", "")) - 1
+        col_name = self.tree["columns"][col_index]
+        values = self.tree.item(item_id, "values")
+        value = values[col_index]
+        # 可编辑列
+        x, y, width, height = self.tree.bbox(item_id, col)
+        entry = tk.Entry(self.tree)
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.insert(0, value)
+        entry.focus()
+
+        def save_edit(event):
+            messagebox.showerror(
+                parent=self.root,
+                title="错误",
+                message="该列不允许编辑！"
+            )
+            return
+
+        entry.bind("<Return>", save_edit)
+        entry.bind("<FocusOut>", lambda e: entry.destroy())
 
     def copy_selected_to_clipboard(self, event=None):
         selected = self.tree.selection()
