@@ -32,7 +32,7 @@ class Order:
         return False
 
     def complete_so_number(self, so_number: str):
-        if so_number.startswith('SO'):
+        if isinstance(so_number, str) and so_number.startswith('SO'):
             self.so_number = so_number
         else:
             self.so_number = None
