@@ -566,6 +566,9 @@ class LBForecastUI:
         self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
 
     def _open_order_window(self):
+        if self.order_popup_ui is not None and not self.order_popup_ui.closed:
+            # 已经打开了，不再打开
+            return
         self.order_popup_ui = OrderPopupUI(
             root=self.root,
             order_data_manager=self.order_data_manager

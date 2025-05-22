@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 import pandas as pd
 import logging
+import datetime
 import os
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
@@ -77,7 +78,11 @@ class OrderPopupUI:
         if os.path.exists(input_file_path):
             # Append to existing file
             with pd.ExcelWriter(input_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
-                input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=writer.sheets['Sheet1'].max_row)
+                startrow = writer.sheets['Sheet1'].max_row
+                if startrow == 0:
+                    input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow)
+                else:
+                    input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow, header=False)
         else:
             # Create a new file
             input_df.to_excel(input_file_path, index=False, engine='openpyxl')
@@ -111,7 +116,12 @@ class OrderPopupUI:
         if os.path.exists(result_file_path):
             # Append to existing file
             with pd.ExcelWriter(result_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
-                result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=writer.sheets['Sheet1'].max_row)
+                startrow = writer.sheets['Sheet1'].max_row
+                if startrow == 0:
+                    result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow)
+                else:
+                    result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow, header=False)
+
         else:
             # Create a new file
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
@@ -235,6 +245,7 @@ class OrderPopupUI:
                         )
                         return
 
+
                 elif col_name == "KG":
                     try:
                         new_value = float(new_value)
@@ -258,6 +269,8 @@ class OrderPopupUI:
                     order=order,
                     edit_type=enums.EditType.Modify
                 )
+                if col_name in ["From", "To"]:
+                    new_value = new_value.strftime("%Y/%m/%d %H:%M")
 
                 values[col_index] = new_value
                 tree.item(item_id, values=values)
