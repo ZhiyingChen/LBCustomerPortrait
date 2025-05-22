@@ -9,6 +9,8 @@ from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
 from ..rpa.main import BuildOrder
+from ..utils import functions as func
+from ..utils.email_report import outlook_sender
 
 class OrderPopupUI:
     def __init__(
@@ -108,6 +110,7 @@ class OrderPopupUI:
 
         # Add timestamp column
         result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        result_df['是否成功'] = result_df['sonumber'].apply(lambda x: '成功' if isinstance(x, str) and x.startswith('SO') else '失败')
 
         # Define the output file path
         result_file_path = './output/rpa_result.xlsx'
@@ -125,6 +128,41 @@ class OrderPopupUI:
         else:
             # Create a new file
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
+
+        self._send_result_to_email(result_df)
+
+    def _send_result_to_email(self, result_df):
+        user_name = func.get_user_name()
+        emailer = '{}@airproducts.com'.format(user_name)
+
+        success_df = result_df[result_df['是否成功'] == '成功']
+        fail_df = result_df[result_df['是否成功'] == '失败']
+
+        total_number = len(result_df)
+        success_number = len(success_df)
+        fail_number = len(fail_df)
+
+        now = datetime.datetime.now()
+
+        message_subject = "LBShell RPA 操作结果 {}: 失败{}条".format(now.strftime("%Y-%m-%d %H:%M"), fail_number)
+
+
+        message_body = (
+            "以下是RPA操作结果表格，总共{}条订单：\n\n "
+            "其中， sonumber 列为RPA操作生成的订单号，如果该订单号不以SO开头，则表示RPA操作失败。\n\n "
+            "失败订单{}条，失败订单如下：\n\n "
+            "{}  \n\n"
+            "成功订单{}条，成功订单如下：\n\n "
+            "{}  \n\n".format(
+                total_number,
+            fail_number,
+            fail_df,
+            success_number,
+            success_df
+        )
+        )
+
+        outlook_sender(sender=emailer, addressee=emailer, message_subject=message_subject, message_body=message_body)
 
     # region 创建初始界面
     def _create_working_tree(self):

@@ -98,3 +98,11 @@ def generate_new_forecast_order_id():
     '''
     now = datetime.datetime.now()
     return now.strftime('%m%d%H%M%S')
+
+def get_user_name():
+    home = str(os.path.expanduser("~")).split('\\')
+    if len(home) > 2:
+        home_name = home[2]
+    else:
+        home_name = 'unknown person'
+    return home_name
