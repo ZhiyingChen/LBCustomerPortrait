@@ -13,6 +13,7 @@ class Order:
             drop_kg: float,
             comments: str,
             order_type: str,
+            so_number: str = '',
             is_in_trip_draft: int = 0
     ):
         self.order_id = order_id
@@ -24,7 +25,7 @@ class Order:
         self.drop_kg = drop_kg
         self.comments = comments
         self.order_type = order_type
-        self.so_number = ''
+        self.so_number = so_number
         self.is_in_trip_draft = is_in_trip_draft
 
     def __str__(self):
