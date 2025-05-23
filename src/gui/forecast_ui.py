@@ -568,6 +568,7 @@ class LBForecastUI:
     def _open_order_window(self):
         if self.order_popup_ui is not None and not self.order_popup_ui.closed:
             # 已经打开了，不再打开
+            messagebox.showinfo( title='提示', message='已经打开了订单界面，请勿重复打开。')
             return
         self.order_popup_ui = OrderPopupUI(
             root=self.root,
@@ -591,7 +592,9 @@ class LBForecastUI:
         self.button_order_frame.grid(row=2, column=0, pady=5, sticky="ew")
 
         self.btn_open_order_window = tk.Button(
-            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window)
+            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
+            bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
+        )
         self.btn_open_order_window.pack(padx=10, pady=5)
 
         # plot_frame column 1, row 0：作图区域
@@ -951,6 +954,7 @@ class LBForecastUI:
             """
             已经弹出确认订单的弹窗，不再弹出
             """
+            messagebox.showinfo( title='提示', message='订单确认弹窗已经打开，请勿重复打开!')
             return
 
         for curve in self.forecast_plot_ax.get_lines():

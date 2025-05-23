@@ -125,33 +125,43 @@ class ConfirmOrderPopupUI:
 
     def _setup_popup(self):
         '''弹出可编辑的界面'''
+        # 展示当前shipto
+        shipto_label = ttk.Label(self.popup, text="当前shipto: ",
+                                 font=("Arial", 12, "bold"), background="#f0f0f0")
+        shipto_label.grid(row=0, column=0, padx=10, pady=10, sticky='we')
+
+        # 展示当前shipto的值
+        shipto_value_label = ttk.Label(self.popup, text="{} ({})".format(str(self.df_info.CustAcronym.values[0]),
+                                                                         str(self.df_info.LocNum.values[0])),
+                                       font=("Arial", 12, "bold"), background="yellow")
+        shipto_value_label.grid(row=0, column=1, padx=10, pady=10, sticky='we')
 
         # From 时间
-        ttk.Label(self.popup, text="From 时间:").grid(row=0, column=0, padx=5, pady=5)
+        ttk.Label(self.popup, text="From 时间:").grid(row=1, column=0, padx=5, pady=5)
         self.from_entry = ttk.Entry(self.popup)
         self.from_entry.insert(0, self.from_time)
-        self.from_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.from_entry.grid(row=1, column=1, padx=5, pady=5)
 
         # To 时间
-        ttk.Label(self.popup, text="To 时间:").grid(row=1, column=0, padx=5, pady=5)
+        ttk.Label(self.popup, text="To 时间:").grid(row=2, column=0, padx=5, pady=5)
         self.to_entry = ttk.Entry(self.popup)
         self.to_entry.insert(0, self.to_time)
-        self.to_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.to_entry.grid(row=2, column=1, padx=5, pady=5)
 
         # 可卸货量
-        ttk.Label(self.popup, text="可卸货量 (KG):").grid(row=2, column=0, padx=5, pady=5)
+        ttk.Label(self.popup, text="可卸货量 (KG):").grid(row=3, column=0, padx=5, pady=5)
         self.amt_entry = ttk.Entry(self.popup)
         self.amt_entry.insert(0, str(self.amt))
-        self.amt_entry.grid(row=2, column=1, padx=5, pady=5)
+        self.amt_entry.grid(row=3, column=1, padx=5, pady=5)
 
         # 备注
-        ttk.Label(self.popup, text="备注:").grid(row=3, column=0, padx=5, pady=5)
+        ttk.Label(self.popup, text="备注:").grid(row=4, column=0, padx=5, pady=5)
         self.note_entry = tk.Text(self.popup, height=4, width=30)
-        self.note_entry.grid(row=3, column=1, padx=5, pady=5)
+        self.note_entry.grid(row=4, column=1, padx=5, pady=5)
 
         # 提交按钮
         self.submit_btn = ttk.Button(self.popup, text="提交：建立FO订单", command=self._submit)
-        self.submit_btn.grid(row=4, column=0, columnspan=2, pady=10)
+        self.submit_btn.grid(row=5, column=0, columnspan=2, pady=10)
 
     def _on_close(self):
         self.closed = True

@@ -34,13 +34,21 @@ class OrderPopupUI:
         self.last_modified_label = tk.Label(top_frame, text=f"上次修改时间: ", anchor='w', fg='blue')
         self.last_modified_label.pack(side='left', fill='x', expand=True)
         self.update_last_modified_time()
-        # 创建按钮
-        btn_rpa = tk.Button(top_frame, text="一键在LBShell建立SO订单",
-                              command=lambda: self._send_data_to_lb_shell(self.working_tree))
-        btn_rpa.pack(side='right', padx=5)
+        # 按钮容器
+        button_container = tk.Frame(top_frame)
+        button_container.pack(side='right', fill='x')
 
-        btn_clear_so = tk.Button(top_frame, text="一键清除已经创建的SO号的订单", command=self._clear_all_with_so_number)
-        btn_clear_so.pack(side='right', padx=5)
+        # 一键在LBShell建立SO订单按钮
+        btn_rpa = tk.Button(button_container, text="一键在LBShell\n建立SO订单",
+                            command=lambda: self._send_data_to_lb_shell(self.working_tree),
+                            bg="#4CAF50", fg="white", relief="raised", font=("Arial", 10))
+        btn_rpa.pack(side='right', padx=5, pady=5)
+
+        # 一键清除已经创建的SO号的订单按钮
+        btn_clear_so = tk.Button(button_container, text="一键清除已创建\nSO号的订单",
+                                 command=self._clear_all_with_so_number,
+                                 bg='#ADD8E6',fg="black", relief="raised", font=("Arial", 10))
+        btn_clear_so.pack(side='left', padx=5, pady=5)
 
         # 主体区域
         self.main_frame = tk.Frame(self.window)
@@ -143,6 +151,8 @@ class OrderPopupUI:
 
 
     def _send_result_to_email(self, result_rpa_order_list):
+        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
+            return
         user_name = func.get_user_name()
 
         # 输出到excel做几路
