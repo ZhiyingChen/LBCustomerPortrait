@@ -24,12 +24,11 @@ class Order:
         self.comments = comments
         self.order_type = order_type
         self.so_number = ''
+        self.is_in_trip = False
 
     def __str__(self):
         return f"{self.order_type}({self.order_id}, {self.cust_name}, {self.drop_kg} kg)"
 
-    def is_in_trip(self):
-        return False
 
     def complete_so_number(self, so_number: str):
         if isinstance(so_number, str) and so_number.startswith('SO'):

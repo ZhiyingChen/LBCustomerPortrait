@@ -217,7 +217,7 @@ class LBOrderDataManager:
                    {} = ?, -- from_time
                    {} = ?, -- to_time
                    {} = ?, -- drop_kg
-                   {} = ?, -- comment
+                   {} = ? -- comment
                    WHERE {} = ?
                 '''.format(
             fd.FO_LIST_TABLE,
@@ -255,7 +255,7 @@ class LBOrderDataManager:
                        ?, -- edit_type
                        ?, -- timestamp
                        ?, -- so_number
-                       ?, -- apex_id
+                       ? -- apex_id
                    )
                '''.format(fd.FO_RECORD_LIST_TABLE)
         self.cur.execute(
