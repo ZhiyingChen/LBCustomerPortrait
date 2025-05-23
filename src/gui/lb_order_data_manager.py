@@ -170,6 +170,7 @@ class LBOrderDataManager:
                 drop_kg=row[oh.drop_kg],
                 comments=row[oh.comment],
                 order_type=enums.OrderType.FO,
+                so_number=row[oh.so_number],
                 is_in_trip_draft=int(row[oh.in_trip_draft])
             )
             self.forecast_order_dict[forecast_order.order_id] = forecast_order
@@ -302,8 +303,8 @@ class LBOrderDataManager:
         self.cur.execute(
             fo_sql_line,
             (
-                order_id,
-                so_number
+                so_number,
+                order_id
             )
         )
         self.conn.commit()
@@ -323,9 +324,8 @@ class LBOrderDataManager:
         self.cur.execute(
             fo_sql_line,
             (
-
-                order_id,
-                so_number
+                so_number,
+                order_id
             )
         )
         self.conn.commit()

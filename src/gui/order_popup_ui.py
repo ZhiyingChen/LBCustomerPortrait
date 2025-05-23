@@ -47,6 +47,49 @@ class OrderPopupUI:
         self._create_working_tree()
 
     def _run_rpa(self):
+        valid_order_list = {
+            k: v for k, v in self.order_data_manager.forecast_order_dict.items()
+            if v.is_in_trip_draft and not v.has_valid_so_number
+        }
+        """
+            对于已经有SO号的订单，或者不在行程草稿中的订单，不进行RPA操作 
+        """
+        if len(valid_order_list) == 0:
+            messagebox.showerror(
+                title="错误",
+                message="没有需要建立SO订单的有效订单数据，请先添加！",
+                parent=self.window
+            )
+            return
+
+        rpa_order_list = []
+        for o_id, order in valid_order_list.items():
+            rpa_order_list.append(
+                {
+                    'OrderId': order.order_id,
+                    'LocNum': order.shipto,
+                    'from': order.from_time.strftime('%d/%m/%y %H:%M'),
+                    'to': order.to_time.strftime('%d/%m/%y %H:%M'),
+                    'kg': str(int(order.drop_kg)),
+                    'comment': order.comments,
+                    'sonumber': ''
+                }
+            )
+
+        pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
+        lbshell_exe_name = "LbShell32.exe"
+        lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
+
+        result_rpa_order_list = BuildOrder().get_sonumber(
+            path_pic=pic_dir,
+            file_name=lbshell_exe_name,
+            search_path=lb_shell_path,
+            data_list=rpa_order_list
+        )
+
+        return result_rpa_order_list
+
+    def _fake_run_rpa(self):
         if len(self.order_data_manager.forecast_order_dict) == 0:
             messagebox.showerror(
                 title="错误",
@@ -68,42 +111,18 @@ class OrderPopupUI:
                     'LocNum': order.shipto,
                     'from': order.from_time.strftime('%d/%m/%y %H:%M'),
                     'to': order.to_time.strftime('%d/%m/%y %H:%M'),
-                    'kg': order.drop_kg,
+                    'kg': str(int(order.drop_kg)),
                     'comment': order.comments,
-                    'sonumber': ''
+                    'sonumber': 'SO123456'
                 }
             )
-        input_df = pd.DataFrame(rpa_order_list)
+        return rpa_order_list
 
-        # Add timestamp column
-        input_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # Define the output file path
-        input_file_path = './output/rpa_input.xlsx'
 
-        # Check if the file exists
-        if os.path.exists(input_file_path):
-            # Append to existing file
-            with pd.ExcelWriter(input_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
-                startrow = writer.sheets['Sheet1'].max_row
-                if startrow == 0:
-                    input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow)
-                else:
-                    input_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow, header=False)
-        else:
-            # Create a new file
-            input_df.to_excel(input_file_path, index=False, engine='openpyxl')
-
-        pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
-        lbshell_exe_name = "LbShell32.exe"
-        lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
-
-        result_rpa_order_list = BuildOrder().get_sonumber(
-            path_pic=pic_dir,
-            file_name=lbshell_exe_name,
-            search_path=lb_shell_path,
-            data_list=rpa_order_list
-        )
+    def update_rpa_result_info(self, result_rpa_order_list):
+        if len(result_rpa_order_list) == 0:
+            return
 
         for order_info in result_rpa_order_list:
             # 完成RPA之后，更新FO缓存中的SONUMBER
@@ -117,11 +136,13 @@ class OrderPopupUI:
             self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
             self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=order.so_number)
 
+        # 输出到excel做几路
         result_df = pd.DataFrame(result_rpa_order_list)
 
         # Add timestamp column
         result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        result_df['是否成功'] = result_df['sonumber'].apply(lambda x: '成功' if isinstance(x, str) and x.startswith('SO') else '失败')
+        result_df['是否成功'] = result_df['sonumber'].apply(
+            lambda x: '成功' if isinstance(x, str) and x.startswith('SO') else '失败')
 
         # Define the output file path
         result_file_path = './output/rpa_result.xlsx'
@@ -140,10 +161,6 @@ class OrderPopupUI:
             # Create a new file
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
-        try:
-            self._send_result_to_email(result_df)
-        except Exception as e:
-            logging.error(f"邮件发送失败：{e}")
 
     def _send_result_to_email(self, result_df):
         user_name = func.get_user_name()
@@ -403,8 +420,9 @@ class OrderPopupUI:
             return
 
         # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
-        self._run_rpa()
-
+        rpa_result_lt = self._run_rpa()
+        # rpa_result_lt = self._fake_run_rpa()
+        self.update_rpa_result_info(rpa_result_lt)
 
         # 把更新后的SONUMBER 展示在界面
         self._update_so_number_in_working_tree()
