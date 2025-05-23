@@ -41,7 +41,7 @@ class OrderPopupUI:
 
         # 一键在LBShell建立SO订单按钮
         btn_rpa = tk.Button(button_container, text="一键在LBShell\n建立SO订单",
-                            command=lambda: self._send_data_to_lb_shell(self.working_tree),
+                            command=self._send_data_to_lb_shell,
                             bg="#4CAF50", fg="white", relief="raised", font=("Arial", 10))
         btn_rpa.pack(side='right', padx=5, pady=5)
 
@@ -150,21 +150,11 @@ class OrderPopupUI:
             self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=order.so_number)
 
 
-
-    def _send_result_to_email(self, result_rpa_order_list):
-        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
-            return
-        user_name = func.get_user_name()
-
-        # 输出到excel做几路
-        result_df = pd.DataFrame(result_rpa_order_list)
-
-        # Add timestamp column
-        result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        result_df['是否成功'] = result_df['sonumber'].apply(
-            lambda x: '成功' if isinstance(x, str) and x.startswith('SO') else '失败')
-
+    def _write_result_to_excel(self, result_df):
         # Define the output file path
+        if func.get_user_name() not in ['chenz32', 'zhaol12', 'huy15', 'wangj78']:
+            return
+
         result_file_path = './output/rpa_result.xlsx'
 
         # Check if the file exists
@@ -181,6 +171,20 @@ class OrderPopupUI:
             # Create a new file
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
+    def _send_result_to_email(self, result_rpa_order_list):
+        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
+            return
+        user_name = func.get_user_name()
+
+        # 输出到excel做几路
+        result_df = pd.DataFrame(result_rpa_order_list)
+
+        # Add timestamp column
+        result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        result_df['是否成功'] = result_df['sonumber'].apply(
+            lambda x: '成功' if isinstance(x, str) and x.startswith('SO') else '失败')
+
+        self._write_result_to_excel(result_df)
 
         emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
 
@@ -446,7 +450,7 @@ class OrderPopupUI:
                self.delete_order(order_id, self.working_tree, item)
 
 
-    def _send_data_to_lb_shell(self, tree):
+    def _send_data_to_lb_shell(self):
         confirm = messagebox.askyesno(
             title="提示",
             message="确认一键在LBShell建立SO订单吗？"
