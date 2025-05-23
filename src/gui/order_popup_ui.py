@@ -57,6 +57,11 @@ class OrderPopupUI:
 
         rpa_order_list = []
         for o_id, order in self.order_data_manager.forecast_order_dict.items():
+            if order.has_valid_so_number or not order.is_in_trip_draft:
+                """
+                对于已经有SO号的订单，或者不在行程草稿中的订单，不进行RPA操作 
+                """
+                continue
             rpa_order_list.append(
                 {
                     'OrderId': order.order_id,
@@ -65,7 +70,7 @@ class OrderPopupUI:
                     'to': order.to_time.strftime('%d/%m/%y %H:%M'),
                     'kg': order.drop_kg,
                     'comment': order.comments,
-                    'sonumber': pd.NaT
+                    'sonumber': ''
                 }
             )
         input_df = pd.DataFrame(rpa_order_list)
@@ -101,12 +106,16 @@ class OrderPopupUI:
         )
 
         for order_info in result_rpa_order_list:
+            # 完成RPA之后，更新FO缓存中的SONUMBER
             order_id = order_info['OrderId']
             so_number = order_info['sonumber']
             order = self.order_data_manager.forecast_order_dict[order_id]
             order.complete_so_number(so_number=so_number)
-            self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=so_number)
-            self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=so_number)
+            # 更新 FOList 和 FORecordList 中的SONUMBER
+            if not order.has_valid_so_number:
+                continue
+            self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
+            self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=order.so_number)
 
         result_df = pd.DataFrame(result_rpa_order_list)
 
@@ -181,12 +190,14 @@ class OrderPopupUI:
                 fo.from_time.strftime("%Y/%m/%d %H:%M"),
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
-                fo.comments
+                fo.comments,
+                "1" if fo.is_in_trip_draft else "",
+                fo.so_number
             ]
             insert_data.append(data)
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注"],
+            editable_cols=["From", "To", "KG", "备注", "行程草稿？"],
             insert_data=insert_data
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
@@ -198,8 +209,8 @@ class OrderPopupUI:
             editable_cols=None,
             insert_data=None
     ):
-        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注"]
-        widths = [100, 70, 80, 40, 110, 110, 60, 80]
+        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "行程草稿？", "SO号"]
+        widths = [100, 70, 80, 40, 110, 110, 60, 80, 30, 100]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -312,6 +323,18 @@ class OrderPopupUI:
                         parent=self.window
                     )
                     return
+            elif col_name == "行程草稿？":
+                if str(new_value) not in ["1", ""]:
+                    messagebox.showerror(
+                        title="错误",
+                        message="行程草稿？应该为 '1' 或 '' ！",
+                        parent=self.window
+                    )
+                    return
+                if new_value == "1":
+                    new_value = 1
+                else:
+                    new_value = 0
 
             # 1. 更新缓存中该ShipTo的FO订单的信息
             setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
@@ -320,14 +343,16 @@ class OrderPopupUI:
             self.order_data_manager.update_forecast_order_in_fo_list(
                 order=order
             )
-            # 3. FORecordList 增加一行 EditType 为Modify 的信息
-            self.order_data_manager.insert_order_record_in_fo_record_list(
-                order=order,
-                edit_type=enums.EditType.Modify
-            )
+            if col_name != "行程草稿？":
+                # 3. FORecordList 增加一行 EditType 为Modify 的信息
+                self.order_data_manager.insert_order_record_in_fo_record_list(
+                    order=order,
+                    edit_type=enums.EditType.Modify
+                )
             if col_name in ["From", "To"]:
                 new_value = new_value.strftime("%Y/%m/%d %H:%M")
-
+            if col_name == "行程草稿？":
+                new_value = "1" if new_value == 1 else ""
             values[col_index] = new_value
             tree.item(item_id, values=values)
             entry.destroy()
@@ -366,7 +391,8 @@ class OrderPopupUI:
     def _send_data_to_lb_shell(self, tree):
         confirm = messagebox.askyesno(
             title="提示",
-            message="确认一键在LBShell建立SO订单吗？\n"
+            message="确认一键在LBShell建立SO订单吗？"
+                    "\n（只有勾选行程草稿的订单且没有SO号的订单会被处理）\n"
                     "如果确认，则在建完所有订单前，请勿使用鼠标，"
                     "请耐心等待。",
             parent=self.window
@@ -374,19 +400,26 @@ class OrderPopupUI:
         if not confirm:
             return
 
-        # todo: 执行RPA功能
+        # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
         self._run_rpa()
 
-        # todo: 将FOList和RecordList全部上传至SharepointList
 
-        # 清空FOList和RecordList, 清空缓存中的所有FO订单信息
-        self.order_data_manager.remove_all_forecast_orders()
+        # 把更新后的SONUMBER 展示在界面
+        self._update_so_number_in_working_tree()
 
-        # 把FO界面上的信息清空
-        self._clear_all_rows(tree)
+    def _update_so_number_in_working_tree(self):
+        """
+         把更新后的SONUMBER展示在界面
+        """
+        for item in self.working_tree.get_children():
+            values = list(self.working_tree.item(item, "values"))
+            order_id = values[0]
+            order = self.order_data_manager.forecast_order_dict[order_id]
+            so_number = order.so_number
+            values[-1] = so_number
+            self.working_tree.item(item, values=values)
 
-        # 更新上次修改时间
-        self.update_last_modified_time()
+
 
     def _clear_all_rows(self, tree):
         for item in tree.get_children():

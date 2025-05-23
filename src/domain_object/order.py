@@ -12,7 +12,8 @@ class Order:
             to_time: pd.Timestamp,
             drop_kg: float,
             comments: str,
-            order_type: str
+            order_type: str,
+            is_in_trip_draft: int = 0
     ):
         self.order_id = order_id
         self.shipto = shipto
@@ -24,7 +25,7 @@ class Order:
         self.comments = comments
         self.order_type = order_type
         self.so_number = ''
-        self.is_in_trip = False
+        self.is_in_trip_draft = is_in_trip_draft
 
     def __str__(self):
         return f"{self.order_type}({self.order_id}, {self.cust_name}, {self.drop_kg} kg)"
@@ -35,3 +36,7 @@ class Order:
             self.so_number = so_number
         else:
             self.so_number = ''
+
+    @property
+    def has_valid_so_number(self):
+        return isinstance(self.so_number, str) and self.so_number.startswith('SO')

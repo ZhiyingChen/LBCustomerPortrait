@@ -19,3 +19,4 @@ class OrderListHeader:
     timestamp = "Timestamp"
     so_number = "SONumber"
     apex_id = "ApexID"
+    in_trip_draft = 'InTripDraft'

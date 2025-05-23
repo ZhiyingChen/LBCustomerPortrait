@@ -19,6 +19,7 @@ class LBOrderDataManager:
         self.forecast_order_dict: Dict[str, do.Order] = dict()
 
         self._initialize()
+
     # region 初始化数据区域
     def _initialize(self):
         self.create_order_only_list_table()
@@ -54,7 +55,8 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL, -- from_time
                     {} TEXT NOT NULL, -- to_time
                     {} REAL NOT NULL, -- drop_kg
-                    {} TEXT NOT NULL, -- comment
+                    {} TEXT, -- comment
+                    {} TEXT NOT NULL, -- in_trip_draft
                     {} TEXT NOT NULL, -- so_number
                     {} TEXT NOT NULL -- apex_id
                 );
@@ -68,6 +70,7 @@ class LBOrderDataManager:
                 oh.to_time,
                 oh.drop_kg,
                 oh.comment,
+                oh.in_trip_draft,
                 oh.so_number,
                 oh.apex_id
             )
@@ -166,7 +169,8 @@ class LBOrderDataManager:
                 to_time=row[oh.to_time],
                 drop_kg=row[oh.drop_kg],
                 comments=row[oh.comment],
-                order_type=enums.OrderType.FO
+                order_type=enums.OrderType.FO,
+                is_in_trip_draft=int(row[oh.in_trip_draft])
             )
             self.forecast_order_dict[forecast_order.order_id] = forecast_order
         logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
@@ -187,6 +191,7 @@ class LBOrderDataManager:
                        ?, -- to_time
                        ?, -- drop_kg
                        ?, -- comment
+                       ?, -- in_trip_draft
                        ?, -- so_number
                        ? -- apex_id
                    )
@@ -202,6 +207,7 @@ class LBOrderDataManager:
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
+                order.is_in_trip_draft,
                 order.so_number,
                 func.get_user_name()
             )
@@ -217,7 +223,8 @@ class LBOrderDataManager:
                    {} = ?, -- from_time
                    {} = ?, -- to_time
                    {} = ?, -- drop_kg
-                   {} = ? -- comment
+                   {} = ?, -- comment
+                   {} = ? -- in_trip_draft
                    WHERE {} = ?
                 '''.format(
             fd.FO_LIST_TABLE,
@@ -225,6 +232,7 @@ class LBOrderDataManager:
                     oh.to_time,
                     oh.drop_kg,
                     oh.comment,
+                    oh.in_trip_draft,
                     oh.order_id
         )
         self.cur.execute(
@@ -234,6 +242,7 @@ class LBOrderDataManager:
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
+                order.is_in_trip_draft,
                 order.order_id
             )
         )
