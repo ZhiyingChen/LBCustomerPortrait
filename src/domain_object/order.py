@@ -33,11 +33,13 @@ class Order:
 
 
     def complete_so_number(self, so_number: str):
-        if isinstance(so_number, str) and so_number.startswith('SO'):
+        if (isinstance(so_number, str) and
+                (so_number.startswith('SO') or so_number == 'OnStop')):
             self.so_number = so_number
         else:
             self.so_number = ''
 
     @property
     def has_valid_so_number(self):
-        return isinstance(self.so_number, str) and self.so_number.startswith('SO')
+        return (isinstance(self.so_number, str) and
+                (self.so_number.startswith('SO') or self.so_number == 'OnStop'))
