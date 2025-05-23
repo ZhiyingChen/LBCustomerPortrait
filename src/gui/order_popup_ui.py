@@ -35,9 +35,12 @@ class OrderPopupUI:
         self.last_modified_label.pack(side='left', fill='x', expand=True)
         self.update_last_modified_time()
         # 创建按钮
-        btn_clear = tk.Button(top_frame, text="一键在LBShell建立SO订单",
+        btn_rpa = tk.Button(top_frame, text="一键在LBShell建立SO订单",
                               command=lambda: self._send_data_to_lb_shell(self.working_tree))
-        btn_clear.pack(side='right', padx=5)
+        btn_rpa.pack(side='right', padx=5)
+
+        btn_clear_so = tk.Button(top_frame, text="一键清除已经创建的SO号的订单", command=self._clear_all_with_so_number)
+        btn_clear_so.pack(side='right', padx=5)
 
         # 主体区域
         self.main_frame = tk.Frame(self.window)
@@ -383,31 +386,54 @@ class OrderPopupUI:
         entry.bind("<Return>", save_edit)
         entry.bind("<FocusOut>", lambda e: entry.destroy())
 
+    def delete_order(self, order_id, tree):
+        #   FOList里面删除原来的行
+        self.order_data_manager.delete_forecast_order_from_fo_list(
+            order_id=order_id
+        )
+
+        #   FORecordList 增加一行 EditType 为 Delete 的信息
+        self.order_data_manager.insert_order_record_in_fo_record_list(
+            order=self.order_data_manager.forecast_order_dict[order_id],
+            edit_type=enums.EditType.Delete
+        )
+        #   界面里面删除本行
+        tree.delete(item)
+
+        #   删除缓存中该ShipTo的FO订单的信息
+        del self.order_data_manager.forecast_order_dict[order_id]
+
     def _delete_selected(self, tree):
         selected = tree.selection()
         for item in selected:
             order_id = tree.item(item, "values")[0]
-            #   FOList里面删除原来的行
-            self.order_data_manager.delete_forecast_order_from_fo_list(
-                order_id=order_id
-            )
-
-            #   FORecordList 增加一行 EditType 为 Delete 的信息
-            self.order_data_manager.insert_order_record_in_fo_record_list(
-                order=self.order_data_manager.forecast_order_dict[order_id],
-                edit_type=enums.EditType.Delete
-            )
-            #   界面里面删除本行
-            tree.delete(item)
-
-            #   删除缓存中该ShipTo的FO订单的信息
-            del self.order_data_manager.forecast_order_dict[order_id]
+            self.delete_order(order_id, tree)
 
         self.update_last_modified_time()
 
     def update_last_modified_time(self):
         last_modified_time = self.order_data_manager.get_last_modified_time()
         self.last_modified_label.config(text=f"上次修改时间：{last_modified_time}")
+
+    def _clear_all_with_so_number(self):
+        """
+         点击“清空所有有SO号的行”按钮，清空所有有SO号的行
+        """
+        confirm = messagebox.askyesno(
+            title="提示",
+            message="确认清空所有有SO号的行吗？",
+            parent=self.window
+        )
+        if not confirm:
+            return
+
+        for item in self.working_tree.get_children():
+            values = list(self.working_tree.item(item, "values"))
+            order_id = values[0]
+            order = self.order_data_manager.forecast_order_dict[order_id]
+            if order.has_valid_so_number:
+               self.delete_order(order_id, self.working_tree)
+
 
     def _send_data_to_lb_shell(self, tree):
         confirm = messagebox.askyesno(
