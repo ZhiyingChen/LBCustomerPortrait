@@ -396,7 +396,7 @@ class OrderPopupUI:
         entry.bind("<Return>", save_edit)
         entry.bind("<FocusOut>", lambda e: entry.destroy())
 
-    def delete_order(self, order_id, tree):
+    def delete_order(self, order_id, tree, item):
         #   FOList里面删除原来的行
         self.order_data_manager.delete_forecast_order_from_fo_list(
             order_id=order_id
@@ -417,7 +417,7 @@ class OrderPopupUI:
         selected = tree.selection()
         for item in selected:
             order_id = tree.item(item, "values")[0]
-            self.delete_order(order_id, tree)
+            self.delete_order(order_id, tree, item)
 
         self.update_last_modified_time()
 
@@ -442,7 +442,7 @@ class OrderPopupUI:
             order_id = values[0]
             order = self.order_data_manager.forecast_order_dict[order_id]
             if order.has_valid_so_number:
-               self.delete_order(order_id, self.working_tree)
+               self.delete_order(order_id, self.working_tree, item)
 
 
     def _send_data_to_lb_shell(self, tree):
@@ -500,7 +500,9 @@ class OrderPopupUI:
             order.from_time.strftime("%Y/%m/%d %H:%M"),
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
-            order.comments
+            order.comments,
+            "1" if order.is_in_trip_draft else "",
+            order.so_number
         ]
         self.working_tree.insert("", "end", values=tuple(data))
         self.update_last_modified_time()
