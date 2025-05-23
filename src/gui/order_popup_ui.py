@@ -31,7 +31,8 @@ class OrderPopupUI:
         top_frame.pack(side='top', fill='x', padx=10, pady=5)
 
         # 上次修改时间标签
-        self.last_modified_label = tk.Label(top_frame, text=f"上次修改时间: ", anchor='w', fg='blue')
+        self.last_modified_label = tk.Label(top_frame, text=f"上次修改时间: ", anchor='w',
+                                            fg='#009DD0', font=("Arial", 12))
         self.last_modified_label.pack(side='left', fill='x', expand=True)
         self.update_last_modified_time()
         # 按钮容器
