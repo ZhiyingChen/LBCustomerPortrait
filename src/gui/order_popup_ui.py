@@ -81,6 +81,7 @@ class OrderPopupUI:
         lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
 
         result_rpa_order_list = BuildOrder().get_sonumber(
+            LBversion='cn',
             path_pic=pic_dir,
             file_name=lbshell_exe_name,
             search_path=lb_shell_path,
@@ -136,6 +137,11 @@ class OrderPopupUI:
             self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
             self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=order.so_number)
 
+
+
+    def _send_result_to_email(self, result_rpa_order_list):
+        user_name = func.get_user_name()
+
         # 输出到excel做几路
         result_df = pd.DataFrame(result_rpa_order_list)
 
@@ -162,10 +168,6 @@ class OrderPopupUI:
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
 
-    def _send_result_to_email(self, result_df):
-        user_name = func.get_user_name()
-        if user_name not in ['chenz32', 'zhaol12', 'huy15', 'wangj78']:
-            return
         emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
 
         success_df = result_df[result_df['是否成功'] == '成功']
@@ -426,6 +428,8 @@ class OrderPopupUI:
 
         # 把更新后的SONUMBER 展示在界面
         self._update_so_number_in_working_tree()
+
+        self._send_result_to_email(rpa_result_lt)
 
     def _update_so_number_in_working_tree(self):
         """

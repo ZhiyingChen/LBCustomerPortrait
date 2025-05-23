@@ -33,6 +33,7 @@ class ConfirmOrderPopupUI:
         self.note = ""
 
         self.popup = tk.Toplevel(self.root)
+        self.popup.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (self.popup.winfo_width() // 2)
