@@ -121,7 +121,7 @@ class OrderPopupUI:
 
 
     def update_rpa_result_info(self, result_rpa_order_list):
-        if len(result_rpa_order_list) == 0:
+        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
             return
 
         for order_info in result_rpa_order_list:
