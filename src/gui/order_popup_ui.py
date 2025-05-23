@@ -147,6 +147,8 @@ class OrderPopupUI:
 
     def _send_result_to_email(self, result_df):
         user_name = func.get_user_name()
+        if user_name not in ['chenz32', 'zhaol12', 'huy15', 'wangj78']:
+            return
         emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
 
         success_df = result_df[result_df['是否成功'] == '成功']
