@@ -23,7 +23,7 @@ class Order:
         self.drop_kg = drop_kg
         self.comments = comments
         self.order_type = order_type
-        self.so_number = None
+        self.so_number = ''
 
     def __str__(self):
         return f"{self.order_type}({self.order_id}, {self.cust_name}, {self.drop_kg} kg)"
@@ -35,4 +35,4 @@ class Order:
         if isinstance(so_number, str) and so_number.startswith('SO'):
             self.so_number = so_number
         else:
-            self.so_number = None
+            self.so_number = ''

@@ -17,3 +17,5 @@ class OrderListHeader:
     comment = "Comment"
     edit_type = "EditType"
     timestamp = "Timestamp"
+    so_number = "SONumber"
+    apex_id = "ApexID"

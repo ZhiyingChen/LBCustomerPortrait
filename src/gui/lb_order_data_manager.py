@@ -54,7 +54,9 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL, -- from_time
                     {} TEXT NOT NULL, -- to_time
                     {} REAL NOT NULL, -- drop_kg
-                    {} TEXT NOT NULL -- comment
+                    {} TEXT NOT NULL, -- comment
+                    {} TEXT NOT NULL, -- so_number
+                    {} TEXT NOT NULL -- apex_id
                 );
             """.format(
                 fd.FO_LIST_TABLE,
@@ -65,7 +67,9 @@ class LBOrderDataManager:
                 oh.from_time,
                 oh.to_time,
                 oh.drop_kg,
-                oh.comment
+                oh.comment,
+                oh.so_number,
+                oh.apex_id
             )
         )
         self.conn.commit()
@@ -85,8 +89,9 @@ class LBOrderDataManager:
                     {} REAL NOT NULL, -- drop_kg
                     {} TEXT, -- comment
                     {} TEXT NOT NULL, -- edit_type
-                    {} TEXT NOT NULL -- timestamp
-
+                    {} TEXT NOT NULL, -- timestamp
+                    {} TEXT NOT NULL, -- so_number
+                    {} TEXT NOT NULL -- apex_id
                 );
             """.format(
                 fd.FO_RECORD_LIST_TABLE,
@@ -99,7 +104,9 @@ class LBOrderDataManager:
                 oh.drop_kg,
                 oh.comment,
                 oh.edit_type,
-                oh.timestamp
+                oh.timestamp,
+                oh.so_number,
+                oh.apex_id
             )
         )
         self.conn.commit()
@@ -179,7 +186,9 @@ class LBOrderDataManager:
                        ?, -- from_time
                        ?, -- to_time
                        ?, -- drop_kg
-                       ? -- comment
+                       ?, -- comment
+                       ?, -- so_number
+                       ? -- apex_id
                    )
                '''.format(fd.FO_LIST_TABLE)
         self.cur.execute(
@@ -192,7 +201,9 @@ class LBOrderDataManager:
                 order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
-                order.comments
+                order.comments,
+                order.so_number,
+                func.get_user_name()
             )
         )
 
@@ -206,7 +217,7 @@ class LBOrderDataManager:
                    {} = ?, -- from_time
                    {} = ?, -- to_time
                    {} = ?, -- drop_kg
-                   {} = ? -- comment
+                   {} = ?, -- comment
                    WHERE {} = ?
                 '''.format(
             fd.FO_LIST_TABLE,
@@ -233,7 +244,7 @@ class LBOrderDataManager:
         fo_sql_line = '''
                    INSERT INTO {} VALUES 
                    (
-                        ?, -- order_id
+                       ?, -- order_id
                        ?, -- shipto
                        ?, -- cust_name
                        ?, -- product
@@ -242,7 +253,9 @@ class LBOrderDataManager:
                        ?, -- drop_kg
                        ?, -- comment
                        ?, -- edit_type
-                       ? -- timestamp
+                       ?, -- timestamp
+                       ?, -- so_number
+                       ?, -- apex_id
                    )
                '''.format(fd.FO_RECORD_LIST_TABLE)
         self.cur.execute(
@@ -257,12 +270,57 @@ class LBOrderDataManager:
                 order.drop_kg,
                 order.comments,
                 edit_type,
-                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
+                order.so_number,
+                func.get_user_name()
             )
         )
 
         self.conn.commit()
         logging.info('Order record added to FORecordList: {}, {}'.format(order.shipto, edit_type))
+
+    def update_so_number_in_fo_list(self, order_id: str, so_number: str):
+        oh = fd.OrderListHeader
+        fo_sql_line = '''
+                           UPDATE {} SET 
+                           {} = ? -- so_number
+                           WHERE {} = ?
+                        '''.format(
+            fd.FO_LIST_TABLE,
+            oh.so_number,
+            oh.order_id
+        )
+        self.cur.execute(
+            fo_sql_line,
+            (
+                order_id,
+                so_number
+            )
+        )
+        self.conn.commit()
+        logging.info('update so number {} of oder {} in FOList'.format(so_number, order_id))
+
+    def update_so_number_in_fo_record_list(self, order_id: str, so_number: str):
+        oh = fd.OrderListHeader
+        fo_sql_line = '''
+                           UPDATE {} SET 
+                           {} = ? -- so_number
+                           WHERE {} = ?
+                        '''.format(
+            fd.FO_RECORD_LIST_TABLE,
+            oh.so_number,
+            oh.order_id
+        )
+        self.cur.execute(
+            fo_sql_line,
+            (
+
+                order_id,
+                so_number
+            )
+        )
+        self.conn.commit()
+        logging.info('update so number {} of oder {} in FORecordList'.format(so_number,order_id))
 
     def add_forecast_order(
             self, order: do.Order

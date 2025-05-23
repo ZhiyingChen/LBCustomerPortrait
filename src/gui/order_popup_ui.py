@@ -105,6 +105,8 @@ class OrderPopupUI:
             so_number = order_info['sonumber']
             order = self.order_data_manager.forecast_order_dict[order_id]
             order.complete_so_number(so_number=so_number)
+            self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=so_number)
+            self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=so_number)
 
         result_df = pd.DataFrame(result_rpa_order_list)
 
