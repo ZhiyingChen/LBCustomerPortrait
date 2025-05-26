@@ -481,7 +481,7 @@ class OrderPopupUI:
         # 把更新后的SONUMBER 展示在界面
         self._update_so_number_in_working_tree()
 
-        self._send_result_to_email(rpa_result_lt)
+        # self._send_result_to_email(rpa_result_lt)
 
     def _update_so_number_in_working_tree(self):
         """
