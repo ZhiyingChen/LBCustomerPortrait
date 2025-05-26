@@ -572,7 +572,8 @@ class LBForecastUI:
             return
         self.order_popup_ui = OrderPopupUI(
             root=self.root,
-            order_data_manager=self.order_data_manager
+            order_data_manager=self.order_data_manager,
+            data_manager=self.data_manager,
         )
 
     def _decorate_plot_frame(self):

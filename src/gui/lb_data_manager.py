@@ -117,6 +117,15 @@ class LBDataManager:
         df_info = pd.read_sql(sql, conn)
         return df_info
 
+    def get_full_trycock_gals_by_shipto(self, shipto):
+        '''获取完整的customer数据'''
+        sql = '''select LocNum, FullTrycockGals
+                     FROM odbc_master
+                     where LocNum = {};'''.format(shipto)
+        results = self.cur.execute(sql).fetchall()
+        for (LocNum, FullTrycockGals) in results:
+            return FullTrycockGals
+
 
     def get_recent_reading(self, shipto):
         '''从 historyReading 里获取最近液位读数'''

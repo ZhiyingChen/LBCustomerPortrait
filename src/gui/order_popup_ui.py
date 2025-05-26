@@ -6,6 +6,7 @@ import logging
 import datetime
 import os
 from .lb_order_data_manager import LBOrderDataManager
+from .lb_data_manager import LBDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
 from ..rpa.main import BuildOrder
@@ -16,10 +17,12 @@ class OrderPopupUI:
     def __init__(
             self,
             root,
-            order_data_manager: LBOrderDataManager
+            order_data_manager: LBOrderDataManager,
+            data_manager: LBDataManager
     ):
         self.closed = False
         self.order_data_manager = order_data_manager
+        self.data_manager = data_manager
 
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
@@ -366,10 +369,11 @@ class OrderPopupUI:
                         parent=self.window
                     )
                     return
-                if new_value <= 0:
+                full = self.data_manager.get_full_trycock_gals_by_shipto(shipto=order.shipto)
+                if new_value <= 0 or new_value > full:
                     messagebox.showerror(
                         title="错误",
-                        message="KG应该大于0！",
+                        message="KG应该大于0且小于等于最大配送量{}！".format(full),
                         parent=self.window
                     )
                     return

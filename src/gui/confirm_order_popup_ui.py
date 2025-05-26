@@ -74,11 +74,12 @@ class ConfirmOrderPopupUI:
             )
             return
 
-        if amt <= 0:
+        max_drop_kg = int(self.df_info.FullTrycockGals.values[0])
+        if amt <= 0 or amt > max_drop_kg:
             messagebox.showwarning(
                 parent=self.popup,
                 title='可卸货量错误提示',
-                message='请输入正确的可卸货量，必须大于0'
+                message='请输入正确的可卸货量，必须大于0且小于或等于最大可卸货量{}'.format(max_drop_kg)
                 )
             return
 
