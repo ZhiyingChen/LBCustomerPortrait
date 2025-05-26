@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
@@ -70,11 +71,6 @@ class OrderPopupUI:
             对于已经有SO号的订单，或者不在行程草稿中的订单，不进行RPA操作 
         """
         if len(valid_order_list) == 0:
-            messagebox.showerror(
-                title="错误",
-                message="没有需要建立SO订单的有效订单数据，请先添加！",
-                parent=self.window
-            )
             return
 
         rpa_order_list = []
@@ -478,14 +474,25 @@ class OrderPopupUI:
             return
 
         # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
-        rpa_result_lt = self._run_rpa()
-        # rpa_result_lt = self._fake_run_rpa()
-        self.update_rpa_result_info(rpa_result_lt)
 
-        # 把更新后的SONUMBER 展示在界面
-        self._update_so_number_in_working_tree()
+        for i in range(3):
+            valid_order_list = {
+                k: v for k, v in self.order_data_manager.forecast_order_dict.items()
+                if v.is_in_trip_draft and not v.has_valid_so_number
+            }
+            if not valid_order_list:
+                continue
+            print('RPA第{}次尝试...')
 
-        # self._send_result_to_email(rpa_result_lt)
+            rpa_result_lt = self._run_rpa()
+
+            self.update_rpa_result_info(rpa_result_lt)
+
+            # 把更新后的SONUMBER 展示在界面
+            self._update_so_number_in_working_tree()
+            time.sleep(5)
+
+            # self._send_result_to_email(rpa_result_lt)
 
     def _update_so_number_in_working_tree(self):
         """
