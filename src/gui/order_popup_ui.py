@@ -475,14 +475,14 @@ class OrderPopupUI:
 
         # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
 
-        for i in range(3):
+        for i in range(2):
             valid_order_list = {
                 k: v for k, v in self.order_data_manager.forecast_order_dict.items()
                 if v.is_in_trip_draft and not v.has_valid_so_number
             }
             if not valid_order_list:
                 continue
-            print('RPA第{}次尝试...')
+            print('RPA第{}次尝试...剩余{}个订单...'.format(i+1, len(valid_order_list)))
 
             rpa_result_lt = self._run_rpa()
 
