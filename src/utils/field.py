@@ -15,6 +15,7 @@ class OrderListHeader:
     to_time = "ToTime"
     drop_kg = "DropKG"
     comment = "Comment"
+    po_number = "PONumber"
     edit_type = "EditType"
     timestamp = "Timestamp"
     so_number = "SONumber"

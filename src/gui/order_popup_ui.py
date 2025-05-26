@@ -23,7 +23,7 @@ class OrderPopupUI:
 
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
-        self.window.geometry("1000x600")
+        self.window.geometry("1200x600")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # 上方框架
@@ -84,6 +84,7 @@ class OrderPopupUI:
                     'to': order.to_time.strftime('%d/%m/%y %H:%M'),
                     'kg': str(int(order.drop_kg)),
                     'comment': order.comments,
+                    'PONumber': order.po_number,
                     'sonumber': ''
                 }
             )
@@ -126,6 +127,7 @@ class OrderPopupUI:
                     'to': order.to_time.strftime('%d/%m/%y %H:%M'),
                     'kg': str(int(order.drop_kg)),
                     'comment': order.comments,
+                    'PONumber': order.po_number,
                     'sonumber': 'SO123456'
                 }
             )
@@ -230,6 +232,7 @@ class OrderPopupUI:
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
                 fo.comments,
+                fo.po_number,
                 "1" if fo.is_in_trip_draft else "",
                 fo.so_number
             ]
@@ -248,8 +251,8 @@ class OrderPopupUI:
             editable_cols=None,
             insert_data=None
     ):
-        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", "行程草稿？", "SO号"]
-        widths = [100, 70, 80, 40, 110, 110, 60, 80, 30, 100]
+        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", 'PO号', "行程草稿？", "SO号"]
+        widths = [80, 60, 70, 30, 110, 110, 40, 80, 40, 30, 80]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -514,6 +517,7 @@ class OrderPopupUI:
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
             order.comments,
+            order.po_number,
             "1" if order.is_in_trip_draft else "",
             order.so_number
         ]

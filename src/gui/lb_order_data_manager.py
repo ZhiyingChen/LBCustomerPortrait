@@ -56,6 +56,7 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL, -- to_time
                     {} REAL NOT NULL, -- drop_kg
                     {} TEXT, -- comment
+                    {} TEXT NOT NULL, -- po_number
                     {} TEXT NOT NULL, -- in_trip_draft
                     {} TEXT NOT NULL, -- so_number
                     {} TEXT NOT NULL -- apex_id
@@ -70,6 +71,7 @@ class LBOrderDataManager:
                 oh.to_time,
                 oh.drop_kg,
                 oh.comment,
+                oh.po_number,
                 oh.in_trip_draft,
                 oh.so_number,
                 oh.apex_id
@@ -91,6 +93,7 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL, -- to_time
                     {} REAL NOT NULL, -- drop_kg
                     {} TEXT, -- comment
+                    {} TEXT NOT NULL, -- po_number
                     {} TEXT NOT NULL, -- edit_type
                     {} TEXT NOT NULL, -- timestamp
                     {} TEXT NOT NULL, -- so_number
@@ -106,6 +109,7 @@ class LBOrderDataManager:
                 oh.to_time,
                 oh.drop_kg,
                 oh.comment,
+                oh.po_number,
                 oh.edit_type,
                 oh.timestamp,
                 oh.so_number,
@@ -150,6 +154,7 @@ class LBOrderDataManager:
         forecast_order_df[oh.from_time] = pd.to_datetime(forecast_order_df[oh.from_time])
         forecast_order_df[oh.to_time] = pd.to_datetime(forecast_order_df[oh.to_time])
         forecast_order_df[oh.comment] = forecast_order_df[oh.comment].fillna('')
+        forecast_order_df[oh.po_number] = forecast_order_df[oh.po_number].fillna('')
         return forecast_order_df
 
     def generate_forecast_order_dict(self):
@@ -169,6 +174,7 @@ class LBOrderDataManager:
                 to_time=row[oh.to_time],
                 drop_kg=row[oh.drop_kg],
                 comments=row[oh.comment],
+                po_number=row[oh.po_number],
                 order_type=enums.OrderType.FO,
                 so_number=row[oh.so_number],
                 is_in_trip_draft=int(row[oh.in_trip_draft])
@@ -192,6 +198,7 @@ class LBOrderDataManager:
                        ?, -- to_time
                        ?, -- drop_kg
                        ?, -- comment
+                       ?, -- po_number
                        ?, -- in_trip_draft
                        ?, -- so_number
                        ? -- apex_id
@@ -208,6 +215,7 @@ class LBOrderDataManager:
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
+                order.po_number,
                 order.is_in_trip_draft,
                 order.so_number,
                 func.get_user_name()
@@ -262,6 +270,7 @@ class LBOrderDataManager:
                        ?, -- to_time
                        ?, -- drop_kg
                        ?, -- comment
+                       ?, -- po_number
                        ?, -- edit_type
                        ?, -- timestamp
                        ?, -- so_number
@@ -279,6 +288,7 @@ class LBOrderDataManager:
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
+                order.po_number,
                 edit_type,
                 pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
                 order.so_number,

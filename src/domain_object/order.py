@@ -13,6 +13,7 @@ class Order:
             drop_kg: float,
             comments: str,
             order_type: str,
+            po_number: str = '',
             so_number: str = '',
             is_in_trip_draft: int = 0
     ):
@@ -24,6 +25,7 @@ class Order:
         self.to_time = pd.to_datetime(to_time) if isinstance(to_time, str) else to_time
         self.drop_kg = drop_kg
         self.comments = comments
+        self.po_number = po_number
         self.order_type = order_type
         self.so_number = so_number
         self.is_in_trip_draft = is_in_trip_draft
