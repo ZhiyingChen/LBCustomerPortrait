@@ -311,6 +311,7 @@ class OrderPopupUI:
         entry.place(x=x, y=y, width=width, height=height)
         entry.insert(0, value)
         entry.focus()
+        so_number = values[-1]
 
         def save_edit(event):
             if not (editable_cols and col_name in editable_cols):
@@ -318,6 +319,13 @@ class OrderPopupUI:
                     parent=self.window,
                     title="错误",
                     message="该列不允许编辑！"
+                )
+                return
+            if isinstance(so_number, str) and so_number.startswith('SO'):
+                messagebox.showerror(
+                    parent=self.window,
+                    title="错误",
+                    message="该订单已有SO号，不能编辑！若需要修改，请直接去LBShell修改。"
                 )
                 return
             new_value = entry.get()
