@@ -35,13 +35,18 @@ class Order:
 
 
     def complete_so_number(self, so_number: str):
-        if (isinstance(so_number, str) and
-                (so_number.startswith('SO') or so_number == 'OnStop')):
+        if self.is_so_number_valid(so_number):
             self.so_number = so_number
         else:
             self.so_number = ''
 
     @property
     def has_valid_so_number(self):
-        return (isinstance(self.so_number, str) and
-                (self.so_number.startswith('SO') or self.so_number == 'OnStop'))
+        return self.is_so_number_valid(self.so_number)
+
+    @staticmethod
+    def is_so_number_valid(so_number: str):
+        return (
+                isinstance(so_number, str) and
+                (so_number.startswith('SO') or so_number == 'Onstop')
+        )
