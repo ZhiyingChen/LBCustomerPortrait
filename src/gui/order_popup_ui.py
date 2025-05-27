@@ -487,6 +487,7 @@ class OrderPopupUI:
 
         # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
 
+        rpa_email_result_dict = dict()
         for i in range(2):
             valid_order_list = {
                 k: v for k, v in self.order_data_manager.forecast_order_dict.items()
@@ -502,9 +503,17 @@ class OrderPopupUI:
 
             # 把更新后的SONUMBER 展示在界面
             self._update_so_number_in_working_tree()
+
+
             time.sleep(5)
 
-            # self._send_result_to_email(rpa_result_lt)
+            for item in rpa_result_lt:
+                rpa_email_result_dict.update(
+                    {
+                        item['LocNum']: item
+                    }
+                )
+        self._send_result_to_email(rpa_email_result_dict.values())
 
     def _update_so_number_in_working_tree(self):
         """
