@@ -175,48 +175,53 @@ class OrderPopupUI:
     def _send_result_to_email(self, result_rpa_order_list):
         if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
             return
-        user_name = func.get_user_name()
+        try:
+            user_name = func.get_user_name()
 
-        # 输出到excel做几路
-        result_df = pd.DataFrame(result_rpa_order_list)
+            # 输出到excel做几路
+            result_df = pd.DataFrame(result_rpa_order_list)
 
-        # Add timestamp column
-        result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        result_df['是否成功'] = result_df['sonumber'].apply(
-            lambda x: '成功' if Order.is_so_number_valid(x) else '失败')
+            # Add timestamp column
+            result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            result_df['是否成功'] = result_df['sonumber'].apply(
+                lambda x: '成功' if Order.is_so_number_valid(x) else '失败')
 
-        self._write_result_to_excel(result_df)
+            self._write_result_to_excel(result_df)
 
-        emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
+            emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
 
-        success_df = result_df[result_df['是否成功'] == '成功']
-        fail_df = result_df[result_df['是否成功'] == '失败']
+            success_df = result_df[result_df['是否成功'] == '成功']
+            fail_df = result_df[result_df['是否成功'] == '失败']
 
-        total_number = len(result_df)
-        success_number = len(success_df)
-        fail_number = len(fail_df)
+            total_number = len(result_df)
+            success_number = len(success_df)
+            fail_number = len(fail_df)
 
-        now = datetime.datetime.now()
+            now = datetime.datetime.now()
 
-        message_subject = "LBShell RPA 操作结果 {}: 失败{}条".format(now.strftime("%Y-%m-%d %H:%M"), fail_number)
+            message_subject = "LBShell RPA 操作结果 {}: 失败{}条".format(now.strftime("%Y-%m-%d %H:%M"), fail_number)
 
 
-        message_body = (
-            "以下是RPA操作结果表格，总共{}条订单：\n\n "
-            "其中， sonumber 列为RPA操作生成的订单号，如果该订单号不以SO开头，则表示RPA操作失败。\n\n "
-            "失败订单{}条，失败订单如下：\n\n "
-            "{}  \n\n"
-            "成功订单{}条，成功订单如下：\n\n "
-            "{}  \n\n".format(
-                total_number,
-            fail_number,
-            fail_df.to_html(index=False),
-            success_number,
-            success_df.to_html(index=False)
-        )
-        )
+            message_body = (
+                "以下是RPA操作结果表格，总共{}条订单：\n\n "
+                "其中， sonumber 列为RPA操作生成的订单号，如果该订单号不以SO开头，则表示RPA操作失败。\n\n "
+                "失败订单{}条，失败订单如下：\n\n "
+                "{}  \n\n"
+                "成功订单{}条，成功订单如下：\n\n "
+                "{}  \n\n".format(
+                    total_number,
+                fail_number,
+                fail_df.to_html(index=False),
+                success_number,
+                success_df.to_html(index=False)
+            )
+            )
 
-        outlook_sender(sender=emailer, addressee=emailer, message_subject=message_subject, message_body=message_body)
+            outlook_sender(sender=emailer, addressee=emailer, message_subject=message_subject, message_body=message_body)
+            logging.info("发送邮件成功！")
+        except Exception as e:
+            logging.error("发生邮件失败： {}" .format(e))
+
 
     # region 创建初始界面
     def _create_working_tree(self):
@@ -525,7 +530,7 @@ class OrderPopupUI:
                         item['LocNum']: item
                     }
                 )
-        self._send_result_to_email(rpa_email_result_dict.values())
+        self._send_result_to_email(list(rpa_email_result_dict.values()))
 
     def _update_so_number_in_working_tree(self):
         """
