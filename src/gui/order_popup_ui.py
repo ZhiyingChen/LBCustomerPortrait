@@ -184,7 +184,7 @@ class OrderPopupUI:
             # Add timestamp column
             result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             result_df['是否成功'] = result_df['sonumber'].apply(
-                lambda x: '成功' if Order.is_so_number_valid(x) else '失败')
+                lambda x: '成功' if do.Order.is_so_number_valid(x) else '失败')
 
             self._write_result_to_excel(result_df)
 
