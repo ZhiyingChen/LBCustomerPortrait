@@ -302,18 +302,42 @@ class OrderPopupUI:
         item_id = tree.focus()
         if not item_id:
             return
+
         col = tree.identify_column(event.x)
         col_index = int(col.replace("#", "")) - 1
         col_name = tree["columns"][col_index]
         values = tree.item(item_id, "values")
         value = values[col_index]
+        so_number = values[-1]
+
+        if col_name == "行程草稿？":
+            if do.Order.is_so_number_valid(so_number):
+                messagebox.showerror(
+                    parent=self.window,
+                    title="错误",
+                    message="该订单已有SO号，不能编辑！若需要修改，请直接去LBShell修改。"
+                )
+                return
+            # 切换 "行程草稿？" 列的值
+            new_value = "1" if value == "" else ""
+            values = list(values)
+            values[col_index] = new_value
+            tree.item(item_id, values=values)
+            order_id = values[0]
+            order = self.order_data_manager.forecast_order_dict[order_id]
+            order.is_in_trip_draft = 1 if new_value == "1" else 0
+            self.order_data_manager.update_forecast_order_in_fo_list(order=order)
+            self.order_data_manager.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Modify)
+            self.update_last_modified_time()
+            return
+
         # 可编辑列
         x, y, width, height = tree.bbox(item_id, col)
         entry = tk.Entry(tree)
         entry.place(x=x, y=y, width=width, height=height)
         entry.insert(0, value)
         entry.focus()
-        so_number = values[-1]
+
 
         def save_edit(event):
             if not (editable_cols and col_name in editable_cols):
@@ -323,7 +347,7 @@ class OrderPopupUI:
                     message="该列不允许编辑！"
                 )
                 return
-            if isinstance(so_number, str) and so_number.startswith('SO'):
+            if do.Order.is_so_number_valid(so_number):
                 messagebox.showerror(
                     parent=self.window,
                     title="错误",
@@ -373,18 +397,6 @@ class OrderPopupUI:
                         parent=self.window
                     )
                     return
-            elif col_name == "行程草稿？":
-                if str(new_value) not in ["1", ""]:
-                    messagebox.showerror(
-                        title="错误",
-                        message="行程草稿？应该为 '1' 或 '' ！",
-                        parent=self.window
-                    )
-                    return
-                if new_value == "1":
-                    new_value = 1
-                else:
-                    new_value = 0
 
             # 1. 更新缓存中该ShipTo的FO订单的信息
             setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
