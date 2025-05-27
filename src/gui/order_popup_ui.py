@@ -486,6 +486,18 @@ class OrderPopupUI:
             return
 
         # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
+        valid_order_list = {
+            k: v for k, v in self.order_data_manager.forecast_order_dict.items()
+            if v.is_in_trip_draft and not v.has_valid_so_number
+        }
+
+        if not valid_order_list:
+            messagebox.showinfo(
+                title="提示",
+                message="没有需要处理的订单！",
+                parent=self.window
+            )
+            return
 
         rpa_email_result_dict = dict()
         for i in range(2):
