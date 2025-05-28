@@ -527,7 +527,7 @@ class OrderPopupUI:
             for item in rpa_result_lt:
                 rpa_email_result_dict.update(
                     {
-                        item['LocNum']: item
+                        item['OrderId']: item
                     }
                 )
         self._send_result_to_email(list(rpa_email_result_dict.values()))
