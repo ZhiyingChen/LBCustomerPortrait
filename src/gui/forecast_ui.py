@@ -21,7 +21,6 @@ import logging
 import matplotlib
 import time
 import threading
-from tkcalendar import DateEntry
 from .confirm_order_popup_ui import ConfirmOrderPopupUI
 from . import ui_structure
 from ..utils.dol_api import updateDOL
