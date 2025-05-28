@@ -243,7 +243,7 @@ class OrderPopupUI:
             insert_data.append(data)
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注", "行程草稿？"],
+            editable_cols=["From", "To", "KG", "备注", "PO号","行程草稿？"],
             insert_data=insert_data
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
