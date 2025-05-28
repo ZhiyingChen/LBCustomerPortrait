@@ -4,5 +4,6 @@ ORDER_ATTR_MAP = {
     'To': 'to_time',
     'KG': 'drop_kg',
     "备注": 'comments',
-    "行程草稿？": 'is_in_trip_draft'
+    "行程草稿？": 'is_in_trip_draft',
+    'PO号': 'po_number'
 }
