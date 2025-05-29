@@ -173,6 +173,8 @@ class OrderPopupUI:
             result_df.to_excel(result_file_path, index=False, engine='openpyxl')
 
     def _send_result_to_email(self, result_rpa_order_list):
+        if func.get_user_name().lower() not in ['chenz32', 'zhaol12', 'huy15', 'wangj78']:
+            return
         if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
             return
         try:
