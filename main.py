@@ -20,9 +20,21 @@ if __name__ == '__main__':
         func.copyfile(dbname=db_name, from_dir=path1, to_dir='./')
 
     root = tk.Tk()
-    root.geometry("1500x800")
+    root.update()  # 确保窗口已经初始化
+
+    # 获取屏幕分辨率
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+
+    # 设置窗口大小为屏幕的 80%
+    window_width = int(screen_width)
+    window_height = int((screen_height * 0.9) )
+    root.geometry(f"{window_width}x{window_height}")
+
     root.wm_title("Air Products Forecasting Viz")
     root.resizable(True, True)
+
+    # 创建 UI 实例
     lb_forecast_ui = LBForecastUI(
         root=root,
         path1=path1

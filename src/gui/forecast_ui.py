@@ -642,12 +642,17 @@ class LBForecastUI:
 
     def _setup_ui(self):
         # 建立上半区：作图区域 plot frame
+        # 假设self.plot_frame的父容器是root
+        self.root.rowconfigure(0, weight=1)
+
         self.plot_frame = tk.LabelFrame(self.root, text='Plot')
         self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
         self._decorate_plot_frame()
 
 
         # 建立下半区：信息区域：par_frame
+        self.root.rowconfigure(1, weight=1)
+
         self.par_frame = tk.LabelFrame(self.root)
         self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
         self._decorate_par_frame()
