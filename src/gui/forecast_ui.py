@@ -77,14 +77,6 @@ class LBForecastUI:
         # setup ui
         self._setup_ui()
 
-
-    def info_cust_frame(self):
-        '''建立客户名称的frame,也即第二模块'''
-        frame_name = tk.LabelFrame(self.par_frame, text='Cust')
-        frame_name.grid(row=0, column=0, padx=5, pady=5)
-        return frame_name
-
-
     def _decorate_input_framework(self):
         # 输入 起始日期
         framename = self.frame_input
@@ -107,7 +99,7 @@ class LBForecastUI:
         self.to_box.grid(row=1, column=1, padx=10, pady=5)
 
         # 设置刷新按钮
-        self.btn_refresh = tk.Button(framename, text='Refresh data',
+        self.btn_refresh = tk.Button(framename, text='刷新液位数据',
                                 command=self.refresh_data)
         self.btn_refresh.grid(row=2, column=0, padx=10, pady=10)
         
@@ -159,10 +151,10 @@ class LBForecastUI:
         self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
         self.entry_name.grid(row=0, column=0)
 
-        self.btn_query = tk.Button(self.cust_frame, text='Search', command=lambda: self.cust_btn_search())
+        self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
         self.btn_query.grid(row=0, column=1, padx=2)
 
-        self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame, text='Customer Name')
+        self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame)
         self.cust_name_selection_frame.grid(row=1, column=0, padx=5, pady=5, columnspan=2)
 
         self._decorate_cust_name_selection_frame()
@@ -319,7 +311,7 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            ("CustName", "cust_name"),
+            ("客户简称", "cust_name"),
             ("__ MaxPayload", "max_payload_label"),
             ("TargetTime", "target_time"),
             ("RiskTime", "risk_time"),
@@ -344,20 +336,20 @@ class LBForecastUI:
             self.detail_labels[key] = lb_value
     
     def _set_manipulate_frame(self):
-        self.frame_warning = tk.LabelFrame(self.manipulate_frame, text='Warning')
+        self.frame_warning = tk.LabelFrame(self.manipulate_frame, text='警告')
         self.frame_warning.grid(row=0, column=0, padx=2, pady=2)
 
         self._set_frame_warning_label()
 
         # 重新排版,建立 frame_detail
-        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='Manual Input')
+        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='手工调整')
         self.frame_manual.grid(row=1, column=0, padx=2, pady=2)
         # 输入 起始日期
         self._set_manual_input_label()
 
     def _set_frame_warning_label(self):
         # 添加一个标签作为示例
-        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4 recent 3-time average (h): ")
+        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4近三次平均(h): ")
         self.t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
 
         self.t4_t6_value_label = tk.Label(self.frame_warning, text="")
@@ -368,37 +360,37 @@ class LBForecastUI:
         '''for schedulers manually input their estimation about hourly usage'''
 
         pad_y = 0
-        lb_cm = tk.Label(self.frame_manual, text='CM Hourly')
+        lb_cm = tk.Label(self.frame_manual, text='每小时 CM')
         lb_cm.grid(row=0, column=0, padx=1, pady=pad_y)
     
         self.box_cm = tk.Entry(self.frame_manual, width=10)
         self.box_cm.grid(row=0, column=1, padx=1, pady=pad_y)
-        lb_kg = tk.Label(self.frame_manual, text='KG Hourly')
+        lb_kg = tk.Label(self.frame_manual, text='每小时 KG')
         lb_kg.grid(row=1, column=0, padx=1, pady=pad_y)
         self.box_kg = tk.Entry(self.frame_manual, width=10)
         self.box_kg.grid(row=1, column=1, padx=1, pady=pad_y)
-        btn_calculate = tk.Button(self.frame_manual, text='Calculate by Input', width=15,
+        btn_calculate = tk.Button(self.frame_manual, text='手工计算', width=15,
                                   command=self.calculate_by_manual)
         btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
-        btn_reset = tk.Button(self.frame_manual, text='Reset', width=15,
+        btn_reset = tk.Button(self.frame_manual, text='重置', width=15,
                               command=self.reset_manual)
         btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
-        lb_assess = tk.Label(self.frame_manual, text='Feedback: ')
+        lb_assess = tk.Label(self.frame_manual, text='反馈: ')
         lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
 
         assess_options = ['', '预测准确', '预测误差小', '预测误差大']
         self.combo_assess = ttk.Combobox(self.frame_manual, value=assess_options)
         self.combo_assess.grid(row=4, column=1, padx=1, pady=pad_y)
-        lb_reason = tk.Label(self.frame_manual, text='Reason: ')
+        lb_reason = tk.Label(self.frame_manual, text='原因: ')
         lb_reason.grid(row=5, column=0, padx=1, pady=pad_y)
         reason_options = ['', '并联罐', '生产计划原因', '节日长假', '突发情况', '模型有改进空间']
         self.combo_reason = ttk.Combobox(self.frame_manual, value=reason_options)
         self.combo_reason.grid(row=5, column=1, padx=1, pady=5)
-        btn_email = tk.Button(self.frame_manual, text='Send Email', width=15)
+        btn_email = tk.Button(self.frame_manual, text='发送邮件', width=15)
         btn_email.grid(row=6, column=0, pady=1, columnspan=2)
         btn_email.bind('<Button-1>', lambda event: threading.Thread(target=self.send_feedback,
                                                                     args=(event,)).start())
-        lb_time1 = tk.Label(self.frame_manual, text='Last Time: ')
+        lb_time1 = tk.Label(self.frame_manual, text='上次更新: ')
         lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
         sql = 'select MAX(ReadingDate) from historyReading '
         lastTime = pd.read_sql(sql, self.data_manager.conn).values.flatten()[0]
@@ -507,7 +499,7 @@ class LBForecastUI:
         self._set_delivery_window_tree()
 
     def _set_reading_tree(self):
-        columns = ["No", "ReadingDate", "Read_KG", "Read_CM", "Hour_CM"]
+        columns = ["编号", "液位读取时间", "KG", "CM", "CM/小时"]
         col_widths = [10, 100, 20, 20, 20]
 
         self.reading_tree_table = ui_structure.SimpleTable(
@@ -515,7 +507,7 @@ class LBForecastUI:
         self.reading_tree_table.frame.pack(fill="both", expand=True)
 
     def _set_delivery_window_tree(self):
-        columns = ["title", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        columns = ["标题", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         col_widths = [70, 30, 30, 30, 30, 30, 30, 30]
 
         self.delivery_window_tree_table = ui_structure.SimpleTable(
@@ -578,12 +570,12 @@ class LBForecastUI:
     def _decorate_plot_frame(self):
         # plot_frame column 0, row 0: 筛选区域
         self.plot_frame.columnconfigure(0, weight=1)
-        self.f_frame = tk.LabelFrame(self.plot_frame, text='Filter')
+        self.f_frame = tk.LabelFrame(self.plot_frame, text='筛选')
         self.f_frame.grid(row=0, column=0, padx=2, pady=1)
         self._decorate_filter_frame()
 
         # plot_frame column 0, row 1: 重新排版,建立 frame_input
-        self.frame_input = tk.LabelFrame(self.plot_frame, text='input')
+        self.frame_input = tk.LabelFrame(self.plot_frame)
         self.frame_input.grid(row=1, column=0, padx=2, pady=5)
         self._decorate_input_framework()
 
@@ -618,13 +610,13 @@ class LBForecastUI:
     def _decorate_par_frame(self):
         # par_frame column 0, row 0: 客户筛选区域
         self.par_frame.columnconfigure(0, weight=1)
-        self.cust_frame = tk.LabelFrame(self.par_frame, text='Cust')
+        self.cust_frame = tk.LabelFrame(self.par_frame, text='客户简称')
         self.cust_frame.grid(row=0, column=0, padx=5, pady=5)
         self._set_customer_query()
 
         # par_frame column 1, row 0: 建立 frame_detail
         self.par_frame.columnconfigure(1, weight=1)
-        self.frame_detail = tk.LabelFrame(self.par_frame, text='Detailed Info')
+        self.frame_detail = tk.LabelFrame(self.par_frame, text='详细信息')
         self.frame_detail.grid(row=0, column=1, padx=10, pady=2)
         self._set_detail_info_label()
 
