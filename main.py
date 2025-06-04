@@ -27,7 +27,7 @@ if __name__ == '__main__':
     screen_height = root.winfo_screenheight()
 
     # 设置窗口大小为屏幕的 80%
-    window_width = int(screen_width)
+    window_width = int(screen_width * 0.9)
     window_height = int((screen_height * 0.9) )
     root.geometry(f"{window_width}x{window_height}")
 
