@@ -46,14 +46,18 @@ params = {'legend.fontsize': 'x-large',
           'ytick.labelsize': 'x-large'}
 pylab.rcParams.update(params)
 
-class LBForecastUI:
+class LBForecastUI(tk.Tk):
     def __init__(
             self,
-            root,
             path1: str
     ):
+        super().__init__()
 
-        self.root = root
+        self.root = self
+        self.geometry(f"{self.root.winfo_screenwidth()}x{self.winfo_screenheight()}")
+        self.wm_title("Air Products Forecasting Viz")
+        self.iconbitmap(os.path.join(path1, 'csl.ico'))
+
         # lock
         self.lock = threading.Lock()
         self.annot = None
