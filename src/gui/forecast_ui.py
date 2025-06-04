@@ -85,7 +85,7 @@ class LBForecastUI(tk.Tk):
         # 输入 起始日期
         framename = self.frame_input
 
-        self.lb_fromtime = tk.Label(framename, text='from time')
+        self.lb_fromtime = tk.Label(framename, text='开始时间')
         self.lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
         self.from_box = tk.Entry(framename)
         # 初始化 起始日期
@@ -93,7 +93,7 @@ class LBForecastUI(tk.Tk):
         self.from_box.insert(0, start_day)
         self.from_box.grid(row=0, column=1, padx=10, pady=5)
         # 输入 结束日期
-        self.lb_totime = tk.Label(framename, text='to time')
+        self.lb_totime = tk.Label(framename, text='结束时间')
         self.lb_totime.grid(row=1, column=0, padx=10, pady=5)
         self.to_box = tk.Entry(framename)
         # 初始化 结束日期
