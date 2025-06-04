@@ -19,10 +19,12 @@ if __name__ == '__main__':
         print('数据库不存在或过期，拷贝数据库')
         func.copyfile(dbname=db_name, from_dir=path1, to_dir='./')
 
-
-    # 创建 UI 实例
-    app = LBForecastUI(
+    root = tk.Tk()
+    root.geometry("1500x800")
+    root.wm_title("Air Products Forecasting Viz")
+    root.resizable(True, True)
+    lb_forecast_ui = LBForecastUI(
+        root=root,
         path1=path1
     )
-
-    app.mainloop()
+    root.mainloop()
