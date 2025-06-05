@@ -163,24 +163,43 @@ class LBForecastUI:
 
     def _decorate_cust_name_selection_frame(self):
         ''' customer boxlist'''
-        # 新增滚动轴 scrollbar
-        scroll_y = tk.Scrollbar(self.cust_name_selection_frame, orient=tk.VERTICAL)
-        # 这里需要特别学习：exportselection=False
-        # 保证了 两个 Listbox 点击一个时,不影响第二个。
-        self.listbox_customer = tk.Listbox(
-            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
-        scroll_y.config(command=self.listbox_customer.yview)
+        # 创建一个 Frame 来包裹 Treeview 和 Scrollbar
+        tree_frame = tk.Frame(self.cust_name_selection_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 创建 Treeview
+        self.listbox_customer = ttk.Treeview(
+            tree_frame,
+            columns=("cust_name", "type"),
+            show="headings",
+            height=10,
+            yscrollcommand=lambda f, l: scroll_y.set(f, l)
+        )
+        self.listbox_customer.heading("cust_name", text="客户简称")
+        self.listbox_customer.heading("type", text="类型")
+        self.listbox_customer.column("cust_name", width=120)
+        self.listbox_customer.column("type", width=40)
+        self.listbox_customer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # 创建 Scrollbar 并绑定
+        scroll_y = tk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.listbox_customer.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.listbox_customer.pack()
-        self.listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
-            target=self.plot).start())
+        # 鼠标滚轮绑定（Windows 和 macOS）
+        def _on_mousewheel(event):
+            self.listbox_customer.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+        self.listbox_customer.bind("<MouseWheel>", _on_mousewheel)  # Windows/macOS
+        self.listbox_customer.bind("<Button-4>", lambda e: self.listbox_customer.yview_scroll(-1, "units"))  # Linux
+        self.listbox_customer.bind("<Button-5>", lambda e: self.listbox_customer.yview_scroll(1, "units"))  # Linux
+
+        # 绑定选择事件
+        self.listbox_customer.bind("<<TreeviewSelect>>", lambda event: threading.Thread(target=self.plot).start())
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
         df_name_forecast = self.df_name_forecast
-        self.listbox_customer.delete(0, tk.END)
+
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
             SubRegion = None
         else:
@@ -226,9 +245,10 @@ class LBForecastUI:
         # get selected customers
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
+        self.listbox_customer.delete(*self.listbox_customer.get_children())
         for item in custName_list:
-            self.listbox_customer.insert(tk.END, item)
-
+            item_type = "F"
+            self.listbox_customer.insert("", "end", iid=item, values=(item, item_type))
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
@@ -277,9 +297,10 @@ class LBForecastUI:
         if len(names) == 0:
             messagebox.showinfo( title='Warning', message='Check your search!')
         else:
-            self.listbox_customer.delete(0, tk.END)
+            self.listbox_customer.delete(*self.listbox_customer.get_children())
             for item in sorted(names):
-                self.listbox_customer.insert(tk.END, item)
+                item_type = "F"
+                self.listbox_customer.insert("", "end", iid=item, values=(item, item_type))
 
     def send_feedback(self, event):
         self.save_pic = True
@@ -1072,7 +1093,11 @@ class LBForecastUI:
         conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
-        custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
+        selected = self.listbox_customer.selection()
+        if not selected:
+            return
+        custName = self.listbox_customer.item(selected[0], "values")[0]  # 第一列是客户简称
+
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
         if not self.check_cust_name_valid(custName):
