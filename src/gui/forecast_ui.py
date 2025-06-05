@@ -535,14 +535,14 @@ class LBForecastUI:
 
     def _set_dtd_label(self):
         columns = ["DT", "距离(km)", "时长(h)", "发车时间", "数据源"]
-        col_widths = [20, 20, 20, 100, 20]
+        col_widths = [20, 20, 20, 50, 25]
 
         self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
         self.dtd_table.frame.pack(fill="both", expand=True)
 
     def _set_near_customer_label(self):
-        columns = ["临近客户简称", "距离(km)", "DDER", "数据源"]
-        col_widths = [90, 20, 20, 20]
+        columns = ["临近客户", "距离(km)", "DDER", "数据源"]
+        col_widths = [80, 20, 20, 20]
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,
@@ -658,13 +658,21 @@ class LBForecastUI:
         for row in results:
             primary_dt, distance, duration, data_source = row
             primary_info.append('T{}'.format(primary_dt))
+            try:
+                distance = int(float(distance))
+            except ValueError:
+                distance = '?'
             primary_info.append(distance)
+            try:
+                duration = round(float(duration), 1)
+            except ValueError:
+                duration = '?'
             primary_info.append(duration)
 
             departure_time = ''
             try:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
-                departure_time = departure_time.strftime('%Y-%m-%d %H:%M')
+                departure_time = departure_time.strftime('%m/%d %H')
             except Exception as e:
                 print(e)
 
@@ -678,13 +686,21 @@ class LBForecastUI:
             source_info = list()
             source_dt, distance, duration, data_source = row
             source_info.append('S{}'.format(source_dt))
+            try:
+                distance = int(float(distance))
+            except ValueError:
+                distance = '?'
             source_info.append(distance)
+            try:
+                duration = round(float(duration), 1)
+            except ValueError:
+                duration = '?'
             source_info.append(duration)
 
             departure_time = ''
             try:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
-                departure_time = departure_time.strftime('%Y-%m-%d %H:%M')
+                departure_time = departure_time.strftime('%m/%d %H')
             except Exception as e:
                 print(e)
             source_info.append(departure_time)
