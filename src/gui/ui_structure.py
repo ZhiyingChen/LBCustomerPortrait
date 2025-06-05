@@ -13,7 +13,8 @@ class SimpleTable:
             columns=columns,
             show="headings",
             height=height,
-            selectmode='extended'
+            selectmode='extended',
+            yscrollcommand=lambda f, l: scrollbar_y.set(f, l)
         )
 
         # 设置列头
@@ -23,18 +24,17 @@ class SimpleTable:
             self.tree.column(col, width=width, anchor='center')
 
         # 垂直滚动条
-        scrollbar_y = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar_y.set)
+        scrollbar_y = tk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
 
         self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar_y.grid(row=0, column=1, sticky="ns")
 
         self.frame.grid_rowconfigure(0, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
 
         style = ttk.Style()
         # pick a theme
-        style.theme_use('default')
+        style.theme_use('winnative')
         style.configure('Treeview', rowheight=25)
 
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -88,5 +88,10 @@ class SimpleTable:
             print("已复制到剪贴板：", values)
 
 
-
+    def select(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+        custName = self.tree.item(selected[0], "values")[0]
+        return custName
 

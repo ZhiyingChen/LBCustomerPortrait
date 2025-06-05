@@ -167,34 +167,15 @@ class LBForecastUI:
         tree_frame = tk.Frame(self.cust_name_selection_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
 
-        # 创建 Treeview
-        self.listbox_customer = ttk.Treeview(
-            tree_frame,
-            columns=("cust_name", "type"),
-            show="headings",
-            height=10,
-            yscrollcommand=lambda f, l: scroll_y.set(f, l)
+        self.listbox_customer = ui_structure.SimpleTable(
+            self.cust_name_selection_frame,
+            columns=["客户名称", "类型"],
+            height=12,
+            col_widths=[110, 40],
         )
-        self.listbox_customer.heading("cust_name", text="客户简称")
-        self.listbox_customer.heading("type", text="类型")
-        self.listbox_customer.column("cust_name", width=120)
-        self.listbox_customer.column("type", width=40)
-        self.listbox_customer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # 创建 Scrollbar 并绑定
-        scroll_y = tk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.listbox_customer.yview)
-        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # 鼠标滚轮绑定（Windows 和 macOS）
-        def _on_mousewheel(event):
-            self.listbox_customer.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        self.listbox_customer.bind("<MouseWheel>", _on_mousewheel)  # Windows/macOS
-        self.listbox_customer.bind("<Button-4>", lambda e: self.listbox_customer.yview_scroll(-1, "units"))  # Linux
-        self.listbox_customer.bind("<Button-5>", lambda e: self.listbox_customer.yview_scroll(1, "units"))  # Linux
 
         # 绑定选择事件
-        self.listbox_customer.bind("<<TreeviewSelect>>", lambda event: threading.Thread(target=self.plot).start())
+        self.listbox_customer.tree.bind("<<TreeviewSelect>>", lambda event: threading.Thread(target=self.plot).start())
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
@@ -245,10 +226,11 @@ class LBForecastUI:
         # get selected customers
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
-        self.listbox_customer.delete(*self.listbox_customer.get_children())
-        for item in custName_list:
-            item_type = "F"
-            self.listbox_customer.insert("", "end", iid=item, values=(item, item_type))
+        rows = [
+            (c, '')
+            for c in custName_list
+        ]
+        self.listbox_customer.insert_rows(rows)
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
@@ -297,10 +279,11 @@ class LBForecastUI:
         if len(names) == 0:
             messagebox.showinfo( title='Warning', message='Check your search!')
         else:
-            self.listbox_customer.delete(*self.listbox_customer.get_children())
-            for item in sorted(names):
-                item_type = "F"
-                self.listbox_customer.insert("", "end", iid=item, values=(item, item_type))
+            rows = [
+                (c, '')
+                for c in names
+            ]
+            self.listbox_customer.insert_rows(rows)
 
     def send_feedback(self, event):
         self.save_pic = True
@@ -1093,10 +1076,9 @@ class LBForecastUI:
         conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
-        selected = self.listbox_customer.selection()
-        if not selected:
+        custName = self.listbox_customer.select()
+        if custName is None:
             return
-        custName = self.listbox_customer.item(selected[0], "values")[0]  # 第一列是客户简称
 
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
