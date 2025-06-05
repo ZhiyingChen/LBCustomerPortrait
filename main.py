@@ -20,7 +20,9 @@ if __name__ == '__main__':
         func.copyfile(dbname=db_name, from_dir=path1, to_dir='./')
 
     root = tk.Tk()
-    root.geometry("1500x800")
+    width = int(root.winfo_screenwidth() * 0.9)
+    height = int(root.winfo_screenheight() * 0.9)
+    root.geometry(f"{width}x{height}")
     root.wm_title("Air Products Forecasting Viz")
     root.resizable(True, True)
     lb_forecast_ui = LBForecastUI(
