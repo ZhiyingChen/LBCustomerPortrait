@@ -369,10 +369,10 @@ class LBForecastUI:
     
         self.box_cm = tk.Entry(self.frame_manual, width=10)
         self.box_cm.grid(row=0, column=1, padx=1, pady=pad_y)
-        lb_kg = tk.Label(self.frame_manual, text='每小时 KG')
-        lb_kg.grid(row=1, column=0, padx=1, pady=pad_y)
-        self.box_kg = tk.Entry(self.frame_manual, width=10)
-        self.box_kg.grid(row=1, column=1, padx=1, pady=pad_y)
+        lb_ton = tk.Label(self.frame_manual, text='每小时 Ton')
+        lb_ton.grid(row=1, column=0, padx=1, pady=pad_y)
+        self.box_ton = tk.Entry(self.frame_manual, width=10)
+        self.box_ton.grid(row=1, column=1, padx=1, pady=pad_y)
         btn_calculate = tk.Button(self.frame_manual, text='手工计算', width=15,
                                   command=self.calculate_by_manual)
         btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
@@ -448,14 +448,14 @@ class LBForecastUI:
         conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
-        input_value1 = self.box_kg.get()
+        input_value1 = self.box_ton.get()
         input_value2 = self.box_cm.get()
         if len(input_value1) > 0 and len(input_value2) > 0:
             messagebox.showinfo( title='Warning', message='Cannot KM+CM')
             return
         if len(input_value1) > 0:
             try:
-                input_value = float(input_value1)
+                input_value = float(input_value1) * 1000
             except ValueError:
                 messagebox.showinfo( title='Warning', message='Input Wrong')
         else:
@@ -469,7 +469,7 @@ class LBForecastUI:
             messagebox.showinfo( title='Warning', message='Input Wrong')
             return
         # print(input_value1, input_value2, type(input_value1), type(input_value2))
-        custName = self.listbox_customer.get(tk.ANCHOR)
+        custName = self.listbox_customer.select()
         if custName not in df_name_forecast.index:
             messagebox.showinfo( title='Warning', message='No Data To Show.')
             return
@@ -487,7 +487,7 @@ class LBForecastUI:
 
 
     def reset_manual(self):
-        self.box_kg.delete(0, 'end')
+        self.box_ton.delete(0, 'end')
         self.box_cm.delete(0, 'end')
         event = None
         self.plot()
@@ -1194,10 +1194,9 @@ class LBForecastUI:
             Risk_time: datetime,
             RO_time: datetime,
             df_history: pd.DataFrame,
-            uom: str = 'KG',
+            uom: str = 'Ton',
     ):
         # 开始作图
-        # 没想到这句话还这么重要(在hover的时候造成了极大的困扰)
         self.forecast_plot_ax.clear()
         # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
         self.forecast_plot_ax.set_zorder(3)
@@ -1210,46 +1209,72 @@ class LBForecastUI:
                                                     arrowprops=dict(arrowstyle="->"),
                                                     annotation_clip=True, zorder=5)
         self.annot.set_visible(False)
+
+        # 转换历史数据和预测数据为吨
+        if len(df_history) > 0:
+            df_history['Reading_Gals'] = df_history['Reading_Gals'] / 1000
+        if self.manual_plot:
+            df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
+            df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading'] / 1000  # 将公斤转换为吨
+
         if len(df_history) > 0:
             pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
         else:
             pic_title = '{}({}) No History Data'.format(custName, shipto)
         self.forecast_plot_ax.set_title(pic_title, fontsize=20)
-        self.forecast_plot_ax.set_ylabel('K G')
-        self.forecast_plot_ax.set_ylim(bottom=0, top=full * 1.18)
-        # self.forecast_plot_ax.set_xlabel('Date')
-        self.forecast_plot_ax.plot(self.ts_history, color='blue', marker='o', markersize=6,
-                                   linestyle='None', gid='point_history')
-        self.forecast_plot_ax.plot(self.ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
-        self.forecast_plot_ax.plot(self.ts_forecast, color='green', marker='o', markersize=6, alpha=0.45,
+
+        # 调整 Y 轴标签为 'Ton'
+        self.forecast_plot_ax.set_ylabel('Ton')
+
+        # 转换满载量和阈值为吨
+        full_ton = full / 1000
+        TR_ton = TR / 1000
+        Risk_ton = Risk / 1000 if Risk is not None else None
+        RO_ton = RO / 1000
+
+        # 设置 Y 轴范围
+        self.forecast_plot_ax.set_ylim(bottom=0, top=full_ton * 1.18)
+
+        # 绘制历史数据和预测数据
+        if len(df_history) > 0:
+            self.ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
+            self.forecast_plot_ax.plot(self.ts_history, color='blue', marker='o', markersize=6,
+                                       linestyle='None', gid='point_history')
+            self.forecast_plot_ax.plot(self.ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
+
+        self.forecast_plot_ax.plot(self.ts_forecast / 1000, color='green', marker='o', markersize=6, alpha=0.45,
                                    linestyle='None', gid='point_forecast')
-        self.forecast_plot_ax.plot(self.ts_forecast, color='green', label='Forecast', alpha=0.45,
+        self.forecast_plot_ax.plot(self.ts_forecast / 1000, color='green', label='Forecast', alpha=0.45,
                                    linestyle='dashed', gid='line_forecast')
-        self.forecast_plot_ax.plot(self.ts_forecast_before_trip, color='orange', marker='o', markersize=6,
+        self.forecast_plot_ax.plot(self.ts_forecast_before_trip / 1000, color='orange', marker='o', markersize=6,
                                    linestyle='None', gid='point_forecastBeforeTrip')
-        self.forecast_plot_ax.plot(self.ts_forecast_before_trip, color='orange',
+        self.forecast_plot_ax.plot(self.ts_forecast_before_trip / 1000, color='orange',
                                    label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
+
         if len(self.ts_forecast_before_trip) > 0 and len(self.ts_forecast) > 0:
             ts_join = pd.concat([self.ts_forecast_before_trip.last('1S'), self.ts_forecast.first('1S')])
-            # print(ts_join)
-            self.forecast_plot_ax.plot(ts_join, color='orange', linestyle='dashed', gid='line_join')
-        # decide to plot manual forecast_data_refresh line
+            self.forecast_plot_ax.plot(ts_join / 1000, color='orange', linestyle='dashed', gid='line_join')
+
+        # 绘制手动预测数据
         if self.manual_plot:
-            df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
             self.ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
             self.forecast_plot_ax.plot(self.ts_manual, color='purple', marker='o', markersize=6,
                                        linestyle='None', gid='point_manual', alpha=0.6)
             self.forecast_plot_ax.plot(self.ts_manual, color='purple', label='Manual',
                                        linestyle='dashed', alpha=0.6)
-        # 以下画水平线
-        self.forecast_plot_ax.axhline(y=full, color='grey', linewidth=2, label='Full', gid='line_full')
-        self.forecast_plot_ax.axhline(y=TR, color='green', linewidth=2, label='TR', gid='line_TR')
-        if Risk is not None:
-            self.forecast_plot_ax.axhline(y=Risk, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
-        self.forecast_plot_ax.axhline(y=RO, color='red', linewidth=2, label='RunOut', gid='line_RO')
-        # 画竖直线,较繁琐。具体函数见定义
+
+        # 绘制水平线
+        self.forecast_plot_ax.axhline(y=full_ton, color='grey', linewidth=2, label='Full', gid='line_full')
+        self.forecast_plot_ax.axhline(y=TR_ton, color='green', linewidth=2, label='TR', gid='line_TR')
+        if Risk_ton is not None:
+            self.forecast_plot_ax.axhline(y=Risk_ton, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
+        self.forecast_plot_ax.axhline(y=RO_ton, color='red', linewidth=2, label='RunOut', gid='line_RO')
+
+        # 绘制竖直线
         if TR_time is not None:
-            self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full)
+            self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full_ton)
+
+        # 设置 X 轴主刻度
         if (toTime - fromTime).days <= 12:
             self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
         elif (toTime - fromTime).days <= 24:
@@ -1258,14 +1283,17 @@ class LBForecastUI:
             self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
 
         self.forecast_plot_ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        # plot for second y-axis
+
+        # 绘制第二 Y 轴
         factor = func.weight_length_factor(uom)
 
         self.forecast_plot_ax.grid()
-        # 2024-04-18 新增 直方图
+
+        # 新增 直方图
         beforeRD = self.data_manager.get_before_reading(shipto)
         if len(beforeRD) > 0:
-            binwidth = 200
+            beforeRD = beforeRD / 1000  # 将直方图数据转换为吨
+            binwidth = 0.2  # 适当的binwidth，单位为吨
             xymax = np.max(np.abs(beforeRD))
             lim = (int(xymax / binwidth) + 1) * binwidth
             bins = np.arange(0, lim + binwidth, binwidth)
@@ -1280,9 +1308,7 @@ class LBForecastUI:
             which='both',  # both major and minor ticks are affected
             bottom=False,  # ticks along the bottom edge are off
             top=False,  # ticks along the top edge are off
-            # labelbottom=False,
             labelleft=False,
-            # left=False
         )
         if len(beforeRD) > 0:
             max_count = np.max(axHist_info[0])
