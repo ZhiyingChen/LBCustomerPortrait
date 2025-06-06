@@ -316,7 +316,7 @@ class LBForecastUI:
         pad_y = 0
         label_info = [
             ("客户简称", "cust_name"),
-            ("__ MaxPayload", "max_payload_label"),
+            ("__ MaxPayload (T)", "max_payload_label"),
             ("TargetTime", "target_time"),
             ("RiskTime", "risk_time"),
             ("RunOutTime", "runout_time"),
@@ -335,7 +335,7 @@ class LBForecastUI:
             lb_value = tk.Label(self.frame_detail, text="")
             lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
 
-            if label_text in ["__ MaxPayload", "forecast_hour_range"]:
+            if label_text in ["__ MaxPayload (T)", "forecast_hour_range"]:
                 self.detail_labels[label_text] = lb_label
             self.detail_labels[key] = lb_value
     
@@ -759,54 +759,44 @@ class LBForecastUI:
 
         factor = func.weight_length_factor(uom)
 
-        if Risk_time is None:
-            # 只挑选部分内容显示
-            self.detail_labels['cust_name'].config(text=custName)
-            full_cm = int(full / galsperinch / factor)
-            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
-            TR_cm = int(TR / galsperinch / factor)
-            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
-            RO_cm = int(RO / galsperinch / factor)
-            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
-        else:
-            tr = TR_time.strftime("%Y-%m-%d %H:%M")
-            risk = Risk_time.strftime("%Y-%m-%d %H:%M")
-            ro = RO_time.strftime("%Y-%m-%d %H:%M")
-            self.detail_labels['cust_name'].config(text=custName)
+        self.detail_labels['cust_name'].config(text=custName)
+        full_cm = int(full / galsperinch / factor)
+        self.detail_labels['full_trycock'].config(text=f'{round(full / 1000, 1)} T / {full_cm} {uom}')
+        TR_cm = int(TR / galsperinch / factor)
+        self.detail_labels['target_refill'].config(text=f'{round(TR / 1000, 1)} T / {TR_cm} {uom}')
+        RO_cm = int(RO / galsperinch / factor)
+        self.detail_labels['runout'].config(text=f'{ round(RO / 1000, 1)} T / {RO_cm} {uom}')
+
+        if Risk_time is not None:
+            tr = TR_time.strftime("%m-%d %H:%M")
+            risk = Risk_time.strftime("%m-%d %H:%M")
+            ro = RO_time.strftime("%m-%d %H:%M")
             self.detail_labels['target_time'].config(text=tr)
             self.detail_labels['risk_time'].config(text=risk)
             self.detail_labels['runout_time'].config(text=ro)
 
-            full_cm = int(full / galsperinch / factor)
-            self.detail_labels['full_trycock'].config(text=f'{full} KG / {full_cm} {uom}')
-            TR_cm = int(TR / galsperinch / factor)
-            self.detail_labels['target_refill'].config(text=f'{TR} KG / {TR_cm} {uom}')
             Risk_cm = int(Risk / galsperinch / factor)
-            self.detail_labels['risk'].config(text=f'{Risk} KG / {Risk_cm} {uom}')
-            RO_cm = int(RO / galsperinch / factor)
-            self.detail_labels['runout'].config(text=f'{RO} KG / {RO_cm} {uom}')
+            self.detail_labels['risk'].config(text=f'{round(Risk/1000, 1)} T / {Risk_cm} {uom}')
 
-            if len(ts_forecast_usage) >= 2:
-                s_time = ts_forecast_usage.index[0].strftime("%m-%d %H:%M")
-                e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H:%M")
-                hourly_usage = round(ts_forecast_usage[:8].mean().values[0], 1)
-                hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
-                self.detail_labels['forecast_hour_range'].config(
-                    text=f'{s_time}~{e_time}\n 预测小时用量'
-                )
-                self.detail_labels['forecast_hourly_usage'].config(
-                    text=f'{hourly_usage} KG / {hourly_usage_cm} {uom}'
-                )
-            else:
-                self.detail_labels['forecast_hour_range'].config(text='')
-                self.detail_labels['forecast_hourly_usage'].config(text='')
+        if len(ts_forecast_usage) >= 2:
+            s_time = ts_forecast_usage.index[0].strftime("%m-%d %H")
+            e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H")
+            hourly_usage = round(ts_forecast_usage[:8].mean().values[0] / 1000, 1)
+            hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
+            self.detail_labels['forecast_hour_range'].config(
+                text=f'{s_time}~{e_time}\n 预测小时用量'
+            )
+            self.detail_labels['forecast_hourly_usage'].config(
+                text=f'{hourly_usage} T / {hourly_usage_cm} {uom}'
+            )
+
 
         fe = self.data_manager.get_forecast_error(shipto)
         self.detail_labels['forecast_error'].config(text=fe)
 
         current_primary_dt, current_max_payload = self.get_primary_dt_and_max_payload(shipto)
-        current_max_payload = int(current_max_payload) if isinstance(current_max_payload, float) else current_max_payload
-        self.detail_labels['__ MaxPayload'].config(text=f'{current_primary_dt} MaxPayload')
+        current_max_payload = round(current_max_payload / 1000, 1) if isinstance(current_max_payload, float) else current_max_payload
+        self.detail_labels['__ MaxPayload (T)'].config(text=f'{current_primary_dt} MaxPayload (T)')
         self.detail_labels['max_payload_label'].config(text=f'{current_max_payload}')
 
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
