@@ -723,10 +723,16 @@ class LBForecastUI:
                 to_cust_acronym = to_loc_num
 
             try:
-                dder = round(float(dder) * 100, 2)
+                dder = int(float(dder) * 100)
             except Exception as e:
                 print(e)
                 dder = '?'
+
+            try:
+                distance_km = int(float(distance_km))
+            except Exception as e:
+                print(e)
+                distance_km = '?'
 
             update_row.append(to_cust_acronym)
             update_row.append(distance_km)
