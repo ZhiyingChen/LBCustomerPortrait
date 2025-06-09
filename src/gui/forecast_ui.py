@@ -503,8 +503,8 @@ class LBForecastUI:
         self._set_delivery_window_tree()
 
     def _set_reading_tree(self):
-        columns = ["编号", "液位读取时间", "KG", "CM", "CM/小时"]
-        col_widths = [10, 100, 20, 20, 20]
+        columns = ["读取时间", "Ton", "CM", "CM/小时"]
+        col_widths = [80, 20, 20, 20]
 
         self.reading_tree_table = ui_structure.SimpleTable(
             self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
@@ -672,7 +672,7 @@ class LBForecastUI:
             departure_time = ''
             try:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
-                departure_time = departure_time.strftime('%m/%d %H')
+                departure_time = departure_time.strftime('%m-%d %H')
             except Exception as e:
                 print(e)
 

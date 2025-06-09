@@ -154,14 +154,17 @@ class LBDataManager:
                 return None
 
         df1.Hour_CM = df1.Hour_CM.apply(clean_use)
-        df1['No'] = range(1, len(df1) + 1)
+
+        df1.ReadingDate = df1.ReadingDate.dt.strftime('%m-%d %H')
+        df1['Reading_Gals'] = df1.Reading_Gals.apply(lambda x: round(x / 1000, 1))
         cols = df1.columns.tolist()
-        cols = cols[-1:] + cols[:-1]
+
         # 去掉两个过度列
         cols.remove('cm_diff')
         cols.remove('time_diff')
         df1 = df1[cols]
-        df1 = df1.rename(columns={'Reading_Gals': 'Read_KG', 'Reading_CM': 'Read_CM'})
+
+        df1 = df1.rename(columns={'Reading_Gals': 'Read_Ton', 'Reading_CM': 'Read_CM'})
         return df1
 
 
