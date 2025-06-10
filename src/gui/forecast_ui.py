@@ -163,24 +163,24 @@ class LBForecastUI:
 
     def _decorate_cust_name_selection_frame(self):
         ''' customer boxlist'''
-        # 创建一个 Frame 来包裹 Treeview 和 Scrollbar
-        tree_frame = tk.Frame(self.cust_name_selection_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        # 新增滚动轴 scrollbar
+        scroll_y = tk.Scrollbar(self.cust_name_selection_frame, orient=tk.VERTICAL)
+        # 这里需要特别学习：exportselection=False
+        # 保证了 两个 Listbox 点击一个时,不影响第二个。
+        self.listbox_customer = tk.Listbox(
+            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
+        scroll_y.config(command=self.listbox_customer.yview)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.listbox_customer = ui_structure.SimpleTable(
-            self.cust_name_selection_frame,
-            columns=["客户名称", "类型"],
-            height=12,
-            col_widths=[110, 40],
-        )
+        self.listbox_customer.pack()
+        self.listbox_customer.bind("<<ListboxSelect>>", lambda event: threading.Thread(
+            target=self.plot).start())
 
-        # 绑定选择事件
-        self.listbox_customer.tree.bind("<<TreeviewSelect>>", lambda event: threading.Thread(target=self.plot).start())
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
         df_name_forecast = self.df_name_forecast
-
+        self.listbox_customer.delete(0, tk.END)
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
             SubRegion = None
         else:
@@ -226,11 +226,9 @@ class LBForecastUI:
         # get selected customers
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
-        rows = [
-            (c, '')
-            for c in custName_list
-        ]
-        self.listbox_customer.insert_rows(rows)
+        for item in custName_list:
+            self.listbox_customer.insert(tk.END, item)
+
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
@@ -279,11 +277,9 @@ class LBForecastUI:
         if len(names) == 0:
             messagebox.showinfo( title='Warning', message='Check your search!')
         else:
-            rows = [
-                (c, '')
-                for c in names
-            ]
-            self.listbox_customer.insert_rows(rows)
+            self.listbox_customer.delete(0, tk.END)
+            for item in sorted(names):
+                self.listbox_customer.insert(tk.END, item)
 
     def send_feedback(self, event):
         self.save_pic = True
@@ -469,7 +465,7 @@ class LBForecastUI:
             messagebox.showinfo( title='Warning', message='Input Wrong')
             return
         # print(input_value1, input_value2, type(input_value1), type(input_value2))
-        custName = self.listbox_customer.select()
+        custName = self.listbox_customer.get(tk.ANCHOR)
         if custName not in df_name_forecast.index:
             messagebox.showinfo( title='Warning', message='No Data To Show.')
             return
@@ -1088,10 +1084,7 @@ class LBForecastUI:
         conn = self.data_manager.conn
         df_name_forecast = self.df_name_forecast
 
-        custName = self.listbox_customer.select()
-        if custName is None:
-            return
-
+        custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
         print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
         if not self.check_cust_name_valid(custName):
