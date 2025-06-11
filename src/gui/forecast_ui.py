@@ -336,8 +336,6 @@ class LBForecastUI:
             self.detail_labels[key] = lb_value
     
     def _set_manipulate_frame(self):
-
-
         # 重新排版,建立 frame_detail
         self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='手工调整')
         self.frame_manual.grid(row=1, column=0, padx=2, pady=2)
@@ -372,27 +370,7 @@ class LBForecastUI:
         btn_reset = tk.Button(self.frame_manual, text='重置', width=15,
                               command=self.reset_manual)
         btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
-        lb_assess = tk.Label(self.frame_manual, text='反馈: ')
-        lb_assess.grid(row=4, column=0, padx=1, pady=pad_y)
 
-        assess_options = ['', '预测准确', '预测误差小', '预测误差大']
-        self.combo_assess = ttk.Combobox(self.frame_manual, value=assess_options)
-        self.combo_assess.grid(row=4, column=1, padx=1, pady=pad_y)
-        lb_reason = tk.Label(self.frame_manual, text='原因: ')
-        lb_reason.grid(row=5, column=0, padx=1, pady=pad_y)
-        reason_options = ['', '并联罐', '生产计划原因', '节日长假', '突发情况', '模型有改进空间']
-        self.combo_reason = ttk.Combobox(self.frame_manual, value=reason_options)
-        self.combo_reason.grid(row=5, column=1, padx=1, pady=5)
-        btn_email = tk.Button(self.frame_manual, text='发送邮件', width=15)
-        btn_email.grid(row=6, column=0, pady=1, columnspan=2)
-        btn_email.bind('<Button-1>', lambda event: threading.Thread(target=self.send_feedback,
-                                                                    args=(event,)).start())
-        lb_time1 = tk.Label(self.frame_manual, text='上次更新: ')
-        lb_time1.grid(row=7, column=0, padx=1, pady=pad_y)
-        sql = 'select MAX(ReadingDate) from historyReading '
-        lastTime = pd.read_sql(sql, self.data_manager.conn).values.flatten()[0]
-        lb_time2 = tk.Label(self.frame_manual, text='{}'.format(lastTime))
-        lb_time2.grid(row=7, column=1, padx=1, pady=pad_y)
 
 
     def create_manual_forecast_data(self, shipto, input_value):
@@ -598,11 +576,12 @@ class LBForecastUI:
         self.save_pic = False
         self.manual_plot = False
 
-        # plot_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
-        self.plot_frame.columnconfigure(2, weight=3)
-        self.dtd_cluster_frame = tk.LabelFrame(self.plot_frame)
-        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
-        self._decorate_dtd_cluster_label()
+        # plot_frame column 2, row 0: 建立 手工操作区域
+        self.plot_frame.columnconfigure(2, weight=1)
+        self.manipulate_frame = tk.LabelFrame(self.plot_frame)
+        self.manipulate_frame.grid(row=0, column=2, padx=2, pady=2)
+        self._set_manipulate_frame()
+
 
     def _decorate_par_frame(self):
         # par_frame column 0, row 0: 客户筛选区域
@@ -625,18 +604,20 @@ class LBForecastUI:
         self.frame_detail.grid(row=1, column=0, padx=10, pady=2)
         self._set_detail_info_label()
 
+        # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
+        self.par_frame.columnconfigure(2, weight=2)
+        self.dtd_cluster_frame = tk.LabelFrame(self.par_frame)
+        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
+        self._decorate_dtd_cluster_label()
 
-        # par_frame column 2, row 0: 建立 手工操作区域
-        self.par_frame.columnconfigure(2, weight=1)
-        self.manipulate_frame = tk.LabelFrame(self.par_frame)
-        self.manipulate_frame.grid(row=0, column=2, padx=2, pady=2)
-        self._set_manipulate_frame()
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和时间窗
         self.par_frame.columnconfigure(3, weight=2)
         self.historical_readings_frame = tk.LabelFrame(self.par_frame)
         self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
         self._decorate_historical_readings_frame()
+
+
 
     def _setup_ui(self):
         # 建立上半区：作图区域 plot frame
