@@ -148,17 +148,30 @@ class LBForecastUI:
 
 
     def _set_customer_query(self):
+        # 添加控制组件
+        self.tab_control = ttk.Notebook(self.cust_frame)
+        self.tab_control.grid(row=0, column=0, columnspan=2, sticky='ew')
+
+        self.tab_partial = ttk.Frame(self.tab_control)
+        self.tab_all = ttk.Frame(self.tab_control)
+
+        self.tab_control.add(self.tab_partial, text='送货前五后十')
+        self.tab_control.add(self.tab_all, text='全量客户')
+
+        self.tab_control.bind("<<NotebookTabChanged>>", self.show_list_cust)
+
+        # 添加搜索框
         self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
-        self.entry_name.grid(row=0, column=0)
+        self.entry_name.grid(row=1, column=0)
 
         self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
-        self.btn_query.grid(row=0, column=1, padx=2)
+        self.btn_query.grid(row=1, column=1, padx=2)
 
+        # 添加客户列表
         self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame)
-        self.cust_name_selection_frame.grid(row=1, column=0, padx=5, pady=5, columnspan=2)
+        self.cust_name_selection_frame.grid(row=2, column=0, padx=5, pady=5, columnspan=2)
 
         self._decorate_cust_name_selection_frame()
-
 
 
     def _decorate_cust_name_selection_frame(self):
@@ -226,9 +239,17 @@ class LBForecastUI:
         # get selected customers
         custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
+
+        if self.get_tab_mode() == 'partial':
+            # todo: 添加前五天和后十天的逻辑
+            custName_list = custName_list[:5]
         for item in custName_list:
             self.listbox_customer.insert(tk.END, item)
 
+    def get_tab_mode(self):
+        current_tab_index = self.tab_control.index(self.tab_control.select())
+        mode = 'partial' if current_tab_index == 0 else 'all'
+        return mode
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
@@ -586,7 +607,8 @@ class LBForecastUI:
     def _decorate_par_frame(self):
         # par_frame column 0, row 0: 客户筛选区域
         self.par_frame.columnconfigure(0, weight=1)
-        self.cust_frame = tk.LabelFrame(self.par_frame, text='客户简称')
+
+        self.cust_frame = tk.LabelFrame(self.par_frame)
         self.cust_frame.grid(row=0, column=0, padx=5, pady=5)
         self._set_customer_query()
 
