@@ -332,7 +332,7 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            ("客户简称", "cust_name"),
+            # ("客户简称", "cust_name"),
             ("__ 最大装载量 (T)", "max_payload_label"),
             ("目标送货时间", "target_time"),
             ("最佳充装时间", "risk_time"),
@@ -763,14 +763,13 @@ class LBForecastUI:
         for key, label in self.detail_labels.items():
             label.config(text='')
 
-    def show_info(self, shipto, custName, TR_time, Risk_time, RO_time, full, TR,
+    def show_info(self, shipto, TR_time, Risk_time, RO_time, full, TR,
                   Risk, RO, ts_forecast_usage, galsperinch, uom):
         '''显示客户的充装的详细信息'''
         self.clean_detailed_info()
 
         factor = func.weight_length_factor(uom)
 
-        self.detail_labels['cust_name'].config(text=custName)
         full_cm = int(full / galsperinch / factor)
         self.detail_labels['full_trycock'].config(text=f'{round(full / 1000, 1)} T / {full_cm} {uom}')
         TR_cm = int(TR / galsperinch / factor)
@@ -1169,7 +1168,6 @@ class LBForecastUI:
 
         # 点击作图时,同时显示客户的充装的详细信息
         self.show_info(
-            custName=custName,
             shipto=shipto,
             TR_time=TR_time,
             Risk_time=Risk_time,
