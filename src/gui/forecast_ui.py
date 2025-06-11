@@ -336,10 +336,7 @@ class LBForecastUI:
             self.detail_labels[key] = lb_value
     
     def _set_manipulate_frame(self):
-        self.frame_warning = tk.LabelFrame(self.manipulate_frame, text='警告')
-        self.frame_warning.grid(row=0, column=0, padx=2, pady=2)
 
-        self._set_frame_warning_label()
 
         # 重新排版,建立 frame_detail
         self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='手工调整')
@@ -349,7 +346,7 @@ class LBForecastUI:
 
     def _set_frame_warning_label(self):
         # 添加一个标签作为示例
-        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4近三次平均(h): ")
+        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4 近三次平均 (h) : ")
         self.t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
 
         self.t4_t6_value_label = tk.Label(self.frame_warning, text="")
@@ -616,9 +613,18 @@ class LBForecastUI:
 
         # par_frame column 1, row 0: 建立 frame_detail
         self.par_frame.columnconfigure(1, weight=1)
-        self.frame_detail = tk.LabelFrame(self.par_frame, text='详细信息')
-        self.frame_detail.grid(row=0, column=1, padx=10, pady=2)
+        self.level_frame = tk.LabelFrame(self.par_frame)
+        self.level_frame.grid(row=0, column=1, padx=10, pady=2)
+
+
+        self.frame_warning = tk.LabelFrame(self.level_frame, text='警告')
+        self.frame_warning.grid(row=0, column=0, padx=10, pady=2)
+        self._set_frame_warning_label()
+
+        self.frame_detail = tk.LabelFrame(self.level_frame)
+        self.frame_detail.grid(row=1, column=0, padx=10, pady=2)
         self._set_detail_info_label()
+
 
         # par_frame column 2, row 0: 建立 手工操作区域
         self.par_frame.columnconfigure(2, weight=1)
