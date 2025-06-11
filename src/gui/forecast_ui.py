@@ -338,9 +338,19 @@ class LBForecastUI:
     def _set_manipulate_frame(self):
         # 重新排版,建立 frame_detail
         self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='手工调整')
-        self.frame_manual.grid(row=1, column=0, padx=2, pady=2)
+        self.frame_manual.grid(row=0, column=0, padx=2, pady=2)
         # 输入 起始日期
         self._set_manual_input_label()
+
+        # plot_frame column 0, row 2: 新增按钮区域
+        self.button_order_frame = tk.Frame(self.manipulate_frame)
+        self.button_order_frame.grid(row=1, column=0, pady=5, sticky="ew")
+
+        self.btn_open_order_window = tk.Button(
+            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
+            bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
+        )
+        self.btn_open_order_window.pack(padx=10, pady=5)
 
     def _set_frame_warning_label(self):
         # 添加一个标签作为示例
@@ -469,9 +479,12 @@ class LBForecastUI:
         self.reading_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
         self._set_reading_tree()
 
-        self.delivery_window_tree_frame = tk.LabelFrame(self.historical_readings_frame)
-        self.delivery_window_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        self._set_delivery_window_tree()
+
+        # 下方 Frame：临近客户模块
+        self.frame_near_customer = tk.LabelFrame(self.historical_readings_frame)
+        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_near_customer_label()
 
     def _set_reading_tree(self):
         columns = ["读取时间", "Ton", "CM", "CM/小时"]
@@ -489,19 +502,15 @@ class LBForecastUI:
             self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
         self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
 
-    def _decorate_dtd_cluster_label(self):
-        dtd_cluster_frame = self.dtd_cluster_frame
-        # 上方 Frame：Terminal/Source DTD 模块
-        self.frame_dtd = tk.LabelFrame(dtd_cluster_frame, text="Terminal/Source DTD")
+    def _decorate_portrarit_frame(self):
+        self.frame_production = tk.LabelFrame(self.portrarit_frame)
+        self.frame_production.pack(fill='both', expand=True, padx=5, pady=2)
+
+        # 下方 Frame：Terminal/Source DTD 模块
+        self.frame_dtd = tk.LabelFrame(self.portrarit_frame, text="Terminal/Source DTD")
         self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
         self._set_dtd_label()
-
-        # 下方 Frame：临近客户模块
-        self.frame_near_customer = tk.LabelFrame(dtd_cluster_frame, text="临近客户")
-        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
-
-        self._set_near_customer_label()
 
 
     def _set_dtd_label(self):
@@ -554,15 +563,6 @@ class LBForecastUI:
         self.frame_input.grid(row=1, column=0, padx=2, pady=5)
         self._decorate_input_framework()
 
-        # plot_frame column 0, row 2: 新增按钮区域
-        self.button_order_frame = tk.Frame(self.plot_frame)
-        self.button_order_frame.grid(row=2, column=0, pady=5, sticky="ew")
-
-        self.btn_open_order_window = tk.Button(
-            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
-            bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
-        )
-        self.btn_open_order_window.pack(padx=10, pady=5)
 
         # plot_frame column 1, row 0：作图区域
         self.plot_frame.columnconfigure(1, weight=8)
@@ -606,12 +606,12 @@ class LBForecastUI:
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.par_frame.columnconfigure(2, weight=2)
-        self.dtd_cluster_frame = tk.LabelFrame(self.par_frame)
-        self.dtd_cluster_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
-        self._decorate_dtd_cluster_label()
+        self.portrarit_frame = tk.LabelFrame(self.par_frame)
+        self.portrarit_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
+        self._decorate_portrarit_frame()
 
 
-        # par_frame column 3, row 0: 两个 Treeview 历史液位记录和时间窗
+        # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
         self.par_frame.columnconfigure(3, weight=2)
         self.historical_readings_frame = tk.LabelFrame(self.par_frame)
         self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
@@ -793,8 +793,6 @@ class LBForecastUI:
 
         # 显示历史液位
         self.update_reading_tree_table(shipto_id=str(shipto))
-        # # 显示送货窗口
-        self.update_delivery_window_tree_table(shipto_id=str(shipto))
 
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
