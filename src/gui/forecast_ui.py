@@ -312,16 +312,16 @@ class LBForecastUI:
         pad_y = 0
         label_info = [
             ("客户简称", "cust_name"),
-            ("__ MaxPayload (T)", "max_payload_label"),
-            ("TargetTime", "target_time"),
-            ("RiskTime", "risk_time"),
-            ("RunOutTime", "runout_time"),
-            ("FullTrycock", "full_trycock"),
-            ("TargetRefill", "target_refill"),
-            ("Risk", "risk"),
-            ("Runout", "runout"),
-            ("forecast_hour_range", "forecast_hourly_usage"),
-            ("ForecastError", "forecast_error"),
+            ("__ 最大装载量 (T)", "max_payload_label"),
+            ("目标送货时间", "target_time"),
+            ("最佳充装时间", "risk_time"),
+            ("断气时间", "runout_time"),
+            ("满液位", "full_trycock"),
+            ("目标送货液位", "target_refill"),
+            ("最佳充装液位", "risk"),
+            ("断气液位", "runout"),
+            ("预测小时用量", "forecast_hourly_usage"),
+            ("预测错误率", "forecast_error"),
         ]
 
         for i, (label_text, key) in enumerate(label_info):
@@ -331,7 +331,7 @@ class LBForecastUI:
             lb_value = tk.Label(self.frame_detail, text="")
             lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
 
-            if label_text in ["__ MaxPayload (T)", "forecast_hour_range"]:
+            if label_text in ["__ 最大装载量 (T)", "预测小时用量"]:
                 self.detail_labels[label_text] = lb_label
             self.detail_labels[key] = lb_value
     
@@ -785,7 +785,7 @@ class LBForecastUI:
             e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H")
             hourly_usage = round(ts_forecast_usage[:8].mean().values[0] / 1000, 1)
             hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
-            self.detail_labels['forecast_hour_range'].config(
+            self.detail_labels['预测小时用量'].config(
                 text=f'{s_time}~{e_time}\n 预测小时用量'
             )
             self.detail_labels['forecast_hourly_usage'].config(
@@ -798,7 +798,7 @@ class LBForecastUI:
 
         current_primary_dt, current_max_payload = self.get_primary_dt_and_max_payload(shipto)
         current_max_payload = round(current_max_payload / 1000, 1) if isinstance(current_max_payload, float) else current_max_payload
-        self.detail_labels['__ MaxPayload (T)'].config(text=f'{current_primary_dt} MaxPayload (T)')
+        self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
         self.detail_labels['max_payload_label'].config(text=f'{current_max_payload}')
 
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
