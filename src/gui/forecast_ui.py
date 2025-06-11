@@ -148,9 +148,16 @@ class LBForecastUI:
 
 
     def _set_customer_query(self):
+        # 添加搜索框
+        self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
+        self.entry_name.grid(row=0, column=0)
+
+        self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
+        self.btn_query.grid(row=0, column=1, padx=2)
+
         # 添加控制组件
         self.tab_control = ttk.Notebook(self.cust_frame)
-        self.tab_control.grid(row=0, column=0, columnspan=2, sticky='ew')
+        self.tab_control.grid(row=1, column=0, columnspan=2, sticky='ew')
 
         self.tab_partial = ttk.Frame(self.tab_control)
         self.tab_all = ttk.Frame(self.tab_control)
@@ -159,13 +166,6 @@ class LBForecastUI:
         self.tab_control.add(self.tab_all, text='全量客户')
 
         self.tab_control.bind("<<NotebookTabChanged>>", self.show_list_cust)
-
-        # 添加搜索框
-        self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
-        self.entry_name.grid(row=1, column=0)
-
-        self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
-        self.btn_query.grid(row=1, column=1, padx=2)
 
         # 添加客户列表
         self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame)
