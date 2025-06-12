@@ -1216,10 +1216,10 @@ class LBForecastUI:
 
         # 转换历史数据和预测数据为吨
         if len(df_history) > 0:
-            df_history['Reading_Gals'] = df_history['Reading_Gals'] / 1000
+            df_history['Reading_Gals'] = df_history['Reading_Gals']
         if self.manual_plot:
             df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
-            df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading'] / 1000  # 将公斤转换为吨
+            df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading']
 
         if len(df_history) > 0:
             pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
@@ -1242,9 +1242,9 @@ class LBForecastUI:
         # 绘制历史数据和预测数据
         if len(df_history) > 0:
             self.ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
-            self.forecast_plot_ax.plot(self.ts_history, color='blue', marker='o', markersize=6,
+            self.forecast_plot_ax.plot(self.ts_history  / 1000 , color='blue', marker='o', markersize=6,
                                        linestyle='None', gid='point_history')
-            self.forecast_plot_ax.plot(self.ts_history, color='blue', label='Actual', linestyle='-', gid='line_history')
+            self.forecast_plot_ax.plot(self.ts_history  / 1000, color='blue', label='Actual', linestyle='-', gid='line_history')
 
         self.forecast_plot_ax.plot(self.ts_forecast / 1000, color='green', marker='o', markersize=6, alpha=0.45,
                                    linestyle='None', gid='point_forecast')
@@ -1262,9 +1262,9 @@ class LBForecastUI:
         # 绘制手动预测数据
         if self.manual_plot:
             self.ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-            self.forecast_plot_ax.plot(self.ts_manual, color='purple', marker='o', markersize=6,
+            self.forecast_plot_ax.plot(self.ts_manual/ 1000  , color='purple', marker='o', markersize=6,
                                        linestyle='None', gid='point_manual', alpha=0.6)
-            self.forecast_plot_ax.plot(self.ts_manual, color='purple', label='Manual',
+            self.forecast_plot_ax.plot(self.ts_manual / 1000, color='purple', label='Manual',
                                        linestyle='dashed', alpha=0.6)
 
         # 绘制水平线
