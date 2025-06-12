@@ -513,7 +513,7 @@ class LBForecastUI:
 
     def _set_reading_tree(self):
         columns = ["读取时间", "Ton", "CM", "CM/小时"]
-        col_widths = [80, 20, 20, 20]
+        col_widths = [70, 15, 20, 20]
 
         self.reading_tree_table = ui_structure.SimpleTable(
             self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
@@ -549,7 +549,7 @@ class LBForecastUI:
     
     def _set_production_frame(self):
         columns = ["P&W", "平时", "临时"]
-        col_widths = [70, 80, 30]
+        col_widths = [70, 50, 20]
         data = [
             ["生产计划", "", ""],
             ["收货窗口", "", ""],
@@ -561,7 +561,7 @@ class LBForecastUI:
 
     def _set_comment_frame(self):
         columns = ["内容", "备注"]
-        col_widths = [70, 100]
+        col_widths = [70, 70]
         data = [
             ["最新联络", ""],
             ["特殊备注", ""],
@@ -576,15 +576,15 @@ class LBForecastUI:
 
 
     def _set_dtd_label(self):
-        columns = ["DT", "距离(km)", "时长(h)", "发车时间", "数据源"]
-        col_widths = [15, 20, 15, 50, 25]
+        columns = ["DT", "KM", "时长(h)", "发车时间", "数据源"]
+        col_widths = [15, 15, 15, 40, 20]
 
         self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=3)
         self.dtd_table.frame.pack(fill="both")
 
     def _set_near_customer_label(self):
-        columns = ["临近客户", "距离(km)", "DDER", "数据源"]
-        col_widths = [80, 20, 20, 20]
+        columns = ["临近客户", "KM", "DDER", "数据源"]
+        col_widths = [70, 15, 20, 20]
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,
@@ -754,7 +754,7 @@ class LBForecastUI:
             departure_time = ''
             try:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
-                departure_time = departure_time.strftime('%m/%d %H')
+                departure_time = departure_time.strftime('%m-%d %H')
             except Exception as e:
                 print(e)
             source_info.append(departure_time)
