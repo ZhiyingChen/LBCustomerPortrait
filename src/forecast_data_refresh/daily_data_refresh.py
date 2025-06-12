@@ -636,6 +636,7 @@ class ForecastDataRefresh:
         self.refresh_forecast_data()
         self.refresh_forecast_beforeTrip_data()
         self.refresh_fe()
+        self.refresh_view_demand_data()
 
     def get_filename(
             self,
@@ -838,4 +839,26 @@ class ForecastDataRefresh:
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
         conn.commit()
         df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
+
+    def refresh_view_demand_data(self):
+        '''刷新 view_demand_data'''
+        cur = self.local_cur
+        conn = self.local_conn
+
+        start_time = time.time()
+        filepath = r'\\shangnt\lbshell\PUAPI\PU_program\automation'
+        filename = os.path.join(filepath, 'view_demand.xlsx')
+
+        df_demand = pd.read_excel(filename)
+        df_demand['LocNum'] = df_demand['LocNum'].astype(str)
+        cols = [
+            'LocNum', 'CustAcronym'
+        ]
+        df_demand = df_demand[cols]
+        table_name = 'view_demand_data'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_demand.to_sql(table_name, con=conn, if_exists='replace', index=False)
+        end_time = time.time()
+        print('refresh view_demand_data {} seconds'.format(round(end_time - start_time)))
 

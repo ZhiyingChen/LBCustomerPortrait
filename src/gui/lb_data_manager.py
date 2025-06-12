@@ -294,3 +294,15 @@ class LBDataManager:
         cursor.execute(sql_line)
         results = cursor.fetchall()
         return results
+
+    def get_view_demand_shiptos(self):
+        '''获取 view_demand_data 中的所有 shiptos'''
+        try:
+            cur = self.cur
+            table_name = 'view_demand_data'
+            cur.execute('''SELECT DISTINCT CustAcronym FROM {}'''.format(table_name))
+            shiptos = [str(row[0]) for row in cur.fetchall()]
+        except Exception as e:
+            print(e)
+            shiptos = []
+        return shiptos

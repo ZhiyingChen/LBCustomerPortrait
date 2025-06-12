@@ -61,6 +61,9 @@ class LBForecastUI:
         self.data_manager = LBDataManager()
         self.order_data_manager = LBOrderDataManager()
 
+        # 送货前五后十客户
+        self.view_demand_shiptos = self.data_manager.get_view_demand_shiptos()
+
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
         self.ts_history = None
@@ -241,8 +244,9 @@ class LBForecastUI:
         # print('cust no: ', len(custName_list))
 
         if self.get_tab_mode() == 'partial':
-            # todo: 添加前五天和后十天的逻辑
-            custName_list = custName_list[:5]
+            custName_list = [
+                v for v in custName_list if v in self.view_demand_shiptos
+            ]
         for item in custName_list:
             self.listbox_customer.insert(tk.END, item)
 
@@ -1395,9 +1399,12 @@ class LBForecastUI:
             cur = self.data_manager.cur
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
+            self.view_demand_shiptos = self.data_manager.get_view_demand_shiptos()
             func.log_connection(self.log_file, 'refreshed')
             if show_message:
                 messagebox.showinfo(title='success', message='data to sqlite success!')
         except Exception as e:
             messagebox.showinfo(title='failure', message='failure, please check! {}'.format(e))
+
+
     # endregion
