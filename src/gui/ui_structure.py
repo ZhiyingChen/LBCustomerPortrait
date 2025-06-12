@@ -6,7 +6,7 @@ class SimpleTable:
     def __init__(self, parent, columns, col_widths=None, height=10, col_stretch=None):
         self.root = parent
         self.frame = tk.Frame(parent)
-        self.frame.pack(fill="both", expand=True)  # 关键点1: 父容器填充扩展
+        self.frame.pack(fill="both", expand=True)  # 父容器填充扩展
 
         self.tree = ttk.Treeview(
             self.frame,
@@ -42,7 +42,9 @@ class SimpleTable:
 
         self.tree.bind("<Double-1>", self.on_double_click)
         self.tree.bind("<Control-c>", self.copy_selected_to_clipboard)
+        self.tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
 
+        self.tooltip = None  # 初始化 tooltip
 
     def insert_rows(self, rows):
         """ 插入多行数据，清空旧数据 """
@@ -52,7 +54,6 @@ class SimpleTable:
 
     def clear(self):
         self.tree.delete(*self.tree.get_children())
-
 
     def on_double_click(self, event):
         item_id = self.tree.focus()
@@ -90,11 +91,32 @@ class SimpleTable:
             self.root.clipboard_append(values)
             print("已复制到剪贴板：", values)
 
-
     def select(self):
         selected = self.tree.selection()
         if not selected:
             return
         custName = self.tree.item(selected[0], "values")[0]
         return custName
+
+    def on_motion(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+        item_id = self.tree.identify_row(event.y)
+        col = self.tree.identify_column(event.x)
+        if item_id and col:
+            col_index = int(col.replace("#", "")) - 1
+            values = self.tree.item(item_id, "values")
+            if col_index < len(values):
+                value = values[col_index]
+                if len(value) > 10:  # 如果内容较长，显示 tooltip
+                    self.tooltip = tk.Toplevel(self.tree)
+                    self.tooltip.withdraw()
+                    self.tooltip.overrideredirect(True)
+                    label = tk.Label(self.tooltip, text=value, background="yellow", relief='solid', borderwidth=1)
+                    label.pack()
+                    self.tooltip.geometry(f"+{event.x_root+10}+{event.y_root+10}")
+                    self.tooltip.deiconify()
+
 
