@@ -523,23 +523,60 @@ class LBForecastUI:
             self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
         self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
 
-    def _decorate_portrarit_frame(self):
-        self.frame_production = tk.LabelFrame(self.portrarit_frame)
+    def _decorate_portrait_frame(self):
+        # 上方： 生产计划和收货窗口
+        self.frame_production = tk.LabelFrame(self.portrait_frame)
         self.frame_production.pack(fill='both', expand=True, padx=5, pady=2)
 
+        
+        self._set_production_frame()
+
+        # 中间：最新联络和特殊备注
+        self.frame_comment = tk.LabelFrame(self.portrait_frame)
+        self.frame_comment.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_comment_frame()
+
         # 下方 Frame：Terminal/Source DTD 模块
-        self.frame_dtd = tk.LabelFrame(self.portrarit_frame, text="Terminal/Source DTD")
+        self.frame_dtd = tk.LabelFrame(self.portrait_frame)
         self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
         self._set_dtd_label()
+    
+    def _set_production_frame(self):
+        columns = ["P&W", "平时", "临时"]
+        col_widths = [70, 80, 30]
+        data = [
+            ["生产计划", "", ""],
+            ["收货窗口", "", ""],
+        ]
+        col_stretch = [False, True, True]
+        self.production_table = ui_structure.SimpleTable(self.frame_production, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch)
+        self.production_table.frame.pack(fill="both")
+        self.production_table.insert_rows(data)
+
+    def _set_comment_frame(self):
+        columns = ["内容", "备注"]
+        col_widths = [70, 100]
+        data = [
+            ["最新联络", ""],
+            ["特殊备注", ""],
+        ]
+        col_stretch = [False, True]
+
+        self.contact_table = ui_structure.SimpleTable(
+            self.frame_comment, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch
+        )
+        self.contact_table.frame.pack(fill="both")
+        self.contact_table.insert_rows(data)
 
 
     def _set_dtd_label(self):
         columns = ["DT", "距离(km)", "时长(h)", "发车时间", "数据源"]
-        col_widths = [20, 20, 20, 50, 25]
+        col_widths = [15, 20, 15, 50, 25]
 
-        self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=5)
-        self.dtd_table.frame.pack(fill="both", expand=True)
+        self.dtd_table = ui_structure.SimpleTable(self.frame_dtd, columns=columns, col_widths=col_widths, height=3)
+        self.dtd_table.frame.pack(fill="both")
 
     def _set_near_customer_label(self):
         columns = ["临近客户", "距离(km)", "DDER", "数据源"]
@@ -547,7 +584,7 @@ class LBForecastUI:
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,
-                                                            height=4)
+                                                            height=3)
         self.near_customer_table.frame.pack(fill="both", expand=True)
     
     def _decorate_filter_frame(self):
@@ -628,9 +665,9 @@ class LBForecastUI:
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.par_frame.columnconfigure(2, weight=2)
-        self.portrarit_frame = tk.LabelFrame(self.par_frame)
-        self.portrarit_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
-        self._decorate_portrarit_frame()
+        self.portrait_frame = tk.LabelFrame(self.par_frame)
+        self.portrait_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
+        self._decorate_portrait_frame()
 
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户

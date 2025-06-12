@@ -3,7 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 
 class SimpleTable:
-    def __init__(self, parent, columns, col_widths=None, height=10):
+    def __init__(self, parent, columns, col_widths=None, height=10, col_stretch=None):
         self.root = parent
         self.frame = tk.Frame(parent)
         self.frame.pack(fill="both", expand=True)  # 关键点1: 父容器填充扩展
@@ -17,11 +17,14 @@ class SimpleTable:
             yscrollcommand=lambda f, l: scrollbar_y.set(f, l)
         )
 
+        if col_stretch is None:
+            col_stretch = [True] * len(columns)
+
         # 设置列头
         for i, col in enumerate(columns):
             width = col_widths[i] if col_widths and i < len(col_widths) else 100
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=width, anchor='center')
+            self.tree.column(col, width=width, anchor='center', stretch=col_stretch[i])
 
         # 垂直滚动条
         scrollbar_y = tk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
