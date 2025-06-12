@@ -106,3 +106,59 @@ def get_user_name():
     else:
         home_name = 'unknown person'
     return home_name
+
+def summarize_delivery_times(delivery_times):
+    # Initialize variables
+    summary = []
+    grouped_times = {}
+
+    # Weekday to number mapping for sorting
+    weekday_to_number = {
+        "周一": 1,
+        "周二": 2,
+        "周三": 3,
+        "周四": 4,
+        "周五": 5,
+        "周六": 6,
+        "周日": 7
+    }
+
+    # Group days with identical time windows
+    for day, time_window in delivery_times.items():
+        if time_window == ("00:00", "00:00"):
+            grouped_times.setdefault("不收", []).append(day)
+        else:
+            grouped_times.setdefault(time_window, []).append(day)
+
+    # Function to merge consecutive days
+    def merge_consecutive_days(days):
+        if not days:
+            return ""
+        merged_days = []
+        start_day = days[0]
+        prev_day = days[0]
+        for day in days[1:]:
+            if weekday_to_number[day] == weekday_to_number[prev_day] + 1:
+                prev_day = day
+            else:
+                if start_day == prev_day:
+                    merged_days.append(start_day)
+                else:
+                    merged_days.append(f"{start_day}到{prev_day}")
+                start_day = day
+                prev_day = day
+        if start_day == prev_day:
+            merged_days.append(start_day)
+        else:
+            merged_days.append(f"{start_day}到{prev_day}")
+        return "、".join(merged_days)
+
+    # Format the summary
+    for time_window, days in grouped_times.items():
+        if time_window == "不收":
+            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))}： 不收")
+        else:
+            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))}： {time_window[0]} 到 {time_window[1]}")
+
+    # Combine the summary into a single string
+    return "，".join(summary)
