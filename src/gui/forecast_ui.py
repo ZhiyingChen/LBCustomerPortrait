@@ -165,7 +165,7 @@ class LBForecastUI:
         self.tab_partial = ttk.Frame(self.tab_control)
         self.tab_all = ttk.Frame(self.tab_control)
 
-        self.tab_control.add(self.tab_partial, text='送货前五后十')
+        self.tab_control.add(self.tab_partial, text='送货前五后七')
         self.tab_control.add(self.tab_all, text='全量客户')
 
         self.tab_control.bind("<<NotebookTabChanged>>", self.show_list_cust)
@@ -548,7 +548,7 @@ class LBForecastUI:
         self._set_dtd_label()
     
     def _set_production_frame(self):
-        columns = ["P&W", "平时", "临时"]
+        columns = ["P&W", "平时", "临时被限制"]
         col_widths = [70, 50, 20]
         data = [
             ["生产计划", "", ""],
