@@ -696,6 +696,14 @@ class LBForecastUI:
 
 
     # region 刷新相关函数
+    def update_production_table(self, shipto_id: str):
+        ordinary_delivery_text = self.data_manager.get_ordinary_delivery_window_text(shipto_id)
+        data = [
+            ['生产计划', '', ''],
+            ['收货窗口', ordinary_delivery_text, '']
+        ]
+        self.production_table.insert_rows(data)
+
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
         results = self.data_manager.get_primary_terminal_dtd_info(shipto_id)
 
@@ -853,6 +861,7 @@ class LBForecastUI:
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
         self.t4_t6_value_label.config(text=t4_t6_value)
 
+        self.update_production_table(shipto_id=str(shipto))
         # 显示历史液位
         self.update_reading_tree_table(shipto_id=str(shipto))
 
