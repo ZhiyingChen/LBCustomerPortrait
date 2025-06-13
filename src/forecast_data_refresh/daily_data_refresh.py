@@ -563,9 +563,9 @@ class ForecastDataRefresh:
                 record = {
                     'LocNum': shipto_id,
                     'CustAcronym': dtd_shipto.shipto_name,
-                    'ToLocNum': '无',
-                    'ToCustAcronym': '无',
-                    'distanceKM': '整车卸货',
+                    'ToLocNum': '整车卸货',
+                    'ToCustAcronym': '整车卸货',
+                    'distanceKM': '',
                     'DDER': '',
                     'Rank': 1,
                 }
