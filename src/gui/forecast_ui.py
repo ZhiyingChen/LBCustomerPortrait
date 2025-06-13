@@ -549,12 +549,12 @@ class LBForecastUI:
     
     def _set_production_frame(self):
         columns = ["P&W", "平时", "临时被限制"]
-        col_widths = [70, 50, 20]
+        col_widths = [70, 80, 70]
         data = [
             ["生产计划", "", ""],
             ["收货窗口", "", ""],
         ]
-        col_stretch = [False, True, True]
+        col_stretch = [False, True, False]
         self.production_table = ui_structure.SimpleTable(self.frame_production, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch)
         self.production_table.frame.pack(fill="both")
         self.production_table.insert_rows(data)
