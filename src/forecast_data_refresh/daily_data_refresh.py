@@ -2,6 +2,7 @@ from . import odbc_master
 from .. import domain_object as do
 from ..utils import field as fd
 from ..utils import decorator
+from ..utils import functions as func
 import pyodbc
 import pandas as pd
 import logging
@@ -606,6 +607,120 @@ class ForecastDataRefresh:
         for table_name in table_names:
             self.drop_local_table(table_name)
 
+    def get_delivery_window(self):
+        sql_line = '''
+         SELECT CP.LocNum, CP.DlvryMonFrom, CP.DlvryMonTo, CP.DlvryTueFrom,CP.DlvryTueTo,
+                CP.DlvryWedFrom, CP.DlvryWedTo, CP.DlvryThuFrom, CP.DlvryThuTo,
+                CP.DlvryFriFrom, CP.DlvryFriTo, CP.DlvrySatFrom, CP.DlvrySatTo,
+                CP.DlvrySunFrom, CP.DlvrySunTo
+         FROM CustomerProfile CP 
+         Where CP.PrimaryTerminal like 'x%'
+                AND CP.CustAcronym not like '1%'
+                AND CP.DlvryStatus = 'A'
+        '''
+
+        delivery_window_df = pd.read_sql(sql_line, self.odbc_conn)
+        delivery_window_df['LocNum'] = delivery_window_df['LocNum'].astype(str)
+
+        delivery_window_df[delivery_window_df.columns[1:]] = delivery_window_df.loc[:, delivery_window_df.columns[1:]].applymap(
+            lambda x: pd.to_datetime(x).strftime('%H:%M'))
+
+        def df_to_delivery_times(df):
+            delivery_times = {
+                "周一": (df['DlvryMonFrom'].iloc[0], df['DlvryMonTo'].iloc[0]),
+                "周二": (df['DlvryTueFrom'].iloc[0], df['DlvryTueTo'].iloc[0]),
+                "周三": (df['DlvryWedFrom'].iloc[0], df['DlvryWedTo'].iloc[0]),
+                "周四": (df['DlvryThuFrom'].iloc[0], df['DlvryThuTo'].iloc[0]),
+                "周五": (df['DlvryFriFrom'].iloc[0], df['DlvryFriTo'].iloc[0]),
+                "周六": (df['DlvrySatFrom'].iloc[0], df['DlvrySatTo'].iloc[0]),
+                "周日": (df['DlvrySunFrom'].iloc[0], df['DlvrySunTo'].iloc[0])
+            }
+            return delivery_times
+
+        ordinary_delivery_text_by_shipto = dict()
+        for shipto, delivery_df in delivery_window_df.groupby('LocNum'):
+            delivery_times = df_to_delivery_times(delivery_df)
+            ordinary_delivery_window_text = func.summarize_delivery_times(delivery_times)
+            ordinary_delivery_text_by_shipto[shipto] = ordinary_delivery_window_text
+
+        return ordinary_delivery_text_by_shipto
+
+
+    def get_restricted_delivery_periods(self):
+        sql_line = '''
+            SELECT 
+            RDP.LocNum,
+            CP.CustAcronym,
+            RDP.FromDateTime,
+            RDP.ToDateTime,
+            RDP.Comment
+            FROM RestrictedDeliveryPeriods AS RDP
+            INNER JOIN CustomerProfile CP on RDP.LocNum = CP.LocNum
+            Where CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+            AND RDP.ToDateTime >= GETDATE()
+        '''
+
+        restricted_delivery_periods_df = pd.read_sql(sql_line, self.odbc_conn)
+        restricted_delivery_periods_df['LocNum'] = restricted_delivery_periods_df['LocNum'].astype(str)
+
+        time_cols = ['FromDateTime', 'ToDateTime']
+        restricted_delivery_periods_df[time_cols] = restricted_delivery_periods_df[time_cols].applymap(
+                lambda x: pd.to_datetime(x).strftime('%m-%d')
+        )
+        restricted_delivery_periods_by_shipto = dict()
+        for shipto, delivery_df in restricted_delivery_periods_df.groupby('LocNum'):
+            text_lt = []
+            idx = 1
+            for _, row in delivery_df.iterrows():
+                from_date = row['FromDateTime']
+                to_date = row['ToDateTime']
+                comment = row['Comment']
+                text = '{}. {}-{}'.format(idx,from_date, to_date)
+                if comment:
+                    text += '({})'.format(comment)
+                text_lt.append(text)
+                idx += 1
+
+            restricted_delivery_periods_by_shipto[shipto] = '; '.join(text_lt)
+        return restricted_delivery_periods_by_shipto
+
+    def refresh_delivery_window_and_restricted_delivery_periods(self):
+        ordinary_delivery_text_by_shipto = self.get_delivery_window()
+        restricted_delivery_periods_by_shipto = self.get_restricted_delivery_periods()
+
+        shipto_lt = list(
+            set(ordinary_delivery_text_by_shipto.keys()) | set(restricted_delivery_periods_by_shipto.keys())
+        )
+
+        cols = [
+            'LocNum',
+            'OrdinaryDeliveryWindow',
+            'RestrictedDeliveryPeriods'
+        ]
+        record_lt = []
+        for shipto in shipto_lt:
+            ordinary_delivery_window_text = ordinary_delivery_text_by_shipto.get(shipto, '')
+            restricted_delivery_periods_text = restricted_delivery_periods_by_shipto.get(shipto, '')
+            record = {
+                'LocNum': shipto,
+                'OrdinaryDeliveryWindow': ordinary_delivery_window_text,
+                'RestrictedDeliveryPeriods': restricted_delivery_periods_text
+            }
+            record_lt.append(record)
+        df_delivery_window = pd.DataFrame(record_lt, columns=cols)
+
+        now = datetime.datetime.now()
+        df_delivery_window['refresh_date'] = now
+        table_name = 'DeliveryWindowInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        df_delivery_window.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+        self.local_conn.commit()
+
+
+
     def refresh_lb_daily_data(self):
         """
         这些都是冬亮之前写的，单独抽出来，不改了
@@ -615,6 +730,10 @@ class ForecastDataRefresh:
         odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
         odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
         odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+        '''
+        新增 delivery window 和 restricted delivery periods 相关的
+        '''
+        self.refresh_delivery_window_and_restricted_delivery_periods()
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的
