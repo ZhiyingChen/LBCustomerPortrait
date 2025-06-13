@@ -196,33 +196,17 @@ class LBDataManager:
         return df2
 
 
-    def get_ordinary_delivery_window_text(self, shipto):
-        '''获取普通送货窗口'''
-        try:
-            conn = self.conn
-            sql = '''select * from odbc_DeliveryWindow where LocNum={}'''.format(shipto)
-            delivery_df = pd.read_sql(sql, conn)
+    def get_delivery_window_by_shipto(self, shipto: str):
+        cursor = self.cur
+        table_name = 'DeliveryWindowInfo'
 
-            delivery_df = delivery_df.loc[:, delivery_df.columns[1:]].applymap(lambda x: pd.to_datetime(x).strftime('%H:%M'))
-
-            def df_to_delivery_times(df):
-                delivery_times = {
-                    "周一": (df['DlvryMonFrom'].iloc[0], df['DlvryMonTo'].iloc[0]),
-                    "周二": (df['DlvryTueFrom'].iloc[0], df['DlvryTueTo'].iloc[0]),
-                    "周三": (df['DlvryWedFrom'].iloc[0], df['DlvryWedTo'].iloc[0]),
-                    "周四": (df['DlvryThuFrom'].iloc[0], df['DlvryThuTo'].iloc[0]),
-                    "周五": (df['DlvryFriFrom'].iloc[0], df['DlvryFriTo'].iloc[0]),
-                    "周六": (df['DlvrySatFrom'].iloc[0], df['DlvrySatTo'].iloc[0]),
-                    "周日": (df['DlvrySunFrom'].iloc[0], df['DlvrySunTo'].iloc[0])
-                }
-                return delivery_times
-            delivery_times = df_to_delivery_times(delivery_df)
-            ordinary_delivery_window_text = func.summarize_delivery_times(delivery_times)
-        except Exception as e:
-            print(e)
-            ordinary_delivery_window_text = "unknown"
-
-        return ordinary_delivery_window_text
+        sql_line = '''SELECT OrdinaryDeliveryWindow, RestrictedDeliveryPeriods FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        for (OrdinaryDeliveryWindow, RestrictedDeliveryPeriods) in results:
+            return OrdinaryDeliveryWindow, RestrictedDeliveryPeriods
+        return '', ''
 
     def get_forecast_error(self, shipto):
         '''获取 forecastError'''
