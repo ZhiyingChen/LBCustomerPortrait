@@ -719,6 +719,75 @@ class ForecastDataRefresh:
             table_name, con=self.local_conn, if_exists='replace', index=False)
         self.local_conn.commit()
 
+    def get_call_log(self):
+        sql_line = '''
+        WITH RankedCalls AS (
+            SELECT 
+                CL.CallLogID,
+                CL.LocNum,
+                CL.DateEntered,
+                CL.Comment,
+                ROW_NUMBER() OVER (PARTITION BY CL.LocNum ORDER BY CL.DateEntered DESC) AS rn
+            FROM CustomerCallLog CL
+            INNER JOIN CustomerProfile CP ON CL.LocNum = CP.LocNum
+            WHERE 
+              CP.PrimaryTerminal LIKE 'x%'
+              AND CP.CustAcronym NOT LIKE '1%'
+              AND CP.DlvryStatus = 'A'
+        )
+        SELECT 
+            CallLogID,
+            LocNum,
+            DateEntered,
+            Comment
+        FROM RankedCalls
+        WHERE rn <= 2
+        '''
+        call_log_df = pd.read_sql(sql_line, self.odbc_conn)
+        call_log_df['LocNum'] = call_log_df['LocNum'].astype(str)
+        call_log_df['DateEntered'] = pd.to_datetime(call_log_df['DateEntered'])
+        call_log_df = call_log_df.sort_values(by=['LocNum', 'DateEntered'], ascending=False).reset_index(drop=True)
+
+        call_log_dict = dict()
+
+        for shipto, df_shipto in call_log_df.groupby('LocNum'):
+            idx = 1
+            text_lt = []
+            for _, row in df_shipto.iterrows():
+
+                text = '{}. {}'.format(idx, row['Comment'])
+                text_lt.append(text)
+                idx += 1
+            call_log_dict[shipto] = '; '.join(text_lt)
+        return call_log_dict
+
+
+    def refresh_call_log(self):
+        '''
+        更新最新联络
+        '''
+        call_log_dict = self.get_call_log()
+
+        cols = [
+            'LocNum',
+            'CallLog'
+        ]
+        record_lt = []
+
+        for shipto, call_log_text in call_log_dict.items():
+            record = {
+                'LocNum': shipto,
+                'CallLog': call_log_text
+            }
+            record_lt.append(record)
+        df_call_log = pd.DataFrame(record_lt, columns=cols)
+        now = datetime.datetime.now()
+        df_call_log['refresh_date'] = now
+        table_name = 'CallLogInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        df_call_log.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+        self.local_conn.commit()
 
 
     def refresh_lb_daily_data(self):
@@ -731,9 +800,10 @@ class ForecastDataRefresh:
         odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
         odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
         '''
-        新增 delivery window 和 restricted delivery periods 相关的
+        新增 生产计划，delivery window，最新联络，特殊备注 相关的
         '''
         self.refresh_delivery_window_and_restricted_delivery_periods()
+        self.refresh_call_log()
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的

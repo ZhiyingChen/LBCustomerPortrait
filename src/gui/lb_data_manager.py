@@ -208,6 +208,20 @@ class LBDataManager:
             return OrdinaryDeliveryWindow, RestrictedDeliveryPeriods
         return '', ''
 
+    def get_call_log_by_shipto(self, shipto: str):
+        '''获取 call_log'''
+        table_name = 'CallLogInfo'
+
+        sql_line = '''SELECT LocNum, CallLog FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor = self.cur
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        for loc_num, call_log in results:
+            return call_log
+        return ''
+
+
     def get_forecast_error(self, shipto):
         '''获取 forecastError'''
         conn = self.conn
