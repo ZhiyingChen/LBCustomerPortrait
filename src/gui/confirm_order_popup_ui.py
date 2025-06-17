@@ -15,9 +15,10 @@ class ConfirmOrderPopupUI:
             root,
             order_data_manager: LBOrderDataManager,
             df_info: pd.DataFrame,
-            show_time,
-            loadAMT,
-            order_popup_ui: OrderPopupUI
+            order_popup_ui: OrderPopupUI,
+            show_time = datetime.now(),
+            loadAMT = 0,
+
     ):
         super().__init__()
         self.closed = False

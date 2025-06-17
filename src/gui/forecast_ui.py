@@ -1049,9 +1049,21 @@ class LBForecastUI:
                         loadAMT=loadAMT,
                         order_popup_ui=self.order_popup_ui
                     )
+                    return
 
-
-
+        confirm_create_empty_order = messagebox.askyesno(
+            title='确认订单',
+            message='是否确认在无液位辅助的情况下创建订单？'
+        )
+        if confirm_create_empty_order:
+            # 弹出消息框
+            self.confirm_order_popup = ConfirmOrderPopupUI(
+                root=self.root,
+                order_data_manager=self.order_data_manager,
+                df_info=self.df_info,
+                order_popup_ui=self.order_popup_ui
+            )
+            return
 
     def update_annot(self, pos, text):
         '''更新注释'''
