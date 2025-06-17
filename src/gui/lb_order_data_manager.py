@@ -15,31 +15,14 @@ class LBOrderDataManager:
         self.conn = func.connect_sqlite('./OrderTrip.sqlite')
         self.cur = self.conn.cursor()
 
-        self.order_only_dict: Dict[str, do.Order] = dict()
         self.forecast_order_dict: Dict[str, do.Order] = dict()
 
         self._initialize()
 
     # region 初始化数据区域
     def _initialize(self):
-        self.create_order_only_list_table()
-        self.generate_order_only_dict()
         self.check_forecast_order_table()
         self.generate_forecast_order_dict()
-
-    def create_order_only_list_table(self):
-        '''
-        从中台读取订单数据，创建订单列表表
-        '''
-        pass
-
-
-
-    def generate_order_only_dict(self):
-        '''
-        从数据库中读取订单数据，生成订单字典
-        '''
-        pass
 
     def create_new_fo_list(self):
         oh = fd.OrderListHeader
@@ -59,7 +42,8 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL, -- po_number
                     {} TEXT NOT NULL, -- in_trip_draft
                     {} TEXT NOT NULL, -- so_number
-                    {} TEXT NOT NULL -- apex_id
+                    {} TEXT NOT NULL, -- apex_id
+                    {} TEXT NOT NULL -- timestamp
                 );
             """.format(
                 fd.FO_LIST_TABLE,
@@ -74,7 +58,8 @@ class LBOrderDataManager:
                 oh.po_number,
                 oh.in_trip_draft,
                 oh.so_number,
-                oh.apex_id
+                oh.apex_id,
+                oh.timestamp
             )
         )
         self.conn.commit()
@@ -201,7 +186,8 @@ class LBOrderDataManager:
                        ?, -- po_number
                        ?, -- in_trip_draft
                        ?, -- so_number
-                       ? -- apex_id
+                       ?, -- apex_id
+                       ? -- timestamp
                    )
                '''.format(fd.FO_LIST_TABLE)
         self.cur.execute(
@@ -218,7 +204,8 @@ class LBOrderDataManager:
                 order.po_number,
                 order.is_in_trip_draft,
                 order.so_number,
-                func.get_user_name()
+                func.get_user_name(),
+                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
             )
         )
 
@@ -233,7 +220,8 @@ class LBOrderDataManager:
                    {} = ?, -- to_time
                    {} = ?, -- drop_kg
                    {} = ?, -- comment
-                   {} = ? -- in_trip_draft
+                   {} = ?, -- in_trip_draft
+                   {} = ? -- timestamp
                    WHERE {} = ?
                 '''.format(
             fd.FO_LIST_TABLE,
@@ -242,6 +230,7 @@ class LBOrderDataManager:
                     oh.drop_kg,
                     oh.comment,
                     oh.in_trip_draft,
+                    oh.timestamp,
                     oh.order_id
         )
         self.cur.execute(
@@ -252,6 +241,7 @@ class LBOrderDataManager:
                 order.drop_kg,
                 order.comments,
                 order.is_in_trip_draft,
+                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
                 order.order_id
             )
         )
