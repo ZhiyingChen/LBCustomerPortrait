@@ -1,15 +1,10 @@
 from src.utils.Email_forecast import send_email
-from matplotlib.lines import Line2D
-from src.forecast_data_refresh.odbc_master import check_refresh_deliveryWindow
-from src.utils import decorator
 from datetime import datetime
 from datetime import timedelta
 import matplotlib.pylab as pylab
 import tkinter as tk
-from tkinter import ttk
 import pandas as pd
 import numpy as np
-import sqlite3
 import os
 from matplotlib.backends.backend_tkagg import (
     FigureCanvasTkAgg, NavigationToolbar2Tk)
@@ -17,7 +12,6 @@ from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 from matplotlib.dates import DayLocator
 from tkinter import messagebox
-import logging
 import matplotlib
 import time
 import threading
@@ -84,32 +78,14 @@ class LBForecastUI:
         # 输入 起始日期
         framename = self.frame_input
 
-        self.lb_fromtime = tk.Label(framename, text='开始时间')
-        self.lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
-        self.from_box = tk.Entry(framename)
-        # 初始化 起始日期
-        start_day = (datetime.now().date() - timedelta(days=2)).strftime("%Y-%m-%d")
-        self.from_box.insert(0, start_day)
-        self.from_box.grid(row=0, column=1, padx=10, pady=5)
-        # 输入 结束日期
-        self.lb_totime = tk.Label(framename, text='结束时间')
-        self.lb_totime.grid(row=1, column=0, padx=10, pady=5)
-        self.to_box = tk.Entry(framename)
-        # 初始化 结束日期
-        end_day = (datetime.now().date() + timedelta(days=3)).strftime("%Y-%m-%d")
 
-        self.to_box.insert(0, end_day)
-        self.to_box.grid(row=1, column=1, padx=10, pady=5)
 
         # 设置刷新按钮
         self.btn_refresh = tk.Button(framename, text='刷新液位数据',
                                 command=self.refresh_data)
         self.btn_refresh.grid(row=2, column=0, padx=10, pady=10)
         
-        # 设置是否需要 从DOL API 下载数据
-        self.var_telemetry_flag = tk.IntVar()
-        self.check_telemetry_flag = tk.Checkbutton(framename, text='远控 最新', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
-        self.check_telemetry_flag.grid(row=2, column=1, padx=1, pady=10)
+
 
 
     def _set_subregion_boxlist(self):
@@ -625,10 +601,11 @@ class LBForecastUI:
 
         # plot_frame column 1, row 0：作图区域
         self.plot_frame.columnconfigure(1, weight=8)
+
         self.pic_frame = tk.LabelFrame(self.plot_frame)
         self.pic_frame.grid(row=0, column=1, rowspan=3, sticky=tk.E + tk.W + tk.N + tk.S)
         self.pic_frame.rowconfigure(0, weight=1)
-        self.pic_frame.columnconfigure(0, weight=1)
+        self.pic_frame.columnconfigure(0, weight=2)
         self._set_pic_frame()
 
         self.annot = None
@@ -945,6 +922,32 @@ class LBForecastUI:
     def _set_pic_frame(self):
         '''获取作图框架'''
         framename = self.pic_frame
+
+        button_frame = tk.Frame(framename)
+        button_frame.pack(side=tk.TOP, fill=tk.X)
+
+        self.lb_fromtime = tk.Label(button_frame, text='开始时间')
+        self.lb_fromtime.grid(row=0, column=0, padx=10, pady=5)
+        self.from_box = tk.Entry(button_frame)
+        # 初始化 起始日期
+        start_day = (datetime.now().date() - timedelta(days=2)).strftime("%Y-%m-%d")
+        self.from_box.insert(0, start_day)
+        self.from_box.grid(row=0, column=1, padx=10, pady=5)
+        # 输入 结束日期
+        self.lb_totime = tk.Label(button_frame, text='结束时间')
+        self.lb_totime.grid(row=0, column=2, padx=10, pady=5)
+        self.to_box = tk.Entry(button_frame)
+        # 初始化 结束日期
+        end_day = (datetime.now().date() + timedelta(days=3)).strftime("%Y-%m-%d")
+
+        self.to_box.insert(0, end_day)
+        self.to_box.grid(row=0, column=3, padx=10, pady=5)
+
+        # 设置是否需要 从DOL API 下载数据
+        self.var_telemetry_flag = tk.IntVar()
+        self.check_telemetry_flag = tk.Checkbutton(button_frame, text='远控 最新', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
+        self.check_telemetry_flag.grid(row=0, column=4, padx=1, pady=10)
+
         self.pic_figure = Figure(figsize=(5, 4), dpi=80)
         gs = self.pic_figure.add_gridspec(1, 2, width_ratios=(6, 1),
                               left=0.08, right=0.96, bottom=0.1, top=0.9,
