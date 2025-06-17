@@ -1050,4 +1050,3 @@ class ForecastDataRefresh:
         df_demand.to_sql(table_name, con=conn, if_exists='replace', index=False)
         end_time = time.time()
         print('refresh view_demand_data {} seconds'.format(round(end_time - start_time)))
-

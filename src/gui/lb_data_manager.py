@@ -331,3 +331,18 @@ class LBDataManager:
             print(e)
             shiptos = []
         return shiptos
+
+    def get_last_refresh_time(self):
+        table = 'historyReading'
+        cur = self.cur
+
+        sql_line = '''SELECT MAX(ReadingDate) FROM {}'''.format(table)
+        cur.execute(sql_line)
+        try:
+            last_refresh_time = cur.fetchone()[0]
+            last_refresh_time = pd.to_datetime(last_refresh_time)
+            last_refresh_time = last_refresh_time.strftime('%m-%d %H:%M')
+        except Exception as e:
+            print(e)
+            last_refresh_time = ''
+        return last_refresh_time

@@ -74,64 +74,51 @@ class LBForecastUI:
         # setup ui
         self._setup_ui()
 
-    def _decorate_input_framework(self):
-        # 输入 起始日期
-        framename = self.frame_input
-
-
-
-        # 设置刷新按钮
-        self.btn_refresh = tk.Button(framename, text='刷新液位数据',
-                                command=self.refresh_data)
-        self.btn_refresh.grid(row=2, column=0, padx=10, pady=10)
-        
-
-
 
     def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
 
-        self.listbox_subregion = tk.Listbox(self.f_frame, height=5, width=10, exportselection=False)
+        self.listbox_subregion = tk.Listbox(self.filter_frame, height=5, width=12, exportselection=False)
         subregion_list = self.df_name_forecast.SubRegion.unique()
         for item in sorted(subregion_list):
             self.listbox_subregion.insert(tk.END, item)
-        self.listbox_subregion.grid(row=0, column=0, padx=1, pady=1)
+        self.listbox_subregion.grid(row=0, column=0, padx=2, pady=1)
 
 
     def _set_terminal_boxlist(self):
         '''terminal boxlist'''
-        self.terminal_frame = tk.LabelFrame(self.f_frame)
+        self.terminal_frame = tk.LabelFrame(self.filter_frame)
         # scrollbar
         scroll_y = tk.Scrollbar(self.terminal_frame, orient=tk.VERTICAL)
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_terminal = tk.Listbox(
-            self.terminal_frame, selectmode="extended", height=6, width=12, yscrollcommand=scroll_y.set, exportselection=False)
+            self.terminal_frame, selectmode="extended", height=5, width=12, yscrollcommand=scroll_y.set, exportselection=False)
         scroll_y.config(command=self.listbox_terminal.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        self.terminal_frame.grid(row=0, column=1, padx=1, pady=1)
+        self.terminal_frame.grid(row=0, column=1, padx=2, pady=1)
         self.listbox_terminal.pack()
 
 
     def _set_products_boxlist(self):
         '''products boxlist'''
-        self.listbox_products = tk.Listbox(self.f_frame, selectmode="extended",
-                                      height=4, width=10, exportselection=False)
-        self.listbox_products.grid(row=1, column=0, padx=1, pady=1)
+        self.listbox_products = tk.Listbox(self.filter_frame, selectmode="extended",
+                                      height=4, width=12, exportselection=False)
+        self.listbox_products.grid(row=1, column=0, padx=2, pady=1)
 
 
     def _set_demand_type_boxlist(self):
-        self.listbox_demand_type = tk.Listbox(self.f_frame, selectmode="extended",
-                                        height=4, width=10, exportselection=False)
-        self.listbox_demand_type.grid(row=1, column=1, padx=1, pady=1)
+        self.listbox_demand_type = tk.Listbox(self.filter_frame, selectmode="extended",
+                                        height=4, width=12, exportselection=False)
+        self.listbox_demand_type.grid(row=1, column=1, padx=2, pady=1)
 
     def _set_delivery_type_boxlist(self):
-        self.listbox_delivery_type = tk.Listbox(self.f_frame, selectmode="extended",
-                                        height=4, width=10, exportselection=False)
+        self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode="extended",
+                                        height=4, width=24, exportselection=False)
         delivery_type_lt = ['已安排行程', '送货前五后十', '全量客户']
         for item in delivery_type_lt:
             self.listbox_delivery_type.insert(tk.END, item)
-        self.listbox_delivery_type.grid(row=0, column=2, padx=1, pady=1)
+        self.listbox_delivery_type.grid(row=2, columnspan=2, padx=2, pady=1)
 
     def _set_customer_query(self):
         # 添加搜索框
@@ -561,8 +548,28 @@ class LBForecastUI:
                                                             col_widths=col_widths,
                                                             height=3)
         self.near_customer_table.frame.pack(fill="both", expand=True)
-    
+
+    def _set_refresh_frame(self):
+        refresh_time_text = self.data_manager.get_last_refresh_time()
+        self.refresh_time_label = tk.Label(
+            self.refresh_frame, text='数据刷新时间：{}'.format(refresh_time_text), anchor='w',
+            fg='#009A49', font=("Arial", 11)
+        )
+        self.refresh_time_label.pack(side=tk.TOP, padx=2, pady=2, expand=True)
+
+        self.btn_refresh = tk.Button(self.refresh_frame, text='刷新液位数据',
+                                     command=self.refresh_data)
+        self.btn_refresh.pack(side=tk.BOTTOM, padx=2, pady=2, expand=True)
+
     def _decorate_filter_frame(self):
+        # 设置刷新按钮
+        # 创建一个单独的Frame来放置刷新按钮
+        self.refresh_frame = tk.Frame(self.f_frame)
+        self.refresh_frame.grid(row=0, column=0, padx=2, pady=1, sticky="ew")
+        self._set_refresh_frame()
+        # 设置筛选区域
+        self.filter_frame = tk.LabelFrame(self.f_frame, text='筛选')
+        self.filter_frame.grid(row=1, column=0, padx=2, pady=1, sticky="ew")
         self._set_subregion_boxlist()
         self._set_terminal_boxlist()
         self._set_products_boxlist()
@@ -587,17 +594,13 @@ class LBForecastUI:
         )
 
     def _decorate_plot_frame(self):
+
+
         # plot_frame column 0, row 0: 筛选区域
         self.plot_frame.columnconfigure(0, weight=1)
-        self.f_frame = tk.LabelFrame(self.plot_frame, text='筛选')
-        self.f_frame.grid(row=0, column=0, padx=2, pady=1)
+        self.f_frame = tk.LabelFrame(self.plot_frame)
+        self.f_frame.grid(row=0, column=0, padx=2, pady=1, sticky="nsew")
         self._decorate_filter_frame()
-
-        # plot_frame column 0, row 1: 重新排版,建立 frame_input
-        self.frame_input = tk.LabelFrame(self.plot_frame)
-        self.frame_input.grid(row=1, column=0, padx=2, pady=5)
-        self._decorate_input_framework()
-
 
         # plot_frame column 1, row 0：作图区域
         self.plot_frame.columnconfigure(1, weight=8)
@@ -1401,6 +1404,10 @@ class LBForecastUI:
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
             self.view_demand_shiptos = self.data_manager.get_view_demand_shiptos()
+
+            refresh_time_text = self.data_manager.get_last_refresh_time()
+            self.refresh_time_label.config(text='数据刷新时间: {}'.format(refresh_time_text))
+
             func.log_connection(self.log_file, 'refreshed')
             if show_message:
                 messagebox.showinfo(title='success', message='data to sqlite success!')
