@@ -149,6 +149,13 @@ class LBForecastUI:
                                         height=4, width=10, exportselection=False)
         self.listbox_demand_type.grid(row=1, column=1, padx=1, pady=1)
 
+    def _set_delivery_type_boxlist(self):
+        self.listbox_delivery_type = tk.Listbox(self.f_frame, selectmode="extended",
+                                        height=4, width=10, exportselection=False)
+        delivery_type_lt = ['已安排行程', '送货前五后十', '全量客户']
+        for item in delivery_type_lt:
+            self.listbox_delivery_type.insert(tk.END, item)
+        self.listbox_delivery_type.grid(row=0, column=2, padx=1, pady=1)
 
     def _set_customer_query(self):
         # 添加搜索框
@@ -157,18 +164,6 @@ class LBForecastUI:
 
         self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
         self.btn_query.grid(row=0, column=1, padx=2)
-
-        # 添加控制组件
-        self.tab_control = ttk.Notebook(self.cust_frame)
-        self.tab_control.grid(row=1, column=0, columnspan=2, sticky='ew')
-
-        self.tab_partial = ttk.Frame(self.tab_control)
-        self.tab_all = ttk.Frame(self.tab_control)
-
-        self.tab_control.add(self.tab_partial, text='送货前五后七')
-        self.tab_control.add(self.tab_all, text='全量客户')
-
-        self.tab_control.bind("<<NotebookTabChanged>>", self.show_list_cust)
 
         # 添加客户列表
         self.cust_name_selection_frame = tk.LabelFrame(self.cust_frame)
@@ -217,6 +212,10 @@ class LBForecastUI:
         else:
             cur_no = self.listbox_demand_type.curselection()
             cur_FO = [self.listbox_demand_type.get(i) for i in cur_no]
+        if self.listbox_delivery_type.curselection() is None or len(self.listbox_delivery_type.curselection()) == 0:
+            delivery_type = None
+        else:
+            delivery_type = self.listbox_delivery_type.get(self.listbox_delivery_type.curselection()[0])
         # get filter subregion
         if SubRegion is None or len(SubRegion) == 0:
             all_SubRegion = list(df_name_forecast.SubRegion.unique())
@@ -240,20 +239,16 @@ class LBForecastUI:
         else:
             f_FO = df_name_forecast.DemandType.isin(cur_FO)
         # get selected customers
-        custName_list = sorted(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
+        custName_list = list(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
         # print('cust no: ', len(custName_list))
 
-        if self.get_tab_mode() == 'partial':
+        if delivery_type == enums.DeliveryType.these_days:
             custName_list = [
                 v for v in custName_list if v in self.view_demand_shiptos
             ]
         for item in custName_list:
             self.listbox_customer.insert(tk.END, item)
 
-    def get_tab_mode(self):
-        current_tab_index = self.tab_control.index(self.tab_control.select())
-        mode = 'partial' if current_tab_index == 0 else 'all'
-        return mode
 
     def show_list_terminal_product_FO(self, event):
         '''当点击 subregion 的时候显示 products & terminal & FO'''
@@ -596,11 +591,13 @@ class LBForecastUI:
         self._set_terminal_boxlist()
         self._set_products_boxlist()
         self._set_demand_type_boxlist()
+        self._set_delivery_type_boxlist()
 
         self.listbox_subregion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
         self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
         self.listbox_products.bind("<<ListboxSelect>>", self.show_list_cust)
         self.listbox_demand_type.bind("<<ListboxSelect>>", self.show_list_cust)
+        self.listbox_delivery_type.bind("<<ListboxSelect>>", self.show_list_cust)
 
     def _open_order_window(self):
         if self.order_popup_ui is not None and not self.order_popup_ui.closed:
@@ -1070,35 +1067,6 @@ class LBForecastUI:
             # 更新注释的位置和文本
             self.annot.xy = pos
             self.annot.set_text(text)
-
-    def hover_disappear(self, event):
-        '''取消悬浮'''
-
-        if mutex.acquire(2):
-            if self.annot is None:
-                mutex.release()
-                return
-            vis = self.annot.get_visible()
-            if vis:
-                for curve in self.forecast_plot_ax.get_lines():
-                    if curve.contains(event)[0]:
-                        graph_id = curve.get_gid()
-                        print('vis test:', vis, id(self.annot), graph_id)
-                        hover_curves = ['point_history', 'line_history', 'point_forecast',
-                                        'line_forecast', 'point_forecastBeforeTrip',
-                                        'line_forecastBeforeTrip', 'line_join']
-                        if graph_id not in hover_curves:
-                            time.sleep(2)
-                            self.annot.set_visible(False)
-                            self.canvas.draw_idle()
-                            mutex.release()
-                            return
-                    else:
-                        time.sleep(2)
-                        self.annot.set_visible(False)
-                        self.canvas.draw_idle()
-                        print('no touch:', self.annot.get_visible(), id(self.annot))
-            mutex.release()
 
     def check_cust_name_valid(self, cust_name):
         if cust_name not in self.df_name_forecast.index:
