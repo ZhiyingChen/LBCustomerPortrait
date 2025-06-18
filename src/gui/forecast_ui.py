@@ -122,7 +122,7 @@ class LBForecastUI:
         self.listbox_demand_type.grid(row=1, column=1, padx=2, pady=1)
 
     def _set_delivery_type_boxlist(self):
-        self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode="extended",
+        self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode=tk.SINGLE,
                                         height=4, width=24, exportselection=False)
         delivery_type_lt = ['已安排行程', '送货前五后十', '全量客户']
         for item in delivery_type_lt:
@@ -151,7 +151,8 @@ class LBForecastUI:
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_customer = tk.Listbox(
-            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False)
+            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False
+            , selectmode=tk.SINGLE)
         scroll_y.config(command=self.listbox_customer.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -232,12 +233,12 @@ class LBForecastUI:
                 if i in self.delivery_shipto_dict
             ]
 
-        now = datetime.now()
+        ten_days_later = pd.Timestamp.now() + timedelta(days=10)
 
         trip_start_by_cust = {
             i: (self.delivery_shipto_dict[i].nearest_trip.trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
             if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
-            (now, '')
+            (ten_days_later, '')
             for i in custName_list
         }
 
