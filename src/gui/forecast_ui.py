@@ -527,18 +527,25 @@ class LBForecastUI:
         self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
 
     def _decorate_portrait_frame(self):
-        # 上方： 生产计划和收货窗口
+        # 上方：特殊备注
+        self.frame_comment = tk.LabelFrame(self.portrait_frame)
+        self.frame_comment.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_comment_frame()
+
+        # 第二行 最新联络
+        self.frame_contact = tk.LabelFrame(self.portrait_frame)
+        self.frame_contact.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_contact_frame()
+
+        # 中间： 生产计划和收货窗口
         self.frame_production = tk.LabelFrame(self.portrait_frame)
         self.frame_production.pack(fill='both', expand=True, padx=5, pady=2)
 
         
         self._set_production_frame()
 
-        # 中间：最新联络和特殊备注
-        self.frame_comment = tk.LabelFrame(self.portrait_frame)
-        self.frame_comment.pack(fill='both', expand=True, padx=5, pady=2)
-
-        self._set_comment_frame()
 
         # 下方 Frame：Terminal/Source DTD 模块
         self.frame_dtd = tk.LabelFrame(self.portrait_frame)
@@ -559,20 +566,34 @@ class LBForecastUI:
         self.production_table.insert_rows(data)
 
     def _set_comment_frame(self):
-        columns = ["内容", "备注"]
-        col_widths = [70, 70]
+        columns = ["内容"]
+        col_widths = [70, 100]
         data = [
-            ["最新联络", ""],
             ["特殊备注", ""],
         ]
         col_stretch = [False, True]
 
-        self.contact_table = ui_structure.SimpleTable(
-            self.frame_comment, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch
+        self.comment_table = ui_structure.NoHeaderTable(
+            self.frame_comment, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch,
+            show_header=False
+        )
+        self.comment_table.frame.pack(fill="both")
+        self.comment_table.insert_rows(data)
+
+    def _set_contact_frame(self):
+        columns = ["内容"]
+        col_widths = [70, 100]
+        data = [
+            ["最新联络", ""],
+        ]
+        col_stretch = [False, True]
+
+        self.contact_table = ui_structure.NoHeaderTable(
+            self.frame_contact, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch,
+            show_header=False
         )
         self.contact_table.frame.pack(fill="both")
         self.contact_table.insert_rows(data)
-
 
     def _set_dtd_label(self):
         columns = ["DT", "KM", "时长(h)", "发车时间", "数据源"]
@@ -725,11 +746,10 @@ class LBForecastUI:
         ]
         self.production_table.insert_rows(data)
 
-    def update_comment_table(self, shipto_id: str):
+    def update_contact_table(self, shipto_id: str):
         call_log_text = self.data_manager.get_call_log_by_shipto(shipto_id)
         data = [
             ["最新联络", call_log_text],
-            ["特殊备注", ""],
         ]
         self.contact_table.insert_rows(data)
 
@@ -893,7 +913,7 @@ class LBForecastUI:
         self.t4_t6_value_label.config(text=t4_t6_value)
 
         self.update_production_table(shipto_id=str(shipto))
-        self.update_comment_table(shipto_id=str(shipto))
+        self.update_contact_table(shipto_id=str(shipto))
         # 显示历史液位
         self.update_reading_tree_table(shipto_id=str(shipto))
 
