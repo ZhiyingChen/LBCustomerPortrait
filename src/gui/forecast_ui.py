@@ -555,12 +555,12 @@ class LBForecastUI:
     
     def _set_production_frame(self):
         columns = ["P&W", "平时", "临时被限制"]
-        col_widths = [70, 80, 70]
+        col_widths = [70, 80, 30]
         data = [
             ["生产计划", "", ""],
             ["收货窗口", "", ""],
         ]
-        col_stretch = [False, True, False]
+        col_stretch = [False, True, True]
         self.production_table = ui_structure.SimpleTable(self.frame_production, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch)
         self.production_table.frame.pack(fill="both")
         self.production_table.insert_rows(data)
@@ -711,15 +711,17 @@ class LBForecastUI:
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.par_frame.columnconfigure(2, weight=2)
-        self.portrait_frame = tk.LabelFrame(self.par_frame)
-        self.portrait_frame.grid(row=0, column=2, rowspan=3, padx=2, pady=2, sticky="nsew")
+        self.portrait_frame = tk.Frame(self.par_frame, width=200)
+        self.portrait_frame.grid(row=0, column=2, padx=10, pady=2, sticky="nsew")
+        self.portrait_frame.pack_propagate(False)
         self._decorate_portrait_frame()
 
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
         self.par_frame.columnconfigure(3, weight=2)
-        self.historical_readings_frame = tk.LabelFrame(self.par_frame)
-        self.historical_readings_frame.grid(row=0, column=3, padx=2, pady=1, sticky="nsew")
+        self.historical_readings_frame = tk.Frame(self.par_frame, width=150)
+        self.historical_readings_frame.grid(row=0, column=3, padx=10, pady=2, sticky="nsew")
+        self.historical_readings_frame.pack_propagate(False)
         self._decorate_historical_readings_frame()
 
 
