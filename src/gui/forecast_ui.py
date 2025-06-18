@@ -361,7 +361,7 @@ class LBForecastUI:
     
     def _set_manipulate_frame(self):
         # 重新排版,建立 frame_detail
-        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='手工调整')
+        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='用量计算器')
         self.frame_manual.grid(row=0, column=0, padx=2, pady=2)
         # 输入 起始日期
         self._set_manual_input_label()
@@ -398,12 +398,12 @@ class LBForecastUI:
         lb_ton.grid(row=1, column=0, padx=1, pady=pad_y)
         self.box_ton = tk.Entry(self.frame_manual, width=10)
         self.box_ton.grid(row=1, column=1, padx=1, pady=pad_y)
-        btn_calculate = tk.Button(self.frame_manual, text='手工计算', width=15,
+        btn_calculate = tk.Button(self.frame_manual, text='手工计算', width=10,
                                   command=self.calculate_by_manual)
-        btn_calculate.grid(row=2, column=0, pady=3, columnspan=2)
-        btn_reset = tk.Button(self.frame_manual, text='重置', width=15,
+        btn_calculate.grid(row=2, column=0, pady=3)
+        btn_reset = tk.Button(self.frame_manual, text='重置', width=5,
                               command=self.reset_manual)
-        btn_reset.grid(row=3, column=0, pady=3, columnspan=2)
+        btn_reset.grid(row=2, column=1, pady=3)
 
 
 
