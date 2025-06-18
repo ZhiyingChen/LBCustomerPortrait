@@ -87,7 +87,7 @@ class LBForecastUI:
     def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
 
-        self.listbox_subregion = tk.Listbox(self.filter_frame, height=5, width=12, exportselection=False)
+        self.listbox_subregion = tk.Listbox(self.filter_frame, height=3, width=12, exportselection=False)
         subregion_list = self.df_name_forecast.SubRegion.unique()
         for item in sorted(subregion_list):
             self.listbox_subregion.insert(tk.END, item)
@@ -102,10 +102,10 @@ class LBForecastUI:
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_terminal = tk.Listbox(
-            self.terminal_frame, selectmode="extended", height=5, width=12, yscrollcommand=scroll_y.set, exportselection=False)
+            self.terminal_frame, selectmode="extended", height=7, width=12, yscrollcommand=scroll_y.set, exportselection=False)
         scroll_y.config(command=self.listbox_terminal.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        self.terminal_frame.grid(row=0, column=1, padx=2, pady=1)
+        self.terminal_frame.grid(rowspan=2, row=0,column=2, padx=2, pady=1)
         self.listbox_terminal.pack()
 
 
@@ -113,21 +113,21 @@ class LBForecastUI:
         '''products boxlist'''
         self.listbox_products = tk.Listbox(self.filter_frame, selectmode="extended",
                                       height=4, width=12, exportselection=False)
-        self.listbox_products.grid(row=1, column=0, padx=2, pady=1)
+        self.listbox_products.grid(row=1, column=1, padx=2, pady=1)
 
 
     def _set_demand_type_boxlist(self):
         self.listbox_demand_type = tk.Listbox(self.filter_frame, selectmode="extended",
-                                        height=4, width=12, exportselection=False)
-        self.listbox_demand_type.grid(row=1, column=1, padx=2, pady=1)
+                                        height=2, width=12, exportselection=False)
+        self.listbox_demand_type.grid(row=0, column=1, padx=2, pady=1)
 
     def _set_delivery_type_boxlist(self):
         self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode=tk.SINGLE,
-                                        height=4, width=24, exportselection=False)
+                                        height=3, width=12, exportselection=False)
         delivery_type_lt = ['已安排行程', '送货前五后十', '全量客户']
         for item in delivery_type_lt:
             self.listbox_delivery_type.insert(tk.END, item)
-        self.listbox_delivery_type.grid(row=2, columnspan=2, padx=2, pady=1)
+        self.listbox_delivery_type.grid(row=1, column=0, padx=2, pady=1)
 
     def _set_customer_query(self):
         # 添加搜索框
@@ -151,7 +151,7 @@ class LBForecastUI:
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_customer = tk.Listbox(
-            self.cust_name_selection_frame, height=10, width=20, yscrollcommand=scroll_y.set, exportselection=False
+            self.cust_name_selection_frame, height=13, width=20, yscrollcommand=scroll_y.set, exportselection=False
             , selectmode=tk.SINGLE)
         scroll_y.config(command=self.listbox_customer.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
@@ -595,26 +595,30 @@ class LBForecastUI:
             self.refresh_frame, text='数据刷新时间：{}'.format(refresh_time_text), anchor='w',
             fg='#009A49', font=("Arial", 11)
         )
-        self.refresh_time_label.pack(side=tk.TOP, padx=2, pady=2, expand=True)
+        self.refresh_time_label.pack(side=tk.RIGHT, padx=2, pady=2, expand=True)
 
         self.btn_refresh = tk.Button(self.refresh_frame, text='刷新液位数据',
                                      command=self.refresh_data)
-        self.btn_refresh.pack(side=tk.BOTTOM, padx=2, pady=2, expand=True)
+        self.btn_refresh.pack(side=tk.LEFT, padx=2, pady=2, expand=True)
 
     def _decorate_filter_frame(self):
         # 设置刷新按钮
         # 创建一个单独的Frame来放置刷新按钮
         self.refresh_frame = tk.Frame(self.f_frame)
-        self.refresh_frame.grid(row=0, column=0, padx=2, pady=1, sticky="ew")
+        self.refresh_frame.grid(row=0, column=0, padx=2, pady=20, sticky="ew")
         self._set_refresh_frame()
+
         # 设置筛选区域
         self.filter_frame = tk.LabelFrame(self.f_frame, text='筛选')
         self.filter_frame.grid(row=1, column=0, padx=2, pady=1, sticky="ew")
+
         self._set_subregion_boxlist()
-        self._set_terminal_boxlist()
-        self._set_products_boxlist()
-        self._set_demand_type_boxlist()
         self._set_delivery_type_boxlist()
+
+        self._set_demand_type_boxlist()
+        self._set_products_boxlist()
+
+        self._set_terminal_boxlist()
 
         self.listbox_subregion.bind("<<ListboxSelect>>", self.show_list_terminal_product_FO)
         self.listbox_terminal.bind("<<ListboxSelect>>", self.show_list_cust)
@@ -634,7 +638,6 @@ class LBForecastUI:
         )
 
     def _decorate_plot_frame(self):
-
 
         # plot_frame column 0, row 0: 筛选区域
         self.plot_frame.columnconfigure(0, weight=1)
