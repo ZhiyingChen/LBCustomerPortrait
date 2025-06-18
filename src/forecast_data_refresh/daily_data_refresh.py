@@ -825,7 +825,7 @@ class ForecastDataRefresh:
         self.refresh_forecast_data()
         self.refresh_forecast_beforeTrip_data()
         self.refresh_fe()
-        self.refresh_view_demand_data()
+        self.refresh_trip_shipto_data()
 
     def get_filename(
             self,
@@ -1029,24 +1029,40 @@ class ForecastDataRefresh:
         conn.commit()
         df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
 
-    def refresh_view_demand_data(self):
-        '''刷新 view_demand_data'''
+    def refresh_trip_shipto_data(self):
+        '''刷新 trip_shipto 数据'''
         cur = self.local_cur
         conn = self.local_conn
 
         start_time = time.time()
-        filepath = r'\\shangnt\lbshell\PUAPI\PU_program\automation'
-        filename = os.path.join(filepath, 'view_demand.xlsx')
 
-        df_demand = pd.read_excel(filename)
-        df_demand['LocNum'] = df_demand['LocNum'].astype(str)
-        cols = [
-            'LocNum', 'CustAcronym'
-        ]
-        df_demand = df_demand[cols]
-        table_name = 'view_demand_data'
+        filepath = r'\\shangnt\lbshell\PUAPI\PU_program\automation'
+        deliveries_filename = os.path.join(filepath, 'deliveries_new.xlsx')
+        df_deliveries = pd.read_excel(deliveries_filename)
+        df_deliveries['CustAcronym'] = (
+            df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
+        deliveries_cols = ['Trip', 'CustAcronym', 'LocNum']
+        df_deliveries = df_deliveries[deliveries_cols]
+
+        trip_filename = os.path.join(filepath, 'view_trip.xlsx')
+        df_trip = pd.read_excel(trip_filename)
+        df_trip['TripID'] = df_trip['TripID'].astype(str)
+        df_trip['Trip'] = df_trip.apply(lambda row: '-'.join([row['CorporateIdn'], row['TripID']]), axis=1)
+        df_trip['TripStartTime'] = df_trip.apply(
+            lambda row: ' '.join([row['StartD'], row['StartT']]), axis=1
+        )
+        df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
+
+        trip_cols = ['Trip', 'TripStartTime']
+        df_trip = df_trip[trip_cols]
+
+        df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
+
+        table_name = 'trip_shipto'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
         conn.commit()
-        df_demand.to_sql(table_name, con=conn, if_exists='replace', index=False)
+        df_trip_shipto.to_sql(table_name, con=conn, if_exists='replace', index=False)
+
         end_time = time.time()
-        print('refresh view_demand_data {} seconds'.format(round(end_time - start_time)))
+        print('refresh trip_shipto_data {} seconds'.format(round(end_time - start_time)))
+
