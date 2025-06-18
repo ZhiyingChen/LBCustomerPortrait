@@ -1157,7 +1157,7 @@ class LBForecastUI:
             else:
                 # 说明时间没有填错, 遇到了 无法预测的情况
                 # 提醒采用 dol api 的选项
-                error_msg = error_msg + ' -> 请使用 api 试试'
+                error_msg = error_msg + ' -> 请使用 远控 最新 选项 试试'
                 messagebox.showinfo( title='Warning', message=error_msg)
                 if self.lock.locked():
                     self.lock.release()
