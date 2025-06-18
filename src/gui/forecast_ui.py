@@ -1109,6 +1109,9 @@ class LBForecastUI:
             message='是否确认在无液位辅助的情况下创建订单？'
         )
         if confirm_create_empty_order:
+            if self.df_info is None or len(self.df_info) == 0:
+                messagebox.showerror( title='警告', message='请先选择客户!')
+                return
             # 弹出消息框
             self.confirm_order_popup = ConfirmOrderPopupUI(
                 root=self.root,

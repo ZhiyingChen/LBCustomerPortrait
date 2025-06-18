@@ -16,7 +16,7 @@ class ConfirmOrderPopupUI:
             order_data_manager: LBOrderDataManager,
             df_info: pd.DataFrame,
             order_popup_ui: OrderPopupUI,
-            show_time = datetime.now(),
+            show_time = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
             loadAMT = 0,
 
     ):
@@ -123,7 +123,8 @@ class ConfirmOrderPopupUI:
 
         # 如果界面是打开的，在FO订单界面展示出来
         try:
-            self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
+            if self.order_popup_ui is not None:
+                self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
         except Exception as e:
             print(e)
 
