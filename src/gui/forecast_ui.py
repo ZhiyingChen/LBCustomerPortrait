@@ -343,6 +343,7 @@ class LBForecastUI:
             ("目标送货液位", "target_refill"),
             ("最佳充装液位", "risk"),
             ("断气液位", "runout"),
+            ("最佳卸货量", "best_drop_size"),
             ("预测小时用量", "forecast_hourly_usage"),
             ("预测错误率", "forecast_error"),
         ]
@@ -854,6 +855,11 @@ class LBForecastUI:
         RO_cm = int(RO / galsperinch / factor)
         self.detail_labels['runout'].config(text=f'{ round(RO / 1000, 1)} T / {RO_cm} {uom}')
 
+        Risk_cm = int(Risk / galsperinch / factor)
+        self.detail_labels['risk'].config(text=f'{round(Risk / 1000, 1)} T / {Risk_cm} {uom}')
+        self.detail_labels['best_drop_size'].config(text=f'{round( (full - Risk) / 1000, 1)} T / {round(full_cm - Risk_cm)} {uom}')
+
+
         if Risk_time is not None:
             tr = TR_time.strftime("%m-%d %H:%M")
             risk = Risk_time.strftime("%m-%d %H:%M")
@@ -862,8 +868,6 @@ class LBForecastUI:
             self.detail_labels['risk_time'].config(text=risk)
             self.detail_labels['runout_time'].config(text=ro)
 
-            Risk_cm = int(Risk / galsperinch / factor)
-            self.detail_labels['risk'].config(text=f'{round(Risk/1000, 1)} T / {Risk_cm} {uom}')
 
         if len(ts_forecast_usage) >= 2:
             s_time = ts_forecast_usage.index[0].strftime("%m-%d %H")
@@ -1179,7 +1183,6 @@ class LBForecastUI:
         df_name_forecast = self.df_name_forecast
 
         custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
-        print('Customer: {}'.format(custName))
         # 检查 From time 和 to time 是否正确
         if not self.check_cust_name_valid(custName):
             return
