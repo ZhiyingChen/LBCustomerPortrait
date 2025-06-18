@@ -366,15 +366,7 @@ class LBForecastUI:
         # 输入 起始日期
         self._set_manual_input_label()
 
-        # plot_frame column 0, row 2: 新增按钮区域
-        self.button_order_frame = tk.Frame(self.manipulate_frame)
-        self.button_order_frame.grid(row=1, column=0, pady=5, sticky="ew")
 
-        self.btn_open_order_window = tk.Button(
-            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
-            bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
-        )
-        self.btn_open_order_window.pack(padx=10, pady=5)
 
     def _set_frame_warning_label(self):
         # 添加一个标签作为示例
@@ -498,24 +490,32 @@ class LBForecastUI:
         self.plot()
 
 
-    def _decorate_historical_readings_frame(self):
-        self.reading_tree_frame = tk.LabelFrame(self.historical_readings_frame)
-        self.reading_tree_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        self._set_reading_tree()
+    def _decorate_delivery_frame(self):
 
+        self.delivery_record_frame = tk.LabelFrame(self.delivery_frame)
+        self.delivery_record_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_delivery_record_frame()
 
         # 下方 Frame：临近客户模块
-        self.frame_near_customer = tk.LabelFrame(self.historical_readings_frame)
+        self.frame_near_customer = tk.LabelFrame(self.delivery_frame)
         self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
         self._set_near_customer_label()
 
+    def _set_delivery_record_frame(self):
+        columns = ["送货时间", "卸货量(T)", "频率", "行程状态"]
+        col_widths = [70, 35, 30, 50]
+
+        self.delivery_record_table = ui_structure.SimpleTable(
+            self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
+        self.delivery_record_table.frame.pack(fill="both", expand=True)
+
     def _set_reading_tree(self):
-        columns = ["读取时间", "库存(T)", "库存(CM)", "CM/小时"]
-        col_widths = [70, 15, 20, 20]
+        columns = ["读取时间", "T", "CM", "CM/H"]
+        col_widths = [70, 40, 40, 40]
 
         self.reading_tree_table = ui_structure.SimpleTable(
-            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
+            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=7)
         self.reading_tree_table.frame.pack(fill="both", expand=True)
 
     def _set_delivery_window_tree(self):
@@ -681,10 +681,31 @@ class LBForecastUI:
         self.manual_plot = False
 
         # plot_frame column 2, row 0: 建立 手工操作区域
-        self.plot_frame.columnconfigure(2, weight=1)
-        self.manipulate_frame = tk.LabelFrame(self.plot_frame)
-        self.manipulate_frame.grid(row=0, column=2, padx=2, pady=2)
+        self.plot_frame.columnconfigure(2, weight=2)
+        self.additional_info_frame = tk.LabelFrame(self.plot_frame)
+        self.additional_info_frame.grid(row=0, column=2, padx=2, pady=2)
+        self._set_additional_info_frame()
+
+    def _set_additional_info_frame(self):
+        self.manipulate_frame = tk.LabelFrame(self.additional_info_frame)
+        self.manipulate_frame.grid(row=0, column=0, padx=2, pady=2)
         self._set_manipulate_frame()
+
+        # additional_info_frame row 1: 新增按钮区域
+        self.button_order_frame = tk.Frame(self.additional_info_frame)
+        self.button_order_frame.grid(row=1, column=0, pady=5, sticky="ew")
+
+        self.btn_open_order_window = tk.Button(
+            self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
+            bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
+        )
+        self.btn_open_order_window.pack(padx=10, pady=5)
+
+        #  additional_info_frame row 2: 新增历史记录区域
+
+        self.reading_tree_frame = tk.LabelFrame(self.additional_info_frame)
+        self.reading_tree_frame.grid(row=2, column=0, pady=5, sticky="ew")
+        self._set_reading_tree()
 
 
     def _decorate_par_frame(self):
@@ -719,10 +740,10 @@ class LBForecastUI:
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
         self.par_frame.columnconfigure(3, weight=2)
-        self.historical_readings_frame = tk.Frame(self.par_frame, width=150)
-        self.historical_readings_frame.grid(row=0, column=3, padx=10, pady=2, sticky="nsew")
-        self.historical_readings_frame.pack_propagate(False)
-        self._decorate_historical_readings_frame()
+        self.delivery_frame = tk.Frame(self.par_frame, width=150)
+        self.delivery_frame.grid(row=0, column=3, padx=10, pady=2, sticky="nsew")
+        self.delivery_frame.pack_propagate(False)
+        self._decorate_delivery_frame()
 
 
 
