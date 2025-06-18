@@ -582,8 +582,8 @@ class LBForecastUI:
         self.dtd_table.frame.pack(fill="both")
 
     def _set_near_customer_label(self):
-        columns = ["临近客户", "KM", "DDER", "数据源"]
-        col_widths = [70, 15, 20, 20]
+        columns = ["临近客户", "KM", "DDER"]
+        col_widths = [70, 15, 20]
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,
@@ -820,7 +820,6 @@ class LBForecastUI:
             update_row.append(to_cust_acronym)
             update_row.append(distance_km)
             update_row.append('{}%'.format(dder))
-            update_row.append(data_source)
 
             update_rows.append(update_row)
 
