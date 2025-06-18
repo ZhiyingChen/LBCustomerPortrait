@@ -94,7 +94,7 @@ def updateLCT(shipto, conn):
     df_data = job(shipto, time_ago, endDate)
     # 2023-11-01 新增 data 是 空 的情况处理: 直接退出。
     if len(df_data) == 0:
-        api_log(shipto)
+        # api_log(shipto)
         return
     # 3.请求后的数据处理
     # 3.1 注意需要转化标准时间为中国时间
@@ -124,7 +124,7 @@ def updateLCT(shipto, conn):
     table_name = 'historyReading'
     df_data.to_sql(table_name, con=conn, if_exists='append', index=False)
     # 5. log
-    api_log(shipto)
-    # for i in range(10):
-    #     print(i)
-    #     time.sleep(1)
+    # api_log(shipto)
+    # # for i in range(10):
+    # #     print(i)
+    # #     time.sleep(1)
