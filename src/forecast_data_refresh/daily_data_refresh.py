@@ -1041,8 +1041,17 @@ class ForecastDataRefresh:
         df_deliveries = pd.read_excel(deliveries_filename)
         df_deliveries['CustAcronym'] = (
             df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
+
+        # 筛选前五后十的delivery
+        now = datetime.datetime.now()
+        five_days_ago = now - datetime.timedelta(days=5)
+        ten_days_later = now + datetime.timedelta(days=10)
+        df_deliveries['Arrival Time'] = pd.to_datetime(df_deliveries['Arrival Time'])
+        df_deliveries = df_deliveries[(df_deliveries['Arrival Time'] >= five_days_ago) & (df_deliveries['Arrival Time'] <= ten_days_later)]
+
         deliveries_cols = ['Trip', 'CustAcronym', 'LocNum']
         df_deliveries = df_deliveries[deliveries_cols]
+
 
         trip_filename = os.path.join(filepath, 'view_trip.xlsx')
         df_trip = pd.read_excel(trip_filename)
@@ -1057,6 +1066,7 @@ class ForecastDataRefresh:
         df_trip = df_trip[trip_cols]
 
         df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
+        df_trip_shipto = df_trip_shipto.sort_values(['TripStartTime'])
 
         table_name = 'trip_shipto'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -1065,4 +1075,3 @@ class ForecastDataRefresh:
 
         end_time = time.time()
         print('refresh trip_shipto_data {} seconds'.format(round(end_time - start_time)))
-
