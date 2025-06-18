@@ -1,6 +1,6 @@
 import pandas as pd
 from ..utils import functions as func
-
+from .. import domain_object as do
 
 class LBDataManager:
     def __init__(
@@ -320,17 +320,37 @@ class LBDataManager:
         results = cursor.fetchall()
         return results
 
-    def get_view_demand_shiptos(self):
-        '''获取 view_demand_data 中的所有 shiptos'''
-        try:
-            cur = self.cur
-            table_name = 'view_demand_data'
-            cur.execute('''SELECT DISTINCT CustAcronym FROM {}'''.format(table_name))
-            shiptos = [str(row[0]) for row in cur.fetchall()]
-        except Exception as e:
-            print(e)
-            shiptos = []
-        return shiptos
+    def generate_trip_shipto_dict(self):
+        table_name = 'trip_shipto'
+
+        sql_line = '''SELECT LocNum, CustAcronym, Trip, TripStartTime
+         FROM {}'''.format(table_name)
+
+        cursor = self.cur
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+
+        trip_shipto_dict = {}
+        for loc_num, cust_acronym, trip, trip_start_time in results:
+            if cust_acronym in trip_shipto_dict and trip is None:
+                continue
+
+            trip_shipto = trip_shipto_dict.get(
+                cust_acronym,
+                do.TripShipto(
+                    shipto_id=str(loc_num),
+                    cust_name=cust_acronym
+                )
+            )
+            if trip is not None:
+                trip = do.Trip(
+                    trip_id=trip,
+                    trip_start_time=pd.to_datetime(trip_start_time)
+                )
+                trip_shipto.trip_dict.update({trip.trip_id: trip})
+
+            trip_shipto_dict.update({trip_shipto.cust_name: trip_shipto})
+        return trip_shipto_dict
 
     def get_last_refresh_time(self):
         table = 'historyReading'

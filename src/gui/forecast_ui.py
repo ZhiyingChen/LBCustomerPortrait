@@ -15,6 +15,7 @@ from tkinter import messagebox
 import matplotlib
 import time
 import threading
+from typing import Dict
 from .confirm_order_popup_ui import ConfirmOrderPopupUI
 from . import ui_structure
 from ..utils.dol_api import updateDOL
@@ -56,7 +57,8 @@ class LBForecastUI:
         self.order_data_manager = LBOrderDataManager()
 
         # 送货前五后十客户
-        self.view_demand_shiptos = self.data_manager.get_view_demand_shiptos()
+        self.delivery_shipto_dict: Dict[str, do.TripShipto] = self.data_manager.generate_trip_shipto_dict()
+        self.supplement_delivery_shipto_latest_called()
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -74,6 +76,13 @@ class LBForecastUI:
         # setup ui
         self._setup_ui()
 
+    def supplement_delivery_shipto_latest_called(self):
+        results = self.order_data_manager.get_latest_call_log()
+
+        for shipto, cust_name, timestamp in results:
+            shipto_obj = self.delivery_shipto_dict.get(cust_name)
+            if shipto_obj is not None:
+                shipto_obj.latest_called = pd.to_datetime(timestamp)
 
     def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
@@ -175,10 +184,13 @@ class LBForecastUI:
         else:
             cur_no = self.listbox_demand_type.curselection()
             cur_FO = [self.listbox_demand_type.get(i) for i in cur_no]
+
         if self.listbox_delivery_type.curselection() is None or len(self.listbox_delivery_type.curselection()) == 0:
             delivery_type = None
         else:
             delivery_type = self.listbox_delivery_type.get(self.listbox_delivery_type.curselection()[0])
+
+
         # get filter subregion
         if SubRegion is None or len(SubRegion) == 0:
             all_SubRegion = list(df_name_forecast.SubRegion.unique())
@@ -201,16 +213,43 @@ class LBForecastUI:
             f_FO = df_name_forecast.DemandType.isin(all_demandType)
         else:
             f_FO = df_name_forecast.DemandType.isin(cur_FO)
+
+
+
         # get selected customers
         custName_list = list(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
-        # print('cust no: ', len(custName_list))
 
-        if delivery_type == enums.DeliveryType.these_days:
+        # filter by delivery type
+        if delivery_type == '已安排行程':
             custName_list = [
-                v for v in custName_list if v in self.view_demand_shiptos
+                i for i in custName_list
+                if i in self.delivery_shipto_dict and
+                   self.delivery_shipto_dict[i].is_trip_planned
             ]
+        elif delivery_type == '送货前五后十':
+            custName_list = [
+                i for i in custName_list
+                if i in self.delivery_shipto_dict
+            ]
+
+        now = datetime.now()
+
+        trip_start_by_cust = {
+            i: (self.delivery_shipto_dict[i].nearest_trip.trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
+            if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
+            (now, '')
+            for i in custName_list
+        }
+
+        custName_list = sorted(
+            custName_list
+            , key=lambda x: trip_start_by_cust[x][0]
+        )
+
         for item in custName_list:
             self.listbox_customer.insert(tk.END, item)
+            if item in self.delivery_shipto_dict and self.delivery_shipto_dict[item].turn_red:
+                self.listbox_customer.itemconfig(tk.END, {'fg': 'red'})
 
 
     def show_list_terminal_product_FO(self, event):
@@ -713,7 +752,8 @@ class LBForecastUI:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
                 departure_time = departure_time.strftime('%m-%d %H')
             except Exception as e:
-                print(e)
+                # pass
+                pass
 
             primary_info.append(departure_time)
             primary_info.append(data_source)
@@ -741,7 +781,8 @@ class LBForecastUI:
                 departure_time = risk_time - pd.Timedelta(minutes=int(float(duration) * 60))
                 departure_time = departure_time.strftime('%m-%d %H')
             except Exception as e:
-                print(e)
+                # pass
+                pass
             source_info.append(departure_time)
             source_info.append(data_source)
             source_list.append(source_info)
@@ -764,13 +805,11 @@ class LBForecastUI:
             try:
                 dder = int(float(dder) * 100)
             except Exception as e:
-                print(e)
                 dder = '?'
 
             try:
                 distance_km = int(float(distance_km))
             except Exception as e:
-                print(e)
                 distance_km = '?'
 
             update_row.append(to_cust_acronym)
@@ -1144,6 +1183,15 @@ class LBForecastUI:
         shipto = int(df_name_forecast.loc[custName].values[0])
         self.order_data_manager.insert_call_log(shipto= str(shipto), cust_name=custName)
 
+        if custName in self.delivery_shipto_dict:
+            self.delivery_shipto_dict[custName].latest_called = pd.Timestamp.now()
+
+        selected_index = self.listbox_customer.curselection()
+        if selected_index:
+            index = selected_index[0]
+            # 将选中的项的文字颜色变成黑色
+            self.listbox_customer.itemconfig(index, {'fg': 'black'})
+
         TELE_type = df_name_forecast.loc[custName, 'Subscriber']
         if not self.check_validate_shipto(shipto=shipto):
             return
@@ -1393,7 +1441,6 @@ class LBForecastUI:
         try:
             self.main_plot()
         except Exception as e:
-            print(e)
             if lock.locked():
                 lock.release()
     # endregion
@@ -1405,8 +1452,9 @@ class LBForecastUI:
             cur = self.data_manager.cur
             data_refresh = ForecastDataRefresh(local_cur=cur, local_conn=conn)
             data_refresh.refresh_lb_hourly_data()
-            self.view_demand_shiptos = self.data_manager.get_view_demand_shiptos()
-
+            self.delivery_shipto_dict = self.data_manager.generate_trip_shipto_dict()
+            self.supplement_delivery_shipto_latest_called()
+            self.show_list_cust(None)
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='数据刷新时间: {}'.format(refresh_time_text))
 

@@ -228,6 +228,28 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Call log added: {}, {}'.format(shipto, cust_name))
 
+    def get_latest_call_log(self):
+        oh = fd.CallLogHeader
+        two_hours_ago = pd.to_datetime(datetime.datetime.now()) - datetime.timedelta(hours=2)
+
+        sql_line = '''
+              SELECT {}, {}, MAX({}) as max_timestamp
+              FROM {}
+              WHERE timestamp > '{}'
+              GROUP BY {}, {}
+              ORDER BY max_timestamp DESC
+          '''.format(
+            oh.shipto,
+            oh.cust_name,
+            oh.timestamp,
+            fd.Call_Log_Table,
+            two_hours_ago.strftime('%Y-%m-%d %H:%M:%S'),
+            oh.shipto,
+            oh.cust_name
+        )
+        self.cur.execute(sql_line)
+        results = self.cur.fetchall()
+        return results
     # endregion
 
     # region 订单数据操作区域
