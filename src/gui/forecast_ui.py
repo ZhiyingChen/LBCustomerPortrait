@@ -995,7 +995,7 @@ class LBForecastUI:
 
         # 设置是否需要 从DOL API 下载数据
         self.var_telemetry_flag = tk.IntVar()
-        self.check_telemetry_flag = tk.Checkbutton(button_frame, text='远控 最新', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
+        self.check_telemetry_flag = tk.Checkbutton(button_frame, text='远控 最新 （无液位时勾选）', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
         self.check_telemetry_flag.grid(row=0, column=4, padx=1, pady=10)
 
         self.pic_figure = Figure(figsize=(5, 4), dpi=80)
