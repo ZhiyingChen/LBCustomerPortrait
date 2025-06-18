@@ -21,8 +21,48 @@ class LBOrderDataManager:
 
     # region 初始化数据区域
     def _initialize(self):
+        self.check_call_log_table()
         self.check_forecast_order_table()
         self.generate_forecast_order_dict()
+
+    def check_call_log_table(self):
+        '''
+          检查OrderTrip.sqlite中是否存有 CallLog 这张表，如果没有则新建空表
+        '''
+        # 检查FOList表是否存在
+        self.cur.execute(
+            """
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='{}';
+            """.format(fd.Call_Log_Table)
+        )
+
+        if not self.cur.fetchone():
+            logging.info('CallLog table not found, creating...')
+            # 如果表不存在，则创建表
+            self.create_new_call_log()
+
+    def create_new_call_log(self):
+        oh = fd.CallLogHeader
+
+        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.Call_Log_Table))
+        self.cur.execute(
+            """
+                CREATE TABLE {} (
+                    {} TEXT NOT NULL, -- shipto
+                    {} TEXT NOT NULL, -- cust_name
+                    {} TEXT NOT NULL,   -- apex_id
+                    {} TEXT NOT NULL   -- timestamp
+                );
+            """.format(
+                fd.Call_Log_Table,
+                oh.shipto,
+                oh.cust_name,
+                oh.apex_id,
+                oh.timestamp
+            )
+        )
+        self.conn.commit()
 
     def create_new_fo_list(self):
         oh = fd.OrderListHeader
@@ -166,6 +206,27 @@ class LBOrderDataManager:
             )
             self.forecast_order_dict[forecast_order.order_id] = forecast_order
         logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
+
+    # endregion
+
+    # region calllog 操作区域
+    def insert_call_log(self, shipto: str, cust_name: str):
+
+        sql_line = '''
+            INSERT INTO {} VALUES (?, ?,?, ?)
+        '''.format(fd.Call_Log_Table)
+
+        self.cur.execute(
+            sql_line,
+            (
+                shipto,
+                cust_name,
+                func.get_user_name(),
+                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+            )
+        )
+        self.conn.commit()
+        logging.info('Call log added: {}, {}'.format(shipto, cust_name))
 
     # endregion
 

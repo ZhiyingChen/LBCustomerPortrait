@@ -65,10 +65,6 @@ class LBForecastUI:
         self.ts_forecast_before_trip = None
         self.ts_manual = None
 
-        # 日志记录
-        self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
-        func.log_connection(self.log_file, 'opened')
-
         self.order_popup_ui = None
         self.confirm_order_popup = None
         # setup ui
@@ -1142,6 +1138,8 @@ class LBForecastUI:
             return
 
         shipto = int(df_name_forecast.loc[custName].values[0])
+        self.order_data_manager.insert_call_log(shipto= str(shipto), cust_name=custName)
+
         TELE_type = df_name_forecast.loc[custName, 'Subscriber']
         if not self.check_validate_shipto(shipto=shipto):
             return
@@ -1408,7 +1406,6 @@ class LBForecastUI:
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='数据刷新时间: {}'.format(refresh_time_text))
 
-            func.log_connection(self.log_file, 'refreshed')
             if show_message:
                 messagebox.showinfo(title='success', message='data to sqlite success!')
         except Exception as e:
