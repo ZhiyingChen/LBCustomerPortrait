@@ -511,7 +511,7 @@ class LBForecastUI:
         self._set_near_customer_label()
 
     def _set_reading_tree(self):
-        columns = ["读取时间", "Ton", "CM", "CM/小时"]
+        columns = ["读取时间", "库存(T)", "库存(CM)", "CM/小时"]
         col_widths = [70, 15, 20, 20]
 
         self.reading_tree_table = ui_structure.SimpleTable(
