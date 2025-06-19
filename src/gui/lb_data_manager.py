@@ -343,11 +343,7 @@ class LBDataManager:
                 )
             )
             if trip is not None:
-                trip = do.Trip(
-                    trip_id=trip,
-                    trip_start_time=pd.to_datetime(trip_start_time)
-                )
-                trip_shipto.trip_dict.update({trip.trip_id: trip})
+                trip_shipto.trip_dict.update({trip: pd.to_datetime(trip_start_time)})
 
             trip_shipto_dict.update({trip_shipto.cust_name: trip_shipto})
         return trip_shipto_dict

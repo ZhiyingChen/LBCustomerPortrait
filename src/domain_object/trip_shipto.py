@@ -1,6 +1,6 @@
 import pandas as pd
 import datetime
-from .trip import Trip
+from typing import Dict
 
 
 class TripShipto:
@@ -12,7 +12,7 @@ class TripShipto:
     ):
         self.shipto_id = shipto_id
         self.cust_name = cust_name
-        self.trip_dict: Dict[str, Trip] = dict()
+        self.trip_dict: Dict[str, pd.Timestamp] = dict()
         self.latest_called: pd.Timestamp = None
 
 
@@ -20,12 +20,21 @@ class TripShipto:
         return f"TripShipto(shipto_id={self.shipto_id}, cust_name={self.cust_name})"
 
     @property
+    def nearest_trip_start_time(self):
+        """
+        最近的行程开始时间
+        """
+        if self.nearest_trip is None:
+            return None
+        return self.trip_dict[self.nearest_trip]
+
+    @property
     def nearest_trip(self):
-        for trip in self.trip_dict.values():
-            if trip.trip_start_time is None:
+        for trip_id, trip_start_time in self.trip_dict.items():
+            if trip_start_time is None:
                 continue
-            if pd.Timestamp.now() <= trip.trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=2):
-                return trip
+            if pd.Timestamp.now() <= trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=2):
+                return trip_id
         return None
 
     @property
@@ -44,7 +53,7 @@ class TripShipto:
             return False
         if self.nearest_trip is None:
             return True
-        if self.latest_called >= self.nearest_trip.trip_start_time - datetime.timedelta(hours=2):
+        if self.latest_called >= self.nearest_trip_start_time - datetime.timedelta(hours=2):
             return True
         return False
 
@@ -65,11 +74,11 @@ class TripShipto:
         if self.nearest_trip is None:
             return False
 
-        if pd.Timestamp.now() >= self.nearest_trip.trip_start_time:
+        if pd.Timestamp.now() >= self.nearest_trip_start_time:
             return False
 
         # 行程开始时间 落在 当前时刻~当前时刻+2h 的行程，里面需要配送的客户， 如果未查询到点击记录则变红
-        if pd.Timestamp.now() <= self.nearest_trip.trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=2):
+        if pd.Timestamp.now() <= self.nearest_trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=2):
             return True
 
         return False

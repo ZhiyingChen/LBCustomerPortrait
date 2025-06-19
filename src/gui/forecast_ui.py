@@ -289,7 +289,7 @@ class LBForecastUI:
         ten_days_later = pd.Timestamp.now() + timedelta(days=10)
 
         trip_start_by_cust = {
-            i: (self.delivery_shipto_dict[i].nearest_trip.trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
+            i: (self.delivery_shipto_dict[i].nearest_trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
             if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
             (ten_days_later, '')
             for i in custName_list
