@@ -348,6 +348,41 @@ class LBDataManager:
             trip_shipto_dict.update({trip_shipto.cust_name: trip_shipto})
         return trip_shipto_dict
 
+    def generate_trip_dict(self):
+        table_name = 'view_trip'
+
+        sql_line = '''
+            SELECT Trip, TripStartTime, Tractor, Status, segmentNum, Type, Loc, ToLocNum
+            FROM {}
+        '''.format(table_name)
+
+        trip_df = pd.read_sql(sql_line, self.conn)
+        trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
+
+        trip_dict = dict()
+        for trip_id, segment_df in trip_df.groupby('Trip'):
+            trip_id = str(trip_id)
+            trip = do.Trip(
+                trip_id=trip_id,
+                trip_start_time=segment_df['TripStartTime'].iloc[0],
+                tractor=segment_df['Tractor'].iloc[0],
+            )
+
+            segment_dict = dict()
+            for i, row in segment_df.iterrows():
+                segment = do.Segment(
+                    segment_num=row['segmentNum'],
+                    segment_type=row['Type'],
+                    location=row['Loc'],
+                    segment_status=row['Status'],
+                    to_loc_num=row['ToLocNum'],
+                )
+                segment_dict.update({segment.segment_num: segment})
+            trip.segment_dict = segment_dict
+
+            trip_dict.update({trip.trip_id: trip})
+        return trip_dict
+
     def get_last_refresh_time(self):
         table = 'historyReading'
         cur = self.cur

@@ -1054,7 +1054,8 @@ class ForecastDataRefresh:
 
 
         trip_filename = os.path.join(filepath, 'view_trip.xlsx')
-        df_trip = pd.read_excel(trip_filename)
+        df_trip = pd.read_excel(trip_filename, dtype={'LocationID': str, 'ToLocNum': str})
+        df_trip = df_trip.fillna('')
         df_trip['TripID'] = df_trip['TripID'].astype(str)
         df_trip['Trip'] = df_trip.apply(lambda row: '-'.join([row['CorporateIdn'], row['TripID']]), axis=1)
         df_trip['TripStartTime'] = df_trip.apply(
@@ -1062,7 +1063,7 @@ class ForecastDataRefresh:
         )
         df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
 
-        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID']
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum']
         df_trip = df_trip[trip_cols]
 
         df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
@@ -1085,10 +1086,10 @@ class ForecastDataRefresh:
             else:
                 return row['Location']
 
-        df_trip = df_trip[ (df_trip['Status'] != 'CLSD') & df_trip['Trip'].isin(df_deliveries['Trip'])]
-        df_trip['LocationID'] = df_trip['LocationID'].astype(str)
+        df_trip = df_trip[ df_trip['Trip'].isin(df_deliveries['Trip'])]
+
         df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
-        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc']
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum']
         df_trip = df_trip[trip_cols]
 
         table = 'view_trip'

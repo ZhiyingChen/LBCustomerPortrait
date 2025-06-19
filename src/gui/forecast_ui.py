@@ -59,6 +59,8 @@ class LBForecastUI:
         # 送货前五后十客户
         self.delivery_shipto_dict: Dict[str, do.TripShipto] = self.data_manager.generate_trip_shipto_dict()
         self.supplement_delivery_shipto_latest_called()
+        # 已安排的行程
+        self.trip_dict: Dict[str, do.Trip] = self.data_manager.generate_trip_dict()
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -940,7 +942,7 @@ class LBForecastUI:
         for key, label in self.detail_labels.items():
             label.config(text='')
 
-    def show_info(self, shipto, TR_time, Risk_time, RO_time, full, TR,
+    def show_info(self, shipto, cust_name, TR_time, Risk_time, RO_time, full, TR,
                   Risk, RO, ts_forecast_usage, galsperinch, uom):
         '''显示客户的充装的详细信息'''
         self.clean_detailed_info()
@@ -999,6 +1001,32 @@ class LBForecastUI:
 
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
+        self.update_trip_info(shipto_id=str(shipto), cust_name=cust_name)
+
+    def update_trip_info(self, shipto_id: str, cust_name: str):
+        # todo: 补充表格
+
+        if cust_name not in self.delivery_shipto_dict:
+            return
+
+        shipto_obj = self.delivery_shipto_dict[cust_name]
+
+        trip_lt = sorted(
+            [t_id for t_id, t_time in shipto_obj.trip_dict.items() if t_time is not None],
+            key=lambda x: shipto_obj.trip_dict[x]
+        )
+
+        for t_id in trip_lt:
+            trip = self.trip_dict[t_id]
+            print(
+                '{}, {}, {}, {}, {}'.format(
+                    trip.find_status_of_customer(shipto=shipto_id),
+                    t_id,
+                    trip.trip_start_time.strftime("%m-%d %H"),
+                    trip.tractor,
+                    trip.display_trip_route
+                )
+            )
 
     def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''
@@ -1373,6 +1401,7 @@ class LBForecastUI:
         # 点击作图时,同时显示客户的充装的详细信息
         self.show_info(
             shipto=shipto,
+            cust_name=custName,
             TR_time=TR_time,
             Risk_time=Risk_time,
             RO_time=RO_time,
