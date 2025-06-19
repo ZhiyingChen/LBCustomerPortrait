@@ -87,7 +87,7 @@ class LBForecastUI:
     def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
 
-        self.listbox_subregion = tk.Listbox(self.filter_frame, height=3, width=12, exportselection=False)
+        self.listbox_subregion = tk.Listbox(self.filter_frame, height=3, width=10, exportselection=False)
         subregion_list = self.df_name_forecast.SubRegion.unique()
         for item in sorted(subregion_list):
             self.listbox_subregion.insert(tk.END, item)
@@ -102,7 +102,7 @@ class LBForecastUI:
         # 这里需要特别学习：exportselection=False
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_terminal = tk.Listbox(
-            self.terminal_frame, selectmode="extended", height=7, width=12, yscrollcommand=scroll_y.set, exportselection=False)
+            self.terminal_frame, selectmode="extended", height=7, width=8, yscrollcommand=scroll_y.set, exportselection=False)
         scroll_y.config(command=self.listbox_terminal.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         self.terminal_frame.grid(rowspan=2, row=0,column=2, padx=2, pady=1)
@@ -112,21 +112,24 @@ class LBForecastUI:
     def _set_products_boxlist(self):
         '''products boxlist'''
         self.listbox_products = tk.Listbox(self.filter_frame, selectmode="extended",
-                                      height=4, width=12, exportselection=False)
+                                      height=4, width=8, exportselection=False)
         self.listbox_products.grid(row=1, column=1, padx=2, pady=1)
 
 
     def _set_demand_type_boxlist(self):
         self.listbox_demand_type = tk.Listbox(self.filter_frame, selectmode="extended",
-                                        height=2, width=12, exportselection=False)
+                                        height=2, width=8, exportselection=False)
         self.listbox_demand_type.grid(row=0, column=1, padx=2, pady=1)
 
     def _set_delivery_type_boxlist(self):
         self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode=tk.SINGLE,
-                                        height=3, width=12, exportselection=False)
-        delivery_type_lt = ['已安排行程', '送货前五后十', '全量客户']
+                                        height=3, width=10, exportselection=False)
+        delivery_type_lt = ['已安排行程', '前五后十', '全量客户']
         for item in delivery_type_lt:
             self.listbox_delivery_type.insert(tk.END, item)
+
+        # 设置默认选择为第一项
+        self.listbox_delivery_type.select_set(1)  # 1 是 '送货前五后十' 的索引
         self.listbox_delivery_type.grid(row=1, column=0, padx=2, pady=1)
 
     def _set_customer_query(self):
@@ -227,7 +230,7 @@ class LBForecastUI:
                 if i in self.delivery_shipto_dict and
                    self.delivery_shipto_dict[i].is_trip_planned
             ]
-        elif delivery_type == '送货前五后十':
+        elif delivery_type == '前五后十':
             custName_list = [
                 i for i in custName_list
                 if i in self.delivery_shipto_dict
@@ -614,7 +617,7 @@ class LBForecastUI:
     def _set_refresh_frame(self):
         refresh_time_text = self.data_manager.get_last_refresh_time()
         self.refresh_time_label = tk.Label(
-            self.refresh_frame, text='数据刷新时间：{}'.format(refresh_time_text), anchor='w',
+            self.refresh_frame, text='最新液位时间:\n{}'.format(refresh_time_text), anchor='w',
             fg='#009A49', font=("Arial", 11)
         )
         self.refresh_time_label.pack(side=tk.RIGHT, padx=2, pady=2, expand=True)
@@ -624,15 +627,19 @@ class LBForecastUI:
         self.btn_refresh.pack(side=tk.LEFT, padx=2, pady=2, expand=True)
 
     def _decorate_filter_frame(self):
+        # 配置 f_frame 的行和列权重
+        self.f_frame.grid_rowconfigure(0, weight=0)
+        self.f_frame.grid_rowconfigure(1, weight=0)
+        self.f_frame.grid_columnconfigure(0, weight=1)
         # 设置刷新按钮
         # 创建一个单独的Frame来放置刷新按钮
         self.refresh_frame = tk.Frame(self.f_frame)
-        self.refresh_frame.grid(row=0, column=0, padx=2, pady=20, sticky="ew")
+        self.refresh_frame.grid(row=0, column=0, padx=0, pady=10)
         self._set_refresh_frame()
 
         # 设置筛选区域
         self.filter_frame = tk.LabelFrame(self.f_frame, text='筛选')
-        self.filter_frame.grid(row=1, column=0, padx=2, pady=1, sticky="ew")
+        self.filter_frame.grid(row=1, column=0, padx=0, pady=1)
 
         self._set_subregion_boxlist()
         self._set_delivery_type_boxlist()
@@ -687,7 +694,7 @@ class LBForecastUI:
         self._set_additional_info_frame()
 
     def _set_additional_info_frame(self):
-        self.manipulate_frame = tk.LabelFrame(self.additional_info_frame)
+        self.manipulate_frame = tk.Frame(self.additional_info_frame)
         self.manipulate_frame.grid(row=0, column=0, padx=2, pady=2)
         self._set_manipulate_frame()
 
@@ -703,7 +710,7 @@ class LBForecastUI:
 
         #  additional_info_frame row 2: 新增历史记录区域
 
-        self.reading_tree_frame = tk.LabelFrame(self.additional_info_frame)
+        self.reading_tree_frame = tk.Frame(self.additional_info_frame)
         self.reading_tree_frame.grid(row=2, column=0, pady=5, sticky="ew")
         self._set_reading_tree()
 
@@ -722,7 +729,7 @@ class LBForecastUI:
         self.level_frame.grid(row=0, column=1, padx=10, pady=2)
 
 
-        self.frame_warning = tk.LabelFrame(self.level_frame, text='警告')
+        self.frame_warning = tk.LabelFrame(self.level_frame)
         self.frame_warning.grid(row=0, column=0, padx=10, pady=2)
         self._set_frame_warning_label()
 
@@ -1508,7 +1515,7 @@ class LBForecastUI:
             self.supplement_delivery_shipto_latest_called()
             self.show_list_cust(None)
             refresh_time_text = self.data_manager.get_last_refresh_time()
-            self.refresh_time_label.config(text='数据刷新时间: {}'.format(refresh_time_text))
+            self.refresh_time_label.config(text='最新液位时间:\n{}'.format(refresh_time_text))
 
             func.log_connection(self.log_file, 'refreshed')
             if show_message:

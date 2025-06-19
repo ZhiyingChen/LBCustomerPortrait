@@ -361,7 +361,7 @@ class LBDataManager:
         try:
             last_refresh_time = cur.fetchone()[0]
             last_refresh_time = pd.to_datetime(last_refresh_time)
-            last_refresh_time = last_refresh_time.strftime('%m-%d %H:%M')
+            last_refresh_time = last_refresh_time.strftime('%Y-%m-%d %H:%M')
         except Exception as e:
             print(e)
             last_refresh_time = ''
