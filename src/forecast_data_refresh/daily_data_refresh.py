@@ -1046,7 +1046,7 @@ class ForecastDataRefresh:
         now = datetime.datetime.now()
         five_days_ago = now - datetime.timedelta(days=5)
         ten_days_later = now + datetime.timedelta(days=10)
-        df_deliveries['Arrival Time'] = pd.to_datetime(df_deliveries['Arrival Time'])
+        df_deliveries['Arrival Time'] = pd.to_datetime(df_deliveries['Arrival Time'], format='mixed')
         df_deliveries = df_deliveries[(df_deliveries['Arrival Time'] >= five_days_ago) & (df_deliveries['Arrival Time'] <= ten_days_later)]
 
         deliveries_cols = ['Trip', 'CustAcronym', 'LocNum']
@@ -1062,7 +1062,7 @@ class ForecastDataRefresh:
         )
         df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
 
-        trip_cols = ['Trip', 'TripStartTime']
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID']
         df_trip = df_trip[trip_cols]
 
         df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
@@ -1075,3 +1075,24 @@ class ForecastDataRefresh:
 
         end_time = time.time()
         print('refresh trip_shipto_data {} seconds'.format(round(end_time - start_time)))
+
+        # 定义一个函数来处理 ToLoc 的逻辑
+        def generate_to_loc(row):
+            if row['LocationID'].startswith('Terminal:'):
+                return 'T' + row['LocationID'].split(':')[1].strip()
+            elif row['LocationID'].startswith('Source:'):
+                return 'S' + row['LocationID'].split(':')[1].strip()
+            else:
+                return row['Location']
+
+        df_trip = df_trip[ (df_trip['Status'] != 'CLSD') & df_trip['Trip'].isin(df_deliveries['Trip'])]
+        df_trip['LocationID'] = df_trip['LocationID'].astype(str)
+        df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc']
+        df_trip = df_trip[trip_cols]
+
+        table = 'view_trip'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table))
+        conn.commit()
+        df_trip.to_sql(table, con=conn, if_exists='replace', index=False)
+        print('refresh view_trip {} seconds'.format(round(time.time() - end_time)))
