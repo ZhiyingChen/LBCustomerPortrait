@@ -164,6 +164,56 @@ class LBForecastUI:
             target=self.plot).start())
 
 
+        self.listbox_customer.bind("<Button-3>", self.listbox_customer_right_click)
+
+        # 创建一个菜单
+        self.popup_menu = tk.Menu(self.listbox_customer, tearoff=0)
+        self.popup_menu.add_command(label="复制选中的 客户简称 和 shipto", command=self.open_copy_window)
+
+    def listbox_customer_right_click(self, event):
+        # 显示右键菜单
+        try:
+            self.popup_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.popup_menu.grab_release()
+
+    def open_copy_window(self):
+        # 获取选中的客户名称
+        selected_index = self.listbox_customer.curselection()
+        if not selected_index:
+            return
+
+        custName = self.listbox_customer.get(selected_index[0])
+        if not self.check_cust_name_valid(custName):
+            return
+
+        shipto = int(self.df_name_forecast.loc[custName].values[0])
+
+        # 创建一个新的窗口
+        copy_window = tk.Toplevel(self.root)
+        copy_window.title("复制 选中的 客户简称 和 shipto")
+
+        # 创建 Entry 小部件
+        entry_cust_name = tk.Entry(copy_window, width=30, bg='white', fg='black', borderwidth=1)
+        entry_cust_name.insert(0, custName)
+        entry_cust_name.pack(padx=10, pady=5)
+        entry_cust_name.bind("<Button-1>", lambda event: self.copy_text(entry_cust_name))
+
+        entry_ship_to = tk.Entry(copy_window, width=30, bg='white', fg='black', borderwidth=1)
+        entry_ship_to.insert(0, str(shipto))
+        entry_ship_to.pack(padx=10, pady=5)
+        entry_ship_to.bind("<Button-1>", lambda event: self.copy_text(entry_ship_to))
+
+        # 添加一个关闭按钮
+        close_button = tk.Button(copy_window, text="关闭", command=copy_window.destroy)
+        close_button.pack(pady=10)
+
+    def copy_text(self, entry):
+        # 复制 Entry 小部件中的文本到剪贴板
+        self.root.clipboard_clear()
+        self.root.clipboard_append(entry.get())
+        self.root.update()
+
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
         df_name_forecast = self.df_name_forecast
@@ -497,7 +547,7 @@ class LBForecastUI:
 
         self.delivery_record_frame = tk.LabelFrame(self.delivery_frame)
         self.delivery_record_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        self._set_delivery_record_frame()
+        # self._set_delivery_record_frame()
 
         # 下方 Frame：临近客户模块
         self.frame_near_customer = tk.LabelFrame(self.delivery_frame)
