@@ -789,6 +789,82 @@ class ForecastDataRefresh:
             table_name, con=self.local_conn, if_exists='replace', index=False)
         self.local_conn.commit()
 
+    def refresh_drop_record(self):
+        sql_line = '''
+        WITH RankedSegments AS (
+            SELECT 
+                S.CorporateIdn, 
+                S.TripIdn, 
+                S.ToLocNum, 
+                S.ActualArrivalTime,
+                ROW_NUMBER() OVER (PARTITION BY S.ToLocNum ORDER BY S.ActualArrivalTime DESC) AS rn
+            FROM Segment S
+            LEFT JOIN LBCustProfile CP ON S.ToLocNum = CP.LocNum
+            WHERE 
+                S.CorporateIdn LIKE 'X%' AND
+                S.StatusFlag = '6' AND
+                CP.CustAcronym NOT LIKE '1%' AND
+                CP.DlvryStatus = 'A'
+        ), 
+        TripSegment AS (
+                SELECT S.CorporateIdn, S.TripIdn,  S.SegmentIdn, S.ToLocNum, S.ToAccountNum, CP.CustAcronym, CP.TankAcronym, 
+                CASE 
+                    WHEN S.ToAccountNum = 'SAP' THEN CP.CustAcronym + ',' + CP.TankAcronym
+                    ELSE S.ToAccountNum
+                END AS Loc,
+                S.ActualArrivalTime, 
+                CASE 
+                    WHEN StopType = '0' THEN 'DELV' 
+                    WHEN StopType = '1' THEN 'Swap' 
+                    WHEN StopType = '2' THEN 'eqDrop'
+                    WHEN StopType = '3' THEN 'P/PU' 
+                    WHEN StopType = '6' THEN 'BKH' 
+                    WHEN StopType = '12' THEN 'RTST' 
+                    ELSE 'unknown' 
+                END AS StopType,
+                CASE 
+                    WHEN S.MeterGals = 0 THEN S.DeliveredQty_Invoice 
+                    ELSE S.MeterGals 
+                END AS DeliveredQty
+        
+                FROM Segment S
+                LEFT JOIN LBCustProfile CP
+                ON S.ToLocNum = CP.LocNum 
+        
+        )
+        SELECT 
+            RS.CorporateIdn +'-' + CAST(RS.TripIdn AS NVARCHAR(10)) AS Trip,
+            RS.CorporateIdn, 
+            RS.TripIdn, 
+            RS.ToLocNum AS LocNum, 
+            TS.SegmentIdn,
+            TS.StopType,
+            TS.ToLocNum,
+            TS.Loc,
+            TS.DeliveredQty,
+            TS.ActualArrivalTime
+        FROM RankedSegments RS
+        LEFT JOIN TripSegment TS
+        ON RS.CorporateIdn = TS.CorporateIdn 
+        AND RS.TripIdn = TS.TripIdn
+        WHERE RS.rn <= 5
+        ORDER BY RS.ToLocNum, 
+        RS.CorporateIdn, 
+        RS.TripIdn, 
+        TS.SegmentIdn,
+        RS.ActualArrivalTime DESC;
+        '''
+        drop_record_df = pd.read_sql(sql_line, self.odbc_conn)
+        drop_record_df['LocNum'] = drop_record_df['LocNum'].astype(str)
+        drop_record_df['ToLocNum'] = drop_record_df['ToLocNum'].astype(str)
+        drop_record_df['ActualArrivalTime'] = pd.to_datetime(drop_record_df['ActualArrivalTime'])
+
+        table_name = 'DropRecord'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        drop_record_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
 
     def refresh_lb_daily_data(self):
         """
@@ -804,6 +880,11 @@ class ForecastDataRefresh:
         '''
         self.refresh_delivery_window_and_restricted_delivery_periods()
         self.refresh_call_log()
+
+        '''
+        新增： 最近送货记录 CLSD
+        '''
+        self.refresh_drop_record()
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的
@@ -1049,7 +1130,7 @@ class ForecastDataRefresh:
         df_deliveries['Arrival Time'] = pd.to_datetime(df_deliveries['Arrival Time'], format='mixed')
         df_deliveries = df_deliveries[(df_deliveries['Arrival Time'] >= five_days_ago) & (df_deliveries['Arrival Time'] <= ten_days_later)]
 
-        deliveries_cols = ['Trip', 'CustAcronym', 'LocNum']
+        deliveries_cols = ['Trip', 'Location', 'CustAcronym', 'LocNum', 'Arrival Time']
         df_deliveries = df_deliveries[deliveries_cols]
 
 
@@ -1063,7 +1144,7 @@ class ForecastDataRefresh:
         )
         df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
 
-        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum']
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum', 'Amount1']
         df_trip = df_trip[trip_cols]
 
         df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
@@ -1079,18 +1160,20 @@ class ForecastDataRefresh:
 
         # 定义一个函数来处理 ToLoc 的逻辑
         def generate_to_loc(row):
-            if row['LocationID'].startswith('Terminal:'):
-                return 'T' + row['LocationID'].split(':')[1].strip()
-            elif row['LocationID'].startswith('Source:'):
-                return 'S' + row['LocationID'].split(':')[1].strip()
+            if row['LocationID'].startswith('Terminal:') or row['LocationID'].startswith('Source:'):
+                return row['LocationID'].split(':')[1].strip()
             else:
                 return row['Location']
 
         df_trip = df_trip[ df_trip['Trip'].isin(df_deliveries['Trip'])]
+        df_deliveries_time = df_deliveries[['Trip', 'Location', 'Arrival Time']]
 
         df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
-        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum']
+        df_trip = pd.merge(df_trip, df_deliveries_time, on=['Trip', 'Location'], how='left')
+
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum', 'Amount1', 'Arrival Time']
         df_trip = df_trip[trip_cols]
+        df_trip.rename(columns={'Amount1': 'DeliveredQty'}, inplace=True)
 
         table = 'view_trip'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table))
