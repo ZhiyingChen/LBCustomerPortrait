@@ -1005,11 +1005,9 @@ class LBForecastUI:
 
         if cust_name not in self.delivery_shipto_dict:
             return
-        shipto_obj = self.delivery_shipto_dict[cust_name]
 
-        # 中台数据中的 trip
         latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
-            trip_lt = list(shipto_obj.trip_dict.keys())
+            shipto=shipto_id
         )
 
         # odbc segment 表中的 trip
