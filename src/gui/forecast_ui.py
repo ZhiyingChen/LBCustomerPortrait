@@ -549,17 +549,18 @@ class LBForecastUI:
 
         self.delivery_record_frame = tk.LabelFrame(self.delivery_frame)
         self.delivery_record_frame.pack(fill='both', expand=True, padx=5, pady=2)
-        # self._set_delivery_record_frame()
+        self._set_delivery_record_frame()
 
-        # 下方 Frame：临近客户模块
-        self.frame_near_customer = tk.LabelFrame(self.delivery_frame)
-        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+        # 下方 Frame：Terminal/Source DTD 模块
+        self.frame_dtd = tk.LabelFrame(self.delivery_frame)
+        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self._set_near_customer_label()
+        self._set_dtd_label()
+
 
     def _set_delivery_record_frame(self):
-        columns = ["送货时间", "卸货量(T)", "频率", "行程状态"]
-        col_widths = [70, 35, 30, 50]
+        columns = ["送货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
+        col_widths = [70, 20, 20, 50, 20, 100]
 
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
@@ -598,16 +599,14 @@ class LBForecastUI:
         self.frame_production = tk.LabelFrame(self.portrait_frame)
         self.frame_production.pack(fill='both', expand=True, padx=5, pady=2)
 
-        
         self._set_production_frame()
 
+        # 下方 Frame：临近客户模块
+        self.frame_near_customer = tk.LabelFrame(self.portrait_frame)
+        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
-        # 下方 Frame：Terminal/Source DTD 模块
-        self.frame_dtd = tk.LabelFrame(self.portrait_frame)
-        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
+        self._set_near_customer_label()
 
-        self._set_dtd_label()
-    
     def _set_production_frame(self):
         columns = ["P&W", "平时", "临时被限制"]
         col_widths = [70, 80, 30]
@@ -778,29 +777,29 @@ class LBForecastUI:
         # par_frame column 1, row 0: 建立 frame_detail
         self.par_frame.columnconfigure(1, weight=1)
         self.level_frame = tk.LabelFrame(self.par_frame)
-        self.level_frame.grid(row=0, column=1, padx=10, pady=2)
+        self.level_frame.grid(row=0, column=1, padx=5, pady=2)
 
 
         self.frame_warning = tk.LabelFrame(self.level_frame)
-        self.frame_warning.grid(row=0, column=0, padx=10, pady=2)
+        self.frame_warning.grid(row=0, column=0, padx=5, pady=2)
         self._set_frame_warning_label()
 
         self.frame_detail = tk.LabelFrame(self.level_frame)
-        self.frame_detail.grid(row=1, column=0, padx=10, pady=2)
+        self.frame_detail.grid(row=1, column=0, padx=5, pady=2)
         self._set_detail_info_label()
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.par_frame.columnconfigure(2, weight=2)
-        self.portrait_frame = tk.Frame(self.par_frame, width=200)
-        self.portrait_frame.grid(row=0, column=2, padx=10, pady=2, sticky="nsew")
+        self.portrait_frame = tk.Frame(self.par_frame, width=150)
+        self.portrait_frame.grid(row=0, column=2, padx=5, pady=2, sticky="nsew")
         self.portrait_frame.pack_propagate(False)
         self._decorate_portrait_frame()
 
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
         self.par_frame.columnconfigure(3, weight=2)
-        self.delivery_frame = tk.Frame(self.par_frame, width=150)
-        self.delivery_frame.grid(row=0, column=3, padx=10, pady=2, sticky="nsew")
+        self.delivery_frame = tk.Frame(self.par_frame, width=250)
+        self.delivery_frame.grid(row=0, column=3, padx=5, pady=2, sticky="nsew")
         self.delivery_frame.pack_propagate(False)
         self._decorate_delivery_frame()
 
