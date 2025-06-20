@@ -558,7 +558,7 @@ class LBForecastUI:
 
     def _set_delivery_record_frame(self):
         columns = ["送货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [50, 20, 15, 60, 30, 120]
+        col_widths = [45, 20, 15, 60, 36, 120]
 
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
@@ -788,7 +788,7 @@ class LBForecastUI:
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
         self.par_frame.columnconfigure(2, weight=2)
-        self.portrait_frame = tk.Frame(self.par_frame, width=150)
+        self.portrait_frame = tk.Frame(self.par_frame, width=200)
         self.portrait_frame.grid(row=0, column=2, padx=5, pady=2, sticky="nsew")
         self.portrait_frame.pack_propagate(False)
         self._decorate_portrait_frame()
@@ -796,7 +796,7 @@ class LBForecastUI:
 
         # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
         self.par_frame.columnconfigure(3, weight=2)
-        self.delivery_frame = tk.Frame(self.par_frame, width=250)
+        self.delivery_frame = tk.Frame(self.par_frame, width=300)
         self.delivery_frame.grid(row=0, column=3, padx=5, pady=2, sticky="nsew")
         self.delivery_frame.pack_propagate(False)
         self._decorate_delivery_frame()
