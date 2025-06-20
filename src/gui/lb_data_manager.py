@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import List, Dict
 from ..utils import functions as func
 from .. import domain_object as do
 
@@ -348,24 +349,32 @@ class LBDataManager:
             trip_shipto_dict.update({trip_shipto.cust_name: trip_shipto})
         return trip_shipto_dict
 
-    def generate_trip_dict(self):
+    def generate_view_trip_dict_by_shipto(
+            self,
+            trip_lt: List[str]
+    ):
+        if len(trip_lt) == 0:
+            return dict()
+
         table_name = 'view_trip'
 
         sql_line = '''
-            SELECT Trip, TripStartTime, Tractor, Status, segmentNum, Type, Loc, ToLocNum
-            FROM {}
-        '''.format(table_name)
+            SELECT Trip, TripStartTime, Status, segmentNum, Type, Loc, ToLocNum, DeliveredQty, ActualArrivalTime FROM {} WHERE Trip IN {}
+        '''.format(
+            table_name,
+            tuple(trip_lt) if len(trip_lt) > 1 else "('{}')".format(trip_lt[0])
+        )
 
         trip_df = pd.read_sql(sql_line, self.conn)
         trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
 
         trip_dict = dict()
         for trip_id, segment_df in trip_df.groupby('Trip'):
             trip_id = str(trip_id)
             trip = do.Trip(
                 trip_id=trip_id,
-                trip_start_time=segment_df['TripStartTime'].iloc[0],
-                tractor=segment_df['Tractor'].iloc[0],
+                trip_start_time=segment_df['TripStartTime'].iloc[0]
             )
 
             segment_dict = dict()
@@ -376,12 +385,82 @@ class LBDataManager:
                     location=row['Loc'],
                     segment_status=row['Status'],
                     to_loc_num=row['ToLocNum'],
+                    arrival_time=row['ActualArrivalTime'],
+                    drop_kg=row['DeliveredQty']
                 )
                 segment_dict.update({segment.segment_num: segment})
             trip.segment_dict = segment_dict
 
             trip_dict.update({trip.trip_id: trip})
         return trip_dict
+
+    def generate_odbc_trip_dict_by_shipto(
+            self,
+            shipto: str,
+            latest_trip_list: List[str]
+    ):
+        table_name = 'DropRecord'
+
+        exist_trip_num = len(latest_trip_list)
+
+        if exist_trip_num == 0:
+            trip_sql = '('')'
+        elif exist_trip_num == 1:
+            trip_sql = "('{}')".format(latest_trip_list[0])
+        else:
+            trip_sql = tuple(latest_trip_list)
+
+        sql_line = \
+            '''
+                SELECT Trip, LocNum, SegmentIdn, StopType, ToLocNum, Loc, DeliveredQty, ActualArrivalTime
+                FROM {}
+                WHERE LocNum = '{}'
+                AND Trip NOT IN {}
+            '''.format(
+                table_name,
+                shipto,
+                trip_sql
+            )
+
+        trip_df = pd.read_sql(sql_line, self.conn)
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
+
+        need_extra_trip_num = 5 - exist_trip_num
+
+        trip_dict = dict()
+        trip_idx = 0
+        for trip_id, segment_df in trip_df.groupby('Trip'):
+            trip_id = str(trip_id)
+            trip = do.Trip(
+                trip_id=trip_id,
+                trip_start_time=segment_df['ActualArrivalTime'].min()
+            )
+
+            segment_dict = dict()
+            for i, row in segment_df.iterrows():
+                segment = do.Segment(
+                    segment_num=row['SegmentIdn'],
+                    segment_type=row['StopType'],
+                    location=row['Loc'],
+                    segment_status='CLSD',
+                    to_loc_num=row['ToLocNum'],
+                    arrival_time=row['ActualArrivalTime'],
+                    drop_kg=row['DeliveredQty']
+                )
+
+                segment_dict.update({segment.segment_num: segment})
+            trip.segment_dict = segment_dict
+            trip_dict.update({trip.trip_id: trip})
+
+            trip_idx += 1
+
+            # 达到了需求的数量
+            if trip_idx >= need_extra_trip_num:
+                break
+
+        return trip_dict
+
+
 
     def get_last_refresh_time(self):
         table = 'historyReading'

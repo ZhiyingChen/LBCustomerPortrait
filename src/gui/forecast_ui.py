@@ -59,8 +59,6 @@ class LBForecastUI:
         # 送货前五后十客户
         self.delivery_shipto_dict: Dict[str, do.TripShipto] = self.data_manager.generate_trip_shipto_dict()
         self.supplement_delivery_shipto_latest_called()
-        # 已安排的行程
-        self.trip_dict: Dict[str, do.Trip] = self.data_manager.generate_trip_dict()
 
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
@@ -560,7 +558,7 @@ class LBForecastUI:
 
     def _set_delivery_record_frame(self):
         columns = ["送货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [70, 20, 20, 50, 20, 100]
+        col_widths = [50, 20, 15, 60, 30, 120]
 
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
@@ -1007,25 +1005,67 @@ class LBForecastUI:
 
         if cust_name not in self.delivery_shipto_dict:
             return
-
         shipto_obj = self.delivery_shipto_dict[cust_name]
 
-        trip_lt = sorted(
-            [t_id for t_id, t_time in shipto_obj.trip_dict.items() if t_time is not None],
-            key=lambda x: shipto_obj.trip_dict[x]
+        # 中台数据中的 trip
+        latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
+            trip_lt = list(shipto_obj.trip_dict.keys())
         )
 
-        for t_id in trip_lt:
-            trip = self.trip_dict[t_id]
-            print(
-                '{}, {}, {}, {}, {}'.format(
-                    trip.find_status_of_customer(shipto=shipto_id),
-                    t_id,
-                    trip.trip_start_time.strftime("%m-%d %H"),
-                    trip.tractor,
-                    trip.display_trip_route
-                )
-            )
+        # odbc segment 表中的 trip
+        odbc_trip_dict = self.data_manager.generate_odbc_trip_dict_by_shipto(
+            shipto=shipto_id,
+            latest_trip_list=list(latest_trip_dict.keys())
+        )
+
+        # 合并 trip 信息
+        trip_dict = {**latest_trip_dict, **odbc_trip_dict}
+
+
+        # 构建记录列表
+        record_lt = []
+        for trip_id, trip_obj in trip_dict.items():
+            segment = trip_obj.find_segment_by_shipto(shipto_id)
+            if segment is None or segment.arrival_time is None:
+                continue  # 跳过无效数据
+            record = {
+                "arrival_time": segment.arrival_time,
+                "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
+                "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
+                "interval": None,  # 间隔时间（待补）
+                "trip_id": trip_id,  # 行程号
+                "status": segment.segment_status,  # segment状态
+                "route": trip_obj.display_trip_route  # 行程详情
+            }
+            record_lt.append(record)
+
+        # 按送货时间倒序排序
+        record_lt.sort(key=lambda x: x["arrival_time"], reverse=True)
+
+        # 计算间隔时间（按日期差异，单位：天）
+        for i in range(0, len(record_lt) - 1):
+            date1 = record_lt[i]["arrival_time"].date()
+            date2 = record_lt[i + 1]["arrival_time"].date()
+            delta_days = (date1 - date2).days
+            record_lt[i]["interval"] = delta_days
+
+        # 最后一条记录没有“下一次”，可以设为 None 或 0
+        record_lt[-1]["interval"] = None
+
+        # 转换为最终展示格式
+        final_records = [
+            [
+                r["arrival_str"],
+                r["drop_ton"],
+                r['interval'] if r["interval"] is not None else '',
+                r["trip_id"],
+                r["status"],
+                r["route"]
+            ]
+            for r in record_lt
+        ]
+
+        self.delivery_record_table.insert_rows(final_records)
 
     def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''

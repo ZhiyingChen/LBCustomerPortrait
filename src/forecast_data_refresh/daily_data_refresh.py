@@ -1173,7 +1173,7 @@ class ForecastDataRefresh:
 
         trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum', 'Amount1', 'Arrival Time']
         df_trip = df_trip[trip_cols]
-        df_trip.rename(columns={'Amount1': 'DeliveredQty'}, inplace=True)
+        df_trip.rename(columns={'Amount1': 'DeliveredQty', 'Arrival Time': 'ActualArrivalTime'}, inplace=True)
 
         table = 'view_trip'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table))
