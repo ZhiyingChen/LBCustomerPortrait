@@ -16,6 +16,7 @@ import matplotlib
 import time
 import threading
 from typing import Dict
+import schedule
 from .confirm_order_popup_ui import ConfirmOrderPopupUI
 from . import ui_structure
 from ..utils.dol_api import updateDOL
@@ -27,7 +28,7 @@ from ..utils.constant import unitOfLength_dict
 from .order_popup_ui import OrderPopupUI
 from .lb_order_data_manager import LBOrderDataManager
 from .. import domain_object as do
-from ..utils import enums
+
 
 # 设置使用的字体（需要显示中文的时候使用）
 font = {'family': 'SimHei'}
