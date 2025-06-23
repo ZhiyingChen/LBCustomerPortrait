@@ -2,6 +2,7 @@ from typing import Dict, List
 import pandas as pd
 import logging
 import datetime
+import sqlite3
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
@@ -22,6 +23,7 @@ class LBOrderDataManager:
     # region 初始化数据区域
     def _initialize(self):
         self.check_call_log_table()
+        self.update_previous_call_log_to_shared_folder()
         self.check_forecast_order_table()
         self.generate_forecast_order_dict()
 
@@ -63,6 +65,81 @@ class LBOrderDataManager:
             )
         )
         self.conn.commit()
+
+    def update_previous_call_log_to_shared_folder(self):
+        shared_filename = r'\\shangnt\lbshell\PUAPI\PU_program\automation\autoScheduling\log_record\log_record.sqlite'
+
+        max_retries = 5
+        retry_delay = 3  # 秒
+
+        for attempt in range(max_retries):
+            try:
+                shared_conn = func.connect_sqlite(shared_filename)
+                shared_conn.isolation_level = None  # 设置为自动提交模式
+                shared_cur = shared_conn.cursor()
+
+                # 如果共享盘中没有 call log，生成一个新的 table
+                table_exists = shared_cur.execute(
+                    '''SELECT name FROM sqlite_master WHERE type='table' AND name=?;''', (fd.Call_Log_Table,)
+                ).fetchone()
+
+                if not table_exists:
+                    shared_conn.execute(
+                        '''CREATE TABLE {} (shipto TEXT, cust_name TEXT, apex_id TEXT, timestamp TEXT);'''.format(
+                            fd.Call_Log_Table)
+                    )
+                    print("Table created in shared database:", fd.Call_Log_Table)  # 添加调试信息
+
+                # 开始事务
+                shared_conn.execute('BEGIN')
+
+                # 读取今天以前的日志，并插入到共享数据库中
+                today = datetime.datetime.now().strftime('%Y-%m-%d')
+                sql_line = '''SELECT * FROM {} WHERE timestamp < ?'''.format(fd.Call_Log_Table)
+                self.cur.execute(sql_line, (today,))
+                rows = self.cur.fetchall()
+
+                if rows:
+                    shared_cur.executemany(
+                        '''INSERT INTO {} (shipto, cust_name, apex_id, timestamp) VALUES (?, ?, ?, ?)'''.format(
+                            fd.Call_Log_Table),
+                        rows
+                    )
+                    print("Rows inserted into shared database:", len(rows))  # 添加调试信息
+
+                # 删除今天以前的日志
+                delete_line = '''DELETE FROM {} WHERE timestamp < ?'''.format(fd.Call_Log_Table)
+                self.cur.execute(delete_line, (today,))
+                self.conn.commit()
+                print("Rows deleted from local database:", len(rows))  # 添加调试信息
+
+                # 提交事务
+                shared_conn.execute('COMMIT')
+                break  # 如果成功，退出循环
+
+            except sqlite3.OperationalError as e:
+                if 'locked' in str(e):
+                    print("Database is locked, retrying... (Attempt {})".format(attempt + 1))  # 添加调试信息
+                    time.sleep(retry_delay)
+                else:
+                    print("Operational error:", str(e))  # 添加调试信息
+                    break  # 其他 OperationalError 不重试
+            except sqlite3.Error as e:
+                print("Database error:", str(e))  # 添加调试信息
+                break  # 数据库错误不重试
+            except Exception as e:
+                print("An error occurred:", str(e))  # 添加调试信息
+                break  # 其他错误不重试
+            finally:
+                try:
+                    if shared_conn:
+                        shared_conn.close()
+                except sqlite3.Error as e:
+                    print("Error closing shared database connection:", str(e))  # 添加调试信息
+        else:
+            print("Failed to update shared database after {} retries.".format(max_retries))
+
+
 
     def create_new_fo_list(self):
         oh = fd.OrderListHeader
