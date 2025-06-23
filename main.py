@@ -12,7 +12,7 @@ import time
 def run_auto_refresh(ui_instance):
     while True:
         schedule.run_pending()
-        time.sleep(1)  # 等待1秒，然后检查是否有任务需要执行
+        time.sleep(30)  # 等待1秒，然后检查是否有任务需要执行
 
 if __name__ == '__main__':
 
