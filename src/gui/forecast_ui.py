@@ -194,6 +194,23 @@ class LBForecastUI:
         copy_window = tk.Toplevel(self.root)
         copy_window.title("复制 选中的 客户简称 和 shipto")
 
+        # 设置窗口大小
+        copy_window_width = 300
+        copy_window_height = 150
+
+        # 获取 root 窗口的位置和大小
+        root_x = self.root.winfo_x()
+        root_y = self.root.winfo_y()
+        root_width = self.root.winfo_width()
+        root_height = self.root.winfo_height()
+
+        # 计算 copy_window 的位置
+        x = root_x + (root_width - copy_window_width) // 2
+        y = root_y + (root_height - copy_window_height) // 2
+
+        # 设置 copy_window 的几何位置
+        copy_window.geometry(f"{copy_window_width}x{copy_window_height}+{x}+{y}")
+
         # 创建 Entry 小部件
         entry_cust_name = tk.Entry(copy_window, width=30, bg='white', fg='black', borderwidth=1)
         entry_cust_name.insert(0, custName)
