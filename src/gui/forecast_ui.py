@@ -575,7 +575,7 @@ class LBForecastUI:
 
 
     def _set_delivery_record_frame(self):
-        columns = ["送货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
+        columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
         col_widths = [55, 20, 12, 60, 36, 120]
 
         self.delivery_record_table = ui_structure.SimpleTable(
@@ -636,32 +636,30 @@ class LBForecastUI:
         self.production_table.insert_rows(data)
 
     def _set_comment_frame(self):
-        columns = ["内容"]
-        col_widths = [70, 100]
+        columns = ["特殊备注"]
+        col_widths = [70]
         data = [
-            ["特殊备注", ""],
+            ["", ""],
         ]
-        col_stretch = [False, True]
+        col_stretch = [True]
 
-        self.comment_table = ui_structure.NoHeaderTable(
-            self.frame_comment, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch,
-            show_header=False
+        self.comment_table = ui_structure.SimpleTable(
+            self.frame_comment, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch
         )
         self.comment_table.frame.pack(fill="both")
         self.comment_table.insert_rows(data)
 
     def _set_contact_frame(self):
-        columns = ["内容"]
-        col_widths = [70, 100]
+        columns = ["最新联络"]
+        col_widths = [100]
         data = [
-            ["最新联络", ""],
-            ["", ""],
+            [""],
+            [""],
         ]
-        col_stretch = [False, True]
+        col_stretch = [True]
 
-        self.contact_table = ui_structure.NoHeaderTable(
-            self.frame_contact, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch,
-            show_header=False
+        self.contact_table = ui_structure.SimpleTable(
+            self.frame_contact, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch
         )
         self.contact_table.frame.pack(fill="both")
         self.contact_table.insert_rows(data)
@@ -846,12 +844,9 @@ class LBForecastUI:
 
     def update_contact_table(self, shipto_id: str):
         call_log_text = self.data_manager.get_call_log_by_shipto(shipto_id)
-        data = []
-        for i, text in enumerate(call_log_text.split('; ')):
-            if i == 0:
-                data.append(['最新联络', text])
-            else:
-                data.append(['', text])
+        data = [
+            [text.strip(" \n")] for text in call_log_text.split('; ')
+        ]
         self.contact_table.insert_rows(data)
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
