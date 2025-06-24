@@ -40,8 +40,8 @@ if __name__ == '__main__':
         path1=path1
     )
 
-    # 安排每小时整点自动刷新任务
-    schedule.every().hour.at(":00").do(lb_forecast_ui.refresh_data, show_message=False)
+    # 安排每小时30分钟运行自动刷新任务
+    schedule.every().hour.at(":30").do(lb_forecast_ui.refresh_data, show_message=False)
 
     # 在单独的线程中运行自动刷新任务
     auto_refresh_thread = threading.Thread(target=run_auto_refresh, args=(lb_forecast_ui,))
