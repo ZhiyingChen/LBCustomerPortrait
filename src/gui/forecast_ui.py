@@ -169,16 +169,34 @@ class LBForecastUI:
 
         # 创建一个菜单
         self.popup_menu = tk.Menu(self.listbox_customer, tearoff=0)
-        self.popup_menu.add_command(label="复制选中的 客户简称 和 shipto", command=self.open_copy_window)
+        # 创建一个菜单
+        self.popup_menu = tk.Menu(self.listbox_customer, tearoff=0)
+        self.popup_menu.add_command(label="复制选中的 客户简称", command=self.copy_customer_name)
+        self.popup_menu.add_command(label="复制选中的 shipto", command=self.copy_shipto)
 
     def listbox_customer_right_click(self, event):
-        # 显示右键菜单
         try:
-            self.popup_menu.tk_popup(event.x_root, event.y_root)
+            self.popup_menu.tk_popup(event.x_root + 80, event.y_root, 0)
         finally:
             self.popup_menu.grab_release()
 
-    def open_copy_window(self):
+    def copy_customer_name(self):
+        # 获取选中的客户名称
+        selected_index = self.listbox_customer.curselection()
+        if not selected_index:
+            return
+
+        custName = self.listbox_customer.get(selected_index[0])
+        if not self.check_cust_name_valid(custName):
+            return
+
+        # 复制到剪切板
+        self.root.clipboard_clear()
+        self.root.clipboard_append(custName)
+        self.root.update()
+
+    def copy_shipto(self):
+        # 实现复制 shipto 到剪切板的逻辑
         # 获取选中的客户名称
         selected_index = self.listbox_customer.curselection()
         if not selected_index:
@@ -189,48 +207,11 @@ class LBForecastUI:
             return
 
         shipto = int(self.df_name_forecast.loc[custName].values[0])
-
-        # 创建一个新的窗口
-        copy_window = tk.Toplevel(self.root)
-        copy_window.title("复制 选中的 客户简称 和 shipto")
-
-        # 设置窗口大小
-        copy_window_width = 300
-        copy_window_height = 150
-
-        # 获取 root 窗口的位置和大小
-        root_x = self.root.winfo_x()
-        root_y = self.root.winfo_y()
-        root_width = self.root.winfo_width()
-        root_height = self.root.winfo_height()
-
-        # 计算 copy_window 的位置
-        x = root_x + (root_width - copy_window_width) // 2
-        y = root_y + (root_height - copy_window_height) // 2
-
-        # 设置 copy_window 的几何位置
-        copy_window.geometry(f"{copy_window_width}x{copy_window_height}+{x}+{y}")
-
-        # 创建 Entry 小部件
-        entry_cust_name = tk.Entry(copy_window, width=30, bg='white', fg='black', borderwidth=1)
-        entry_cust_name.insert(0, custName)
-        entry_cust_name.pack(padx=10, pady=5)
-        entry_cust_name.bind("<Button-1>", lambda event: self.copy_text(entry_cust_name))
-
-        entry_ship_to = tk.Entry(copy_window, width=30, bg='white', fg='black', borderwidth=1)
-        entry_ship_to.insert(0, str(shipto))
-        entry_ship_to.pack(padx=10, pady=5)
-        entry_ship_to.bind("<Button-1>", lambda event: self.copy_text(entry_ship_to))
-
-        # 添加一个关闭按钮
-        close_button = tk.Button(copy_window, text="关闭", command=copy_window.destroy)
-        close_button.pack(pady=10)
-
-    def copy_text(self, entry):
-        # 复制 Entry 小部件中的文本到剪贴板
+        # 复制到剪切板
         self.root.clipboard_clear()
-        self.root.clipboard_append(entry.get())
+        self.root.clipboard_append(str(shipto))
         self.root.update()
+
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
