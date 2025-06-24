@@ -655,11 +655,12 @@ class LBForecastUI:
         col_widths = [70, 100]
         data = [
             ["最新联络", ""],
+            ["", ""],
         ]
         col_stretch = [False, True]
 
         self.contact_table = ui_structure.NoHeaderTable(
-            self.frame_contact, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch,
+            self.frame_contact, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch,
             show_header=False
         )
         self.contact_table.frame.pack(fill="both")
@@ -845,9 +846,12 @@ class LBForecastUI:
 
     def update_contact_table(self, shipto_id: str):
         call_log_text = self.data_manager.get_call_log_by_shipto(shipto_id)
-        data = [
-            ["最新联络", call_log_text],
-        ]
+        data = []
+        for i, text in enumerate(call_log_text.split('; ')):
+            if i == 0:
+                data.append(['最新联络', text])
+            else:
+                data.append(['', text])
         self.contact_table.insert_rows(data)
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
