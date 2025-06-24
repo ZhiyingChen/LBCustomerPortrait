@@ -156,7 +156,7 @@ class LBForecastUI:
         # 保证了 两个 Listbox 点击一个时,不影响第二个。
         self.listbox_customer = tk.Listbox(
             self.cust_name_selection_frame, height=13, width=20, yscrollcommand=scroll_y.set, exportselection=False
-            , selectmode=tk.SINGLE)
+            , selectmode=tk.EXTENDED)
         scroll_y.config(command=self.listbox_customer.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
