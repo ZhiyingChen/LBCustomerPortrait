@@ -116,7 +116,7 @@ class SimpleTable:
                     self.tooltip.overrideredirect(True)
                     label = tk.Label(self.tooltip, text=value, background="yellow", relief='solid', borderwidth=1)
                     label.pack()
-                    self.tooltip.geometry(f"+{event.x_root+10}+{event.y_root+10}")
+                    self.tooltip.geometry(f"+{event.x_root-150}+{event.y_root+10}")
                     self.tooltip.deiconify()
 
 
@@ -213,5 +213,5 @@ class NoHeaderTable:
                     self.tooltip.overrideredirect(True)
                     label = tk.Label(self.tooltip, text=value, background="yellow", relief='solid', borderwidth=1)
                     label.pack()
-                    self.tooltip.geometry(f"+{event.x_root+10}+{event.y_root+10}")
+                    self.tooltip.geometry(f"+{event.x_root-150}+{event.y_root+10}")
                     self.tooltip.deiconify()
