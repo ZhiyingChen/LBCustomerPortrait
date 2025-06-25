@@ -883,7 +883,7 @@ class ForecastDataRefresh:
         '''
         production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
         if production_schedule_df.empty:
-            return None
+            return pd.DataFrame(columns=['LocNum', 'NaturalLanguageSummary'])
 
         production_schedule_df['LocNum'] = production_schedule_df['LocNum'].astype(str)
 
@@ -995,14 +995,13 @@ class ForecastDataRefresh:
             AND CP.CustAcronym NOT LIKE '1%'
             AND CP.DlvryStatus = 'A'
             AND OPH.RecStoreIdn NOT IN ('LBFcst', 'SYBASE')
-            AND OPH.Description != '' 
-            AND OPH.Description != 'System Generated' 
-            AND GETDATE()-30 <= OPH.DateTo
+            AND OPH.Description NOT IN ('', 'System Generated')
+            AND GETDATE()-1 <= OPH.DateTo
         '''
 
         restricted_production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
         if restricted_production_schedule_df.empty:
-            return None
+            return pd.DataFrame(columns=['LocNum', 'Summary'])
         restricted_production_schedule_df['LocNum'] = restricted_production_schedule_df['LocNum'].astype(str)
         restricted_production_schedule_df['DateFrom'] = restricted_production_schedule_df['DateFrom'].apply(lambda x: x.strftime('%Y-%m-%d'))
         restricted_production_schedule_df['DateTo'] = restricted_production_schedule_df['DateTo'].apply(lambda x: x.strftime('%Y-%m-%d'))

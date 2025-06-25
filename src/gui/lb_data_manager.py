@@ -209,6 +209,22 @@ class LBDataManager:
             return OrdinaryDeliveryWindow, RestrictedDeliveryPeriods
         return '', ''
 
+    def get_production_schedule_by_shipto(self, shipto: str):
+        '''获取生产计划'''
+        table_name = 'ProductionSchedule'
+        cursor = self.cur
+
+        sql_line = '''
+            SELECT LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule 
+            FROM {} WHERE LocNum = {}
+        '''.format(table_name, shipto)
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        for (LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule) in results:
+            return OrdinaryProductionSchedule, RestrictedProductionSchedule
+        return '', ''
+
+
     def get_call_log_by_shipto(self, shipto: str):
         '''获取 call_log'''
         table_name = 'CallLogInfo'

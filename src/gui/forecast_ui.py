@@ -816,9 +816,10 @@ class LBForecastUI:
 
     # region 刷新相关函数
     def update_production_table(self, shipto_id: str):
+        ordinary_ps_text, restricted_ps_text = self.data_manager.get_production_schedule_by_shipto(shipto_id)
         ordinary_delivery_text, restricted_delivery_text = self.data_manager.get_delivery_window_by_shipto(shipto_id)
         data = [
-            ['生产计划', '', ''],
+            ['生产计划', ordinary_ps_text, restricted_ps_text],
             ['收货窗口', ordinary_delivery_text, restricted_delivery_text]
         ]
         self.production_table.insert_rows(data)
