@@ -39,7 +39,11 @@ class TripShipto:
 
     @property
     def is_trip_planned(self):
-        if len(self.trip_dict) == 0:
+        today_trip_dict = {
+            t_id: trip for t_id, trip in self.trip_dict.items()
+            if trip is not None and trip.date() >= pd.Timestamp.now().date()
+        }
+        if len(today_trip_dict) == 0:
             return False
         return True
 
