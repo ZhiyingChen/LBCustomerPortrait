@@ -26,7 +26,7 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.join(to_dir, db_name)) or \
             not func.is_file_modified_today(os.path.join(to_dir, db_name)):
         # 数据库不存在或过期，拷贝数据库
-        print('数据库不存在或过期，拷贝数据库')
+        print('数据库不存在或过期，正在拷贝数据库...')
         func.copyfile(dbname=db_name, from_dir=path1, to_dir='./')
 
     root = tk.Tk()
