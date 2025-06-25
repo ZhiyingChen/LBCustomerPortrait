@@ -214,15 +214,18 @@ class LBDataManager:
         table_name = 'ProductionSchedule'
         cursor = self.cur
 
-        sql_line = '''
-            SELECT LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule 
-            FROM {} WHERE LocNum = {}
-        '''.format(table_name, shipto)
-        cursor.execute(sql_line)
-        results = cursor.fetchall()
-        for (LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule) in results:
-            return OrdinaryProductionSchedule, RestrictedProductionSchedule
-        return '', ''
+        try:
+            sql_line = '''
+                SELECT LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule 
+                FROM {} WHERE LocNum = {}
+            '''.format(table_name, shipto)
+            cursor.execute(sql_line)
+            results = cursor.fetchall()
+            for (LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule) in results:
+                return OrdinaryProductionSchedule, RestrictedProductionSchedule
+        except Exception as e:
+            print(e)
+            return '', ''
 
 
     def get_call_log_by_shipto(self, shipto: str):

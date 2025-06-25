@@ -268,7 +268,6 @@ class LBForecastUI:
             f_FO = df_name_forecast.DemandType.isin(cur_FO)
 
 
-
         # get selected customers
         custName_list = list(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
 
