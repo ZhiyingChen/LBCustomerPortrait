@@ -866,6 +866,248 @@ class ForecastDataRefresh:
         )
         self.local_conn.commit()
 
+    def get_ordinary_production_schedule(self):
+        sql_line = '''
+        SELECT LocNum, CustAcronym, 
+            OpMonShift1StartTime,OpMonShift1EndTime,OpMonShift2StartTime,OpMonShift2EndTime,OpMonShift3StartTime,OpMonShift3EndTime,
+            OpTueShift1StartTime,OpTueShift1EndTime,OpTueShift2StartTime,OpTueShift2EndTime,OpTueShift3StartTime,OpTueShift3EndTime,
+            OpWedShift1StartTime,OpWedShift1EndTime,OpWedShift2StartTime,OpWedShift2EndTime,OpWedShift3StartTime,OpWedShift3EndTime,
+            OpThuShift1StartTime,OpThuShift1EndTime,OpThuShift2StartTime,OpThuShift2EndTime,OpThuShift3StartTime,OpThuShift3EndTime,
+            OpFriShift1StartTime,OpFriShift1EndTime,OpFriShift2StartTime,OpFriShift2EndTime,OpFriShift3StartTime,OpFriShift3EndTime,
+            OpSatShift1StartTime,OpSatShift1EndTime,OpSatShift2StartTime,OpSatShift2EndTime,OpSatShift3StartTime,OpSatShift3EndTime,
+            OpSunShift1StartTime,OpSunShift1EndTime,OpSunShift2StartTime,OpSunShift2EndTime,OpSunShift3StartTime,OpSunShift3EndTime
+        FROM CustomerProfile CP
+        WHERE CP.PrimaryTerminal LIKE 'x%'
+                AND CP.CustAcronym NOT LIKE '1%'
+                AND CP.DlvryStatus = 'A'
+        '''
+        production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
+        if production_schedule_df.empty:
+            return None
+
+        production_schedule_df['LocNum'] = production_schedule_df['LocNum'].astype(str)
+
+        # Function to summarize shifts for a day
+        def summarize_shifts(row, day):
+            start_times = [row[f'Op{day}Shift1StartTime'], row[f'Op{day}Shift2StartTime'],
+                           row[f'Op{day}Shift3StartTime']]
+            end_times = [row[f'Op{day}Shift1EndTime'], row[f'Op{day}Shift2EndTime'], row[f'Op{day}Shift3EndTime']]
+
+            # Convert to string in case they are datetime objects
+            start_times = [str(t) for t in start_times]
+            end_times = [str(t) for t in end_times]
+
+            # Filter out inactive shifts (00:00 to 00:00)
+            active_shifts = [(start, end) for start, end in zip(start_times, end_times)
+                             if not (start.endswith("00:00:00") and end.endswith("00:00:00") and
+                                     start.split()[0] == end.split()[0])]
+
+            if not active_shifts:
+                return f'{day} 00:00-00:00'
+
+            # Check if any shift spans across days
+            spans_across_days = any(start.split()[0] != end.split()[0] for start, end in active_shifts)
+
+            if spans_across_days:
+                return f'{day} 00:00-24:00'
+
+            # Combine active shifts
+            combined_start = min(start.split()[1][:-3] for start, end in active_shifts)
+            combined_end = max(end.split()[1][:-3] for start, end in active_shifts)
+
+            return f'{day} {combined_start}-{combined_end}'
+
+        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        production_schedule_df['Summary'] = production_schedule_df.apply(
+            lambda row: ' '.join(summarize_shifts(row, day) for day in days),
+            axis=1
+        )
+
+        # Function to generate natural language summary
+        def generate_natural_language_summary(summary):
+            days_map = {
+                'Mon': '周一',
+                'Tue': '周二',
+                'Wed': '周三',
+                'Thu': '周四',
+                'Fri': '周五',
+                'Sat': '周六',
+                'Sun': '周日'
+            }
+
+            # Split the summary into individual day summaries
+            day_summaries = summary.split()
+
+            # Group consecutive days with identical working hours
+            grouped_summaries = []
+            current_group = []
+            current_hours = None
+
+            for i in range(0, len(day_summaries), 2):
+                day = day_summaries[i]
+                hours = day_summaries[i + 1]
+
+                if hours == '00:00-00:00':
+                    hours = '停产'
+
+                if hours != current_hours:
+                    if current_group:
+                        grouped_summaries.append((current_group, current_hours))
+                    current_group = [days_map[day]]
+                    current_hours = hours
+                else:
+                    current_group.append(days_map[day])
+
+            if current_group:
+                grouped_summaries.append((current_group, current_hours))
+
+            # Generate natural language summary
+            natural_language_summary = []
+            for group, hours in grouped_summaries:
+                if len(group) == 1:
+                    natural_language_summary.append(f'{group[0]} {hours}')
+                else:
+                    natural_language_summary.append(f'{group[0]}到{group[-1]} {hours}')
+
+            return '，'.join(natural_language_summary)
+
+        # Apply the function to the DataFrame
+        production_schedule_df['NaturalLanguageSummary'] = production_schedule_df['Summary'].apply(
+            generate_natural_language_summary)
+
+        return production_schedule_df
+
+    def get_restricted_production_schedule(self):
+        sql_line = '''
+            SELECT 
+                OPH.LocNum,OPH.DateFrom,OPH.DateTo,OPH.RecStoreIdn,	OPH.Description,	
+                OPH.MonShift1,OPH.MonShift2,OPH.MonShift3,
+                OPH.TueShift1,OPH.TueShift2,OPH.TueShift3,
+                OPH.WedShift1,OPH.WedShift2,OPH.WedShift3,
+                OPH.ThuShift1,OPH.ThuShift2,OPH.ThuShift3,
+                OPH.FriShift1,OPH.FriShift2,OPH.FriShift3,
+                OPH.SatShift1,OPH.SatShift2,OPH.SatShift3,
+                OPH.SunShift1,OPH.SunShift2,OPH.SunShift3
+            FROM OpPatternHistory OPH
+            LEFT JOIN CustomerProfile AS CP
+            ON OPH.LocNum = CP.LocNum
+            WHERE CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+            AND OPH.RecStoreIdn NOT IN ('LBFcst', 'SYBASE')
+            AND OPH.Description != '' 
+            AND OPH.Description != 'System Generated' 
+            AND GETDATE()-30 <= OPH.DateTo
+        '''
+
+        restricted_production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
+        if restricted_production_schedule_df.empty:
+            return None
+        restricted_production_schedule_df['LocNum'] = restricted_production_schedule_df['LocNum'].astype(str)
+        restricted_production_schedule_df['DateFrom'] = restricted_production_schedule_df['DateFrom'].apply(lambda x: x.strftime('%Y-%m-%d'))
+        restricted_production_schedule_df['DateTo'] = restricted_production_schedule_df['DateTo'].apply(lambda x: x.strftime('%Y-%m-%d'))
+
+        # Function to classify the ratio
+        def classify_ratio(ratio):
+            if ratio == 0:
+                return '停产'
+            elif 0 < ratio < 100:
+                return '减产'
+            elif ratio == 100:
+                return '正常'
+            else:
+                return '超产'
+
+        # Function to summarize shifts for a day
+        def summarize_shifts(row, day):
+            ratios_col = [f'{day}Shift1', f'{day}Shift2', f'{day}Shift3']
+            ratio = max(row[ratio_col] for ratio_col in ratios_col)
+            return classify_ratio(ratio)
+
+        # Function to generate summary for each row
+        def generate_summary(row):
+            days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            summary = []
+            date_from = datetime.datetime.strptime(row['DateFrom'], '%Y-%m-%d')
+            date_to = datetime.datetime.strptime(row['DateTo'], '%Y-%m-%d')
+            current_date = date_from
+            while current_date <= date_to:
+                day_of_week = days[current_date.weekday()]
+                comment = summarize_shifts(row, day_of_week)
+                summary.append((current_date.strftime('%Y-%m-%d'), comment))
+                current_date += datetime.timedelta(days=1)
+            # Combine consecutive days with the same comment
+            combined_summary = []
+            start_date = summary[0][0]
+            current_comment = summary[0][1]
+            for i in range(1, len(summary)):
+                if summary[i][1] == current_comment:
+                    continue
+                else:
+                    end_date = summary[i - 1][0]
+                    if start_date == end_date:
+                        combined_summary.append(f'{start_date} {current_comment}')
+                    else:
+                        combined_summary.append(f'{start_date} 到 {end_date} {current_comment}')
+                    start_date = summary[i][0]
+                    current_comment = summary[i][1]
+            if start_date == summary[-1][0]:
+                combined_summary.append(f'{start_date} {current_comment}')
+            else:
+                combined_summary.append(f'{start_date} 到 {summary[-1][0]} {current_comment}')
+            # Remove segments labeled as '正常'
+            final_summary = [segment for segment in combined_summary if '正常' not in segment]
+            final_summary_str = '{}: {}'.format(row['Description'].strip(), ', '.join(final_summary))
+            return final_summary_str
+
+        # Apply the summary generation function to each row
+        restricted_production_schedule_df['Summary'] = restricted_production_schedule_df.apply(generate_summary, axis=1)
+
+
+        return restricted_production_schedule_df
+
+
+    def refresh_production_schedule(self):
+        ordinary_production_schedule_df = self.get_ordinary_production_schedule()
+        restricted_production_schedule_df = self.get_restricted_production_schedule()
+
+        shipto_lt = list(set(
+            ordinary_production_schedule_df['LocNum'].tolist() +
+            restricted_production_schedule_df['LocNum'].tolist())
+        )
+        ordinary_ps_dict = dict(zip(
+            ordinary_production_schedule_df['LocNum'],
+            ordinary_production_schedule_df['NaturalLanguageSummary']
+        ))
+        restricted_ps_dict = dict(zip(
+            restricted_production_schedule_df['LocNum'],
+            restricted_production_schedule_df['Summary']
+        ))
+
+        cols = [
+            'LocNum',
+            'OrdinaryProductionSchedule',
+            'RestrictedProductionSchedule'
+        ]
+        record_lt = []
+        for shipto in shipto_lt:
+            record = {
+                'LocNum': shipto,
+                'OrdinaryProductionSchedule': ordinary_ps_dict.get(shipto, ''),
+                'RestrictedProductionSchedule': restricted_ps_dict.get(shipto, ''),
+            }
+            record_lt.append(record)
+
+        production_schedule_df = pd.DataFrame(record_lt, columns=cols)
+
+        table_name = 'ProductionSchedule'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        production_schedule_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
+
+
     def refresh_lb_daily_data(self):
         """
         这些都是冬亮之前写的，单独抽出来，不改了
@@ -880,6 +1122,7 @@ class ForecastDataRefresh:
         '''
         self.refresh_delivery_window_and_restricted_delivery_periods()
         self.refresh_call_log()
+        self.refresh_production_schedule()
 
         '''
         新增： 最近送货记录 CLSD
