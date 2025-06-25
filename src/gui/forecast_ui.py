@@ -1160,7 +1160,7 @@ class LBForecastUI:
         self.check_telemetry_flag = tk.Checkbutton(button_frame, text='远控 最新 （无液位时勾选）', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
         self.check_telemetry_flag.grid(row=0, column=4, padx=1, pady=10)
 
-        self.pic_figure = Figure(figsize=(5, 3), dpi=80)
+        self.pic_figure = Figure(figsize=(5, 4), dpi=80)
         gs = self.pic_figure.add_gridspec(1, 2, width_ratios=(6, 1),
                               left=0.08, right=0.96, bottom=0.1, top=0.9,
                               wspace=0.1, hspace=0.05)
