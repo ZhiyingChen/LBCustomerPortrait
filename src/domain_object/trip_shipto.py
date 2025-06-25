@@ -39,7 +39,7 @@ class TripShipto:
 
     @property
     def is_trip_planned(self):
-        if self.nearest_trip is None:
+        if len(self.trip_dict) == 0:
             return False
         return True
 
