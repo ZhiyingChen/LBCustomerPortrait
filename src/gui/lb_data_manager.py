@@ -241,6 +241,21 @@ class LBDataManager:
             return call_log
         return ''
 
+    def get_special_note_by_shipto(self, shipto: str):
+        '''获取特殊说明'''
+        table_name = 'SpecialNote'
+
+        sql_line = '''SELECT LocNum, Summary FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor = self.cur
+        try:
+            cursor.execute(sql_line)
+            results = cursor.fetchall()
+            for loc_num, special_note in results:
+                return special_note
+        except Exception as e:
+            print(e)
+            return ''
 
     def get_forecast_error(self, shipto):
         '''获取 forecastError'''

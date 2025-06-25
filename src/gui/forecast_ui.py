@@ -830,6 +830,13 @@ class LBForecastUI:
         ]
         self.contact_table.insert_rows(data)
 
+    def update_comment_table(self, shipto_id: str):
+        comment_text = self.data_manager.get_special_note_by_shipto(shipto_id)
+        data = [
+            [comment_text]
+        ]
+        self.comment_table.insert_rows(data)
+
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
         results = self.data_manager.get_primary_terminal_dtd_info(shipto_id)
 
@@ -991,6 +998,7 @@ class LBForecastUI:
 
         self.update_production_table(shipto_id=str(shipto))
         self.update_contact_table(shipto_id=str(shipto))
+        self.update_comment_table(shipto_id=str(shipto))
         # 显示历史液位
         self.update_reading_tree_table(shipto_id=str(shipto))
 

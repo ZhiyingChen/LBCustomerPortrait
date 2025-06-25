@@ -1106,6 +1106,116 @@ class ForecastDataRefresh:
         )
         self.local_conn.commit()
 
+    def get_special_note_df(self):
+        sql_line = '''
+            WITH RestrictedSource AS (
+                SELECT 
+                SR.LocNum,
+                STUFF((
+                    SELECT ',' + SR2.CorporateIdn
+                    FROM SourceRestriction SR2
+                    LEFT JOIN CustomerProfile CP2 ON SR2.LocNum = CP2.LocNum
+                    WHERE 
+                        CP2.PrimaryTerminal LIKE 'x%'
+                        AND CP2.CustAcronym NOT LIKE '1%'
+                        AND CP2.DlvryStatus = 'A'
+                        AND SR2.YesNoFlag = '0'
+                        AND SR2.LocNum = SR.LocNum
+                    FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS RestrictedCorporateIdn
+                FROM 
+                    SourceRestriction SR
+                LEFT JOIN 
+                    CustomerProfile CP ON SR.LocNum = CP.LocNum
+                WHERE 
+                    CP.PrimaryTerminal LIKE 'x%'
+                    AND CP.CustAcronym NOT LIKE '1%'
+                    AND CP.DlvryStatus = 'A'
+                    AND SR.YesNoFlag = '0'
+                GROUP BY 
+                    SR.LocNum
+            ), 
+            ACOC AS (
+                SELECT 
+                LBR.LocNum,
+                STUFF((
+                    SELECT ',' + 
+                        CASE 
+                            WHEN LBR2.SpecProductReqdIdn = 3 THEN 'COC'
+                            WHEN LBR2.SpecProductReqdIdn = 5 THEN 'COA'
+                        END
+                    FROM LBCustRqmnt LBR2
+                    LEFT JOIN CustomerProfile CP2 ON LBR2.LocNum = CP2.LocNum
+                    WHERE 
+                        CP2.PrimaryTerminal LIKE 'x%'
+                        AND CP2.CustAcronym NOT LIKE '1%'
+                        AND CP2.DlvryStatus = 'A'
+                        AND LBR2.SpecProductReqdIdn IN (3, 5)
+                        AND LBR2.LocNum = LBR.LocNum
+                    FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS Requirement
+                FROM 
+                    LBCustRqmnt LBR
+                LEFT JOIN 
+                    CustomerProfile CP ON LBR.LocNum = CP.LocNum
+                WHERE 
+                    CP.PrimaryTerminal LIKE 'x%'
+                    AND CP.CustAcronym NOT LIKE '1%'
+                    AND CP.DlvryStatus = 'A'
+                    AND LBR.SpecProductReqdIdn IN (3, 5)
+                GROUP BY 
+                    LBR.LocNum
+            
+            )
+            SELECT CP.LocNum, CP.CustAcronym, CP.ClusteringZone,CP.HighPressFlag, CP.MultTankFlag, CP.FirstStop, CP.NoDumpFlag, RS.RestrictedCorporateIdn, ACOC.Requirement
+            FROM CustomerProfile AS CP
+            LEFT JOIN RestrictedSource RS
+            ON CP.LocNum = RS.LocNum
+            LEFT JOIN ACOC
+            ON CP.LocNum = ACOC.LocNum 
+            WHERE CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+        '''
+        special_note_df = pd.read_sql(sql_line, self.odbc_conn)
+        special_note_df['LocNum'] = special_note_df['LocNum'].astype(str)
+
+        return special_note_df
+
+    def refresh_special_note(self):
+        special_note_df = self.get_special_note_df()
+
+        # Function to summarize each row
+        def summarize_row(row):
+            summary = []
+            if pd.notna(row['ClusteringZone']) and len(row['ClusteringZone'].strip(' ')):
+                summary.append(
+                    'ClusterZone: {}'.format(row['ClusteringZone'].strip(' '))
+                )
+            if row['HighPressFlag']:
+                summary.append('高压车')
+            if row['MultTankFlag']:
+                summary.append('并联罐')
+            if row['FirstStop']:
+                summary.append('务必第一个卸货')
+            if row['NoDumpFlag']:
+                summary.append('不允许最后卸货')
+            if pd.notna(row['RestrictedCorporateIdn']):
+                summary.append(
+                    '禁止{}货源'.format(row['RestrictedCorporateIdn'])
+                )
+            if pd.notna(row['Requirement']):
+                summary.append(row['Requirement'])
+            return ' & '.join(summary)
+
+        # Apply the function to each row
+        special_note_df['Summary'] = special_note_df.apply(summarize_row, axis=1)
+
+        table_name = 'SpecialNote'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+
+        special_note_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
 
     def refresh_lb_daily_data(self):
         """
@@ -1122,7 +1232,7 @@ class ForecastDataRefresh:
         self.refresh_delivery_window_and_restricted_delivery_periods()
         self.refresh_call_log()
         self.refresh_production_schedule()
-
+        self.refresh_special_note()
         '''
         新增： 最近送货记录 CLSD
         '''
