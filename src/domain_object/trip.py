@@ -21,6 +21,7 @@ class Trip:
         display_lt = [
             segment.location
             for segment_id, segment in self.segment_dict.items()
+            if segment.location is not None
         ]
         return '->'.join(display_lt)
 
