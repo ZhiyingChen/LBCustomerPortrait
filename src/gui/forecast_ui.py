@@ -295,7 +295,16 @@ class LBForecastUI:
 
         custName_list = sorted(
             custName_list
-            , key=lambda x: trip_start_by_cust[x][0]
+            , key=lambda x: (
+                # 1. 行程开始时间
+                trip_start_by_cust[x][0],
+                # 2. Primary Terminal
+                df_name_forecast.loc[x, 'PrimaryTerminal'],
+                # 3. Product Class
+                df_name_forecast.loc[x, 'ProductClass'],
+                # 4. 首字母
+                x[0]
+            )
         )
 
         for item in custName_list:
