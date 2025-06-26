@@ -156,9 +156,9 @@ def summarize_delivery_times(delivery_times):
     # Format the summary
     for time_window, days in grouped_times.items():
         if time_window == "不收":
-            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))}：不收")
+            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))} 不收")
         else:
-            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))}：{time_window[0]}到{time_window[1]}")
+            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))} {time_window[0]}到{time_window[1]}")
 
     # Combine the summary into a single string
     return "，".join(summary)
