@@ -271,6 +271,15 @@ class LBForecastUI:
         # get selected customers
         custName_list = list(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
 
+        # ten_days_later = pd.Timestamp.now() + timedelta(days=10)
+        #
+        # trip_start_by_cust = {
+        #     i: (self.delivery_shipto_dict[i].nearest_trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
+        #     if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
+        #     (ten_days_later, '')
+        #     for i in custName_list
+        # }
+
         # filter by delivery type
         if delivery_type == '已安排行程':
             custName_list = [
@@ -284,20 +293,11 @@ class LBForecastUI:
                 if i in self.delivery_shipto_dict
             ]
 
-        ten_days_later = pd.Timestamp.now() + timedelta(days=10)
-
-        trip_start_by_cust = {
-            i: (self.delivery_shipto_dict[i].nearest_trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
-            if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
-            (ten_days_later, '')
-            for i in custName_list
-        }
-
         custName_list = sorted(
             custName_list
             , key=lambda x: (
                 # 1. 行程开始时间
-                trip_start_by_cust[x][0],
+                # trip_start_by_cust[x][0],
                 # 2. Primary Terminal
                 df_name_forecast.loc[x, 'PrimaryTerminal'],
                 # 3. Product Class
@@ -1391,6 +1391,7 @@ class LBForecastUI:
         # print(self.var_telemetry_flag.get())
         # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
         # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
+
         if self.var_telemetry_flag.get() == 1:
             if TELE_type == 3:
                 updateDOL(shipto, conn)
