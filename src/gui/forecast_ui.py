@@ -1082,7 +1082,7 @@ class LBForecastUI:
 
     def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''
-        validate_flag = (True, True)
+        validate_flag = (True, '')
         try:
             fromTime = pd.to_datetime(self.from_box.get())
         except ValueError:
@@ -1097,7 +1097,7 @@ class LBForecastUI:
         # 为了防止 df 是空的：
         if len(df) == 0:
             # 这表明没有预测数据， 但是也要显示历史数据
-            return (True, True)
+            return True, ''
         checkValue = df.Forecasted_Reading.values[0]
         if checkValue == 777777:
             validate_flag = (False, '此shipto无法抓取读数数据!')
@@ -1105,7 +1105,6 @@ class LBForecastUI:
             validate_flag = (False, '读数少于一个月,不足以提供预测!')
         elif checkValue == 999999:
             validate_flag = (False, '近2日的读数缺失!')
-        # print(checkValue, validate_flag)
         return validate_flag
 
     def plot_vertical_lines(self, fromTime, toTime, TR_time, Risk_time, RO_time, full):
@@ -1370,8 +1369,16 @@ class LBForecastUI:
             return
 
         shipto = int(df_name_forecast.loc[custName].values[0])
-        self.order_data_manager.insert_call_log(shipto= str(shipto), cust_name=custName)
 
+        validate_flag, error_msg = self.time_validate_check(shipto)
+        print(error_msg)
+        if isinstance(error_msg, str) and 'Time Wrong' in error_msg:
+            # 说明时间填错
+            messagebox.showinfo(title='Warning', message=error_msg)
+            return
+
+        # record
+        self.order_data_manager.insert_call_log(shipto= str(shipto), cust_name=custName)
         if custName in self.delivery_shipto_dict:
             self.delivery_shipto_dict[custName].latest_called = pd.Timestamp.now()
 
@@ -1382,9 +1389,6 @@ class LBForecastUI:
             self.listbox_customer.itemconfig(index, {'fg': 'black'})
 
         TELE_type = df_name_forecast.loc[custName, 'Subscriber']
-        if not self.check_validate_shipto(shipto=shipto):
-            return
-
         fromTime = pd.to_datetime(self.from_box.get())
         toTime = pd.to_datetime(self.to_box.get())
         # 2023-09-04 更新 DOL API 数据
@@ -1392,16 +1396,29 @@ class LBForecastUI:
         # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
         # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
 
-        if self.var_telemetry_flag.get() == 1:
+        df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
+
+        if self.var_telemetry_flag.get() == 1 or df_history.empty:
+            # update DOL or LCT
             if TELE_type == 3:
                 updateDOL(shipto, conn)
+                error_msg = 'DOL API'
             elif TELE_type == 7:
                 updateLCT(shipto, conn)
+                error_msg = 'LCT API'
+
+            if df_history.empty and 'API' in error_msg:
+                # 说明没有数据, 则提示
+                print('由于没有历史数据，自动调用API')
+
 
         self.df_info = self.data_manager.get_customer_info(shipto)
-        df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
         df_forecastBeforeTrip = self.data_manager.get_forecast_before_trip(shipto, fromTime, toTime)
         df_forecast = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
+
+        if 'API' in error_msg:
+            # 说明使用了 API, 则需要更新 df_history
+            df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
 
         # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
         if len(df_forecast) > 0:
@@ -1448,7 +1465,8 @@ class LBForecastUI:
             Risk_time=Risk_time,
             RO_time=RO_time,
             df_history=df_history,
-            uom=uom
+            uom=uom,
+            error_msg=error_msg
         )
 
         # 点击作图时,同时显示客户的充装的详细信息
@@ -1467,8 +1485,7 @@ class LBForecastUI:
             uom=uom
         )
 
-        if self.lock.locked():
-            self.lock.release()
+
 
     def draw_picture_for_current_shipto(
             self,
@@ -1485,6 +1502,7 @@ class LBForecastUI:
             RO_time: datetime,
             df_history: pd.DataFrame,
             uom: str = 'Ton',
+            error_msg = ''
     ):
         # 开始作图
         self.forecast_plot_ax.clear()
@@ -1507,10 +1525,16 @@ class LBForecastUI:
             df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
             df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading']
 
-        if len(df_history) > 0:
-            pic_title = '{}({}) History and Forecast Level'.format(custName, shipto)
-        else:
-            pic_title = '{}({}) No History Data'.format(custName, shipto)
+        main_title = 'History and Forecast Level'
+
+        if self.ts_forecast.empty:
+            main_title = 'No Forecast Data'
+        if df_history.empty:
+            main_title = 'No History Data'
+
+
+        pic_title = '{}({}) {} {}'.format(custName, shipto, main_title, error_msg)
+
         self.forecast_plot_ax.set_title(pic_title, fontsize=16)
 
         # 调整 Y 轴标签为 'Ton'
@@ -1632,8 +1656,11 @@ class LBForecastUI:
         try:
             self.main_plot()
         except Exception as e:
+            print(e)
+        finally:
             if lock.locked():
                 lock.release()
+
     # endregion
 
     # region 刷新数据
