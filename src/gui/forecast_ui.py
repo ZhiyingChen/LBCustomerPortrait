@@ -565,7 +565,7 @@ class LBForecastUI:
 
     def _set_delivery_record_frame(self):
         columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [55, 20, 12, 60, 36, 120]
+        col_widths = [55, 20, 10, 60, 36, 130]
 
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
@@ -1100,7 +1100,7 @@ class LBForecastUI:
             return True, ''
         checkValue = df.Forecasted_Reading.values[0]
         if checkValue == 777777:
-            validate_flag = (False, '此shipto无法抓取读数数据!')
+            validate_flag = (False, '无法抓取读数数据!')
         elif checkValue == 888888:
             validate_flag = (False, '读数少于一个月,不足以提供预测!')
         elif checkValue == 999999:
@@ -1525,12 +1525,12 @@ class LBForecastUI:
             df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
             df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading']
 
-        main_title = 'History and Forecast Level'
+        main_title = '历史和预测液位'
 
         if self.ts_forecast.empty:
-            main_title = 'No Forecast Data'
+            main_title = '无预测数据'
         if df_history.empty:
-            main_title = 'No History Data'
+            main_title = '无历史数据'
 
 
         pic_title = '{}({}) {} {}'.format(custName, shipto, main_title, error_msg)
@@ -1566,8 +1566,12 @@ class LBForecastUI:
                                    label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
 
         if len(self.ts_forecast_before_trip) > 0 and len(self.ts_forecast) > 0:
-            ts_join = pd.concat([self.ts_forecast_before_trip.last('1S'), self.ts_forecast.first('1S')])
-            self.forecast_plot_ax.plot(ts_join / 1000, color='orange', linestyle='dashed', gid='line_join')
+            try:
+                ts_join = pd.concat([self.ts_forecast_before_trip.last('1S'), self.ts_forecast.first('1S')])
+                self.forecast_plot_ax.plot(ts_join / 1000, color='orange', linestyle='dashed', gid='line_join')
+            except Exception as e:
+                print("Cannot join two time series: {}".format(e))
+
 
         # 绘制手动预测数据
         if self.manual_plot:
