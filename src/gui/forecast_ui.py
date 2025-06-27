@@ -565,7 +565,10 @@ class LBForecastUI:
 
     def _set_delivery_record_frame(self):
         columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [55, 20, 10, 60, 36, 130]
+        col_widths = [55, 23, 10, 60, 36, 130]
+        col_stretch = [
+            False, False, False, True, False, True
+        ]
 
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
