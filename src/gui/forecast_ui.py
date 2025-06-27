@@ -471,22 +471,23 @@ class LBForecastUI:
             if len(df) == 0:
                 messagebox.showinfo( title='Warning', message='No history Data To Show')
                 return
+            start_time = df.tail(1).ReadingDate.values[0]
+            start_level = df.tail(1).Reading_Gals.values[0]
         else:
             table_name = 'forecastReading'
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-            df = pd.read_sql(sql, self.data_manager.conn)
-            df = df[df.Forecasted_Reading.notna()].reset_index(drop=True)
-            if len(df) == 0:
+            df_forcast = pd.read_sql(sql, self.data_manager.conn)
+            df_forcast = df_forcast[df_forcast.Forecasted_Reading.notna()].reset_index(drop=True)
+            if len(df_forcast) == 0:
                 messagebox.showinfo( title='Warning', message='No forecast_data_refresh Data To Show')
                 return
-        # create new manual forecast_data_refresh data
-        # print(df.head())
-        if table_name == 'forecastReading':
-            start_time = df.head(1).Next_hr.values[0]
-            start_level = df.head(1).Forecasted_Reading.values[0]
-        else:
-            start_time = df.tail(1).ReadingDate.values[0]
-            start_level = df.tail(1).Reading_Gals.values[0]
+            start_time = df_forcast.head(1).Next_hr.values[0]
+            start_level = df_forcast.head(1).Forecasted_Reading.values[0]
+
+            if start_level in [777777, 888888, 999999]:
+                start_time = df.tail(1).Next_hr.values[0]
+                start_level = df.tail(1).Forecasted_Reading.values[0]
+
         level_temp = start_level
         new_level_list = [start_level]
         for i in range(72):
