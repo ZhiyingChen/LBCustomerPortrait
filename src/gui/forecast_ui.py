@@ -828,6 +828,7 @@ class LBForecastUI:
 
     # region 刷新相关函数
     def update_production_table(self, shipto_id: str):
+        self.production_table.clear()
         ordinary_ps_text, restricted_ps_text = self.data_manager.get_production_schedule_by_shipto(shipto_id)
         ordinary_delivery_text, restricted_delivery_text = self.data_manager.get_delivery_window_by_shipto(shipto_id)
         data = [
@@ -837,6 +838,7 @@ class LBForecastUI:
         self.production_table.insert_rows(data)
 
     def update_contact_table(self, shipto_id: str):
+        self.contact_table.clear()
         call_log_text = self.data_manager.get_call_log_by_shipto(shipto_id)
         data = [
             [text.strip(" \n")] for text in call_log_text.split('; ')
@@ -844,6 +846,7 @@ class LBForecastUI:
         self.contact_table.insert_rows(data)
 
     def update_comment_table(self, shipto_id: str):
+        self.comment_table.clear()
         comment_text = self.data_manager.get_special_note_by_shipto(shipto_id)
         data = [
             [comment_text]
@@ -851,6 +854,7 @@ class LBForecastUI:
         self.comment_table.insert_rows(data)
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
+        self.dtd_table.clear()
         results = self.data_manager.get_primary_terminal_dtd_info(shipto_id)
 
         # 添加 Primary DTD 信息
@@ -915,6 +919,7 @@ class LBForecastUI:
 
 
     def update_near_customer_table(self, shipto_id: str):
+        self.near_customer_table.clear()
         results = self.data_manager.get_near_customer_info(shipto_id)
         update_rows = list()
         for row in results:
@@ -944,11 +949,13 @@ class LBForecastUI:
 
 
     def update_reading_tree_table(self, shipto_id: str):
+        self.reading_tree_table.clear()
         historical_reading_df = self.data_manager.get_recent_reading(shipto_id)
         rows = historical_reading_df.to_numpy().tolist()
         self.reading_tree_table.insert_rows(rows)
 
     def update_delivery_window_tree_table(self, shipto_id: str):
+        self.delivery_window_tree_table.clear()
         delivery_window_df = self.data_manager.get_delivery_window(shipto_id)
         rows = delivery_window_df.to_numpy().tolist()
         self.delivery_window_tree_table.insert_rows(rows)
@@ -1020,14 +1027,14 @@ class LBForecastUI:
         self.update_trip_info(shipto_id=str(shipto), cust_name=cust_name)
 
     def update_trip_info(self, shipto_id: str, cust_name: str):
-        # todo: 补充表格
+        self.delivery_record_table.clear()
 
-        if cust_name not in self.delivery_shipto_dict:
-            return
-
-        latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
-            shipto=shipto_id
-        )
+        if cust_name in self.delivery_shipto_dict:
+            latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
+                shipto=shipto_id
+            )
+        else:
+            latest_trip_dict = dict()
 
         # odbc segment 表中的 trip
         odbc_trip_dict = self.data_manager.generate_odbc_trip_dict_by_shipto(
