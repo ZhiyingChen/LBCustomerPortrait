@@ -377,6 +377,9 @@ class ForecastDataRefresh:
                 # 从 odbc 的 PointToPoint 表中获取数据
                 dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                if dtd_shipto.primary_terminal_info.distance_km == 0:
+                    dtd_shipto.primary_terminal_info.distance_km = None
+                    dtd_shipto.primary_terminal_info.duration_hours = None
                 dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
 
             # 补充信息给 sourcing terminal
@@ -392,6 +395,9 @@ class ForecastDataRefresh:
                     # 从 odbc 的 PointToPoint 表中获取数据
                     sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                         self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                    if sourcing_terminal_info.distance_km == 0:
+                        sourcing_terminal_info.distance_km = None
+                        sourcing_terminal_info.duration_hours = None
                     sourcing_terminal_info.distance_data_source = 'LBShell'
 
     def output_primary_and_source_dtd_df(self):
@@ -548,9 +554,9 @@ class ForecastDataRefresh:
                     mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
-                    source = 'LBShell'
-                if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
+                    if mile_kms == 0:
+                        mile_kms = None
+                        time_hours = None
                     source = 'LBShell'
                 nearby_shipto_info.distance_km = mile_kms
                 nearby_shipto_info.distance_data_source = source
