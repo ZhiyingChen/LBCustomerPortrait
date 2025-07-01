@@ -616,13 +616,18 @@ class ForecastDataRefresh:
     def get_delivery_window(self):
         sql_line = '''
          SELECT CP.LocNum, CP.DlvryMonFrom, CP.DlvryMonTo, CP.DlvryTueFrom,CP.DlvryTueTo,
-                CP.DlvryWedFrom, CP.DlvryWedTo, CP.DlvryThuFrom, CP.DlvryThuTo,
-                CP.DlvryFriFrom, CP.DlvryFriTo, CP.DlvrySatFrom, CP.DlvrySatTo,
-                CP.DlvrySunFrom, CP.DlvrySunTo
-         FROM CustomerProfile CP 
-         Where CP.PrimaryTerminal like 'x%'
-                AND CP.CustAcronym not like '1%'
-                AND CP.DlvryStatus = 'A'
+            CP.DlvryWedFrom, CP.DlvryWedTo, CP.DlvryThuFrom, CP.DlvryThuTo,
+            CP.DlvryFriFrom, CP.DlvryFriTo, CP.DlvrySatFrom, CP.DlvrySatTo,
+            CP.DlvrySunFrom, CP.DlvrySunTo,
+            AD.DlvryMonFrom1, AD.DlvryMonTo1,
+            AD.DlvryTueFrom1, AD.DlvryTueTo1, AD.DlvryWedFrom1, AD.DlvryWedTo1,
+            AD.DlvryThuFrom1, AD.DlvryThuTo1, AD.DlvryFriFrom1, AD.DlvryFriTo1,
+            AD.DlvrySatFrom1, AD.DlvrySatTo1, AD.DlvrySunFrom1, AD.DlvrySunTo1
+        FROM AlternateDlvry AD
+        inner join CustomerProfile CP on AD.LocNum = CP.LocNum
+        Where CP.PrimaryTerminal like 'x%'
+        AND CP.CustAcronym not like '1%'
+        AND CP.DlvryStatus = 'A'
         '''
 
         delivery_window_df = pd.read_sql(sql_line, self.odbc_conn)
@@ -632,15 +637,23 @@ class ForecastDataRefresh:
             lambda x: pd.to_datetime(x).strftime('%H:%M'))
 
         def df_to_delivery_times(df):
-            delivery_times = {
-                "周一": (df['DlvryMonFrom'].iloc[0], df['DlvryMonTo'].iloc[0]),
-                "周二": (df['DlvryTueFrom'].iloc[0], df['DlvryTueTo'].iloc[0]),
-                "周三": (df['DlvryWedFrom'].iloc[0], df['DlvryWedTo'].iloc[0]),
-                "周四": (df['DlvryThuFrom'].iloc[0], df['DlvryThuTo'].iloc[0]),
-                "周五": (df['DlvryFriFrom'].iloc[0], df['DlvryFriTo'].iloc[0]),
-                "周六": (df['DlvrySatFrom'].iloc[0], df['DlvrySatTo'].iloc[0]),
-                "周日": (df['DlvrySunFrom'].iloc[0], df['DlvrySunTo'].iloc[0])
-            }
+            delivery_times = {}
+            days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            chinese_days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+            for i, day in enumerate(days):
+                cp_from = df[f'Dlvry{day}From'].iloc[0]
+                cp_to = df[f'Dlvry{day}To'].iloc[0]
+                ad_from = df[f'Dlvry{day}From1'].iloc[0]
+                ad_to = df[f'Dlvry{day}To1'].iloc[0]
+
+                time_slots = []
+                time_slots.append((cp_from, cp_to))
+                if ad_from != "00:00" and ad_to != "00:00":
+                    time_slots.append((ad_from, ad_to))
+
+                delivery_times[chinese_days[i]] = time_slots if time_slots else [("00:00", "00:00")]
+
             return delivery_times
 
         ordinary_delivery_text_by_shipto = dict()

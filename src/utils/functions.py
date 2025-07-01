@@ -108,29 +108,21 @@ def get_user_name():
     return home_name
 
 def summarize_delivery_times(delivery_times):
-    # Initialize variables
     summary = []
     grouped_times = {}
 
-    # Weekday to number mapping for sorting
     weekday_to_number = {
-        "周一": 1,
-        "周二": 2,
-        "周三": 3,
-        "周四": 4,
-        "周五": 5,
-        "周六": 6,
-        "周日": 7
+        "周一": 1, "周二": 2, "周三": 3, "周四": 4,
+        "周五": 5, "周六": 6, "周日": 7
     }
 
-    # Group days with identical time windows
-    for day, time_window in delivery_times.items():
-        if time_window == ("00:00", "00:00"):
-            grouped_times.setdefault("不收", []).append(day)
-        else:
-            grouped_times.setdefault(time_window, []).append(day)
+    for day, time_windows in delivery_times.items():
+        for time_window in time_windows:
+            if time_window == ("00:00", "00:00"):
+                grouped_times.setdefault("不收", []).append(day)
+            else:
+                grouped_times.setdefault(time_window, []).append(day)
 
-    # Function to merge consecutive days
     def merge_consecutive_days(days):
         if not days:
             return ""
@@ -153,12 +145,12 @@ def summarize_delivery_times(delivery_times):
             merged_days.append(f"{start_day}到{prev_day}")
         return "、".join(merged_days)
 
-    # Format the summary
     for time_window, days in grouped_times.items():
+        days_sorted = sorted(days, key=lambda x: weekday_to_number[x])
         if time_window == "不收":
-            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))} 不收")
+            summary.append(f"{merge_consecutive_days(days_sorted)} 不收")
         else:
-            summary.append(f"{merge_consecutive_days(sorted(days, key=lambda x: weekday_to_number[x]))} {time_window[0]}-{time_window[1]}")
+            summary.append(f"{merge_consecutive_days(days_sorted)} {time_window[0]}-{time_window[1]}")
 
-    # Combine the summary into a single string
     return "，".join(summary)
+
