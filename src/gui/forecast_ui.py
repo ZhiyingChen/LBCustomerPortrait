@@ -88,8 +88,6 @@ class LBForecastUI:
                 shipto_obj.latest_called = pd.to_datetime(timestamp)
 
     def generate_shipto_dict(self):
-        forecast_list = self.df_name_forecast.index.tolist()
-
         shipto_dict = dict()
         for i, row in self.df_name_all.iterrows():
             name = str(i)

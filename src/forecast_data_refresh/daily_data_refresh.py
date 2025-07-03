@@ -159,7 +159,7 @@ class ForecastDataRefresh:
             # 按照 DDER 排序，并对 ToLocNum 去重
             filtered_df = filtered_df.sort_values(by=['DDER'], ascending=False).drop_duplicates(subset='ToLocNum')
             filtered_df['LocNum'] = locnum
-            filtered_df = filtered_df.head(3)
+            filtered_df = filtered_df.head(5)
             result_df = pd.concat([result_df, filtered_df], ignore_index=True)
 
         return result_df
