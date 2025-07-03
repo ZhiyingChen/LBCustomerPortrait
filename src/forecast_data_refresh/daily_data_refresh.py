@@ -173,7 +173,7 @@ class ForecastDataRefresh:
                 dtd_shipto = self.dtd_shipto_dict[row['LocNum']]
                 nearby_shipto_info = do.NearbyShipToInfo(
                     nearby_shipto=row['ToLocNum'],
-                    shipto_name=row['ToCustAcronym'],
+                    shipto_name=row['ToCustAcronym'].strip(' ') if isinstance(row['ToCustAcronym'], str) else '',
                     tank_acronym=row['ToTankAcronym'],
                     dder=row['DDER']
                 )
