@@ -1207,7 +1207,7 @@ class ForecastDataRefresh:
             summary = []
             if pd.notna(row['ClusteringZone']) and len(row['ClusteringZone'].strip(' ')):
                 summary.append(
-                    'ClusterZone: {}'.format(row['ClusteringZone'].strip(' '))
+                    row['ClusteringZone'].strip(' ')
                 )
             if row['HighPressFlag']:
                 summary.append('高压车')
@@ -1539,7 +1539,11 @@ class ForecastDataRefresh:
         df_trip = df_trip[ df_trip['Trip'].isin(df_deliveries['Trip'])]
         df_deliveries_time = df_deliveries[['Trip', 'Location', 'Arrival Time']]
 
-        df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
+        if not df_trip.empty:
+            df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
+        else:
+            df_trip['Loc'] = ''
+
         df_trip = pd.merge(df_trip, df_deliveries_time, on=['Trip', 'Location'], how='left')
 
         trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum', 'Amount1', 'Arrival Time']
