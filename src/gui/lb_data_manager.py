@@ -315,7 +315,7 @@ class LBDataManager:
         sql = '''select odbc_master.LocNum, odbc_master.CustAcronym, TankAcronym,
                         odbc_master.PrimaryTerminal, odbc_master.SubRegion,
                         odbc_master.ProductClass, odbc_master.DemandType, odbc_master.GalsPerInch,
-                        odbc_master.UnitOfLength, Subscriber
+                        odbc_master.UnitOfLength, Subscriber, TelemetryFlag
                  FROM odbc_master
               '''
 

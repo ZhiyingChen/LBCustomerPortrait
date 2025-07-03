@@ -96,10 +96,6 @@ class LBForecastUI:
             subscriber = str(int(row['Subscriber'])) \
                     if isinstance(row['Subscriber'], float) and not np.isnan(row['Subscriber']) \
                     else row['Subscriber']
-            if name in forecast_list or subscriber in ['3', '7']:
-                is_in_forecast = True
-            else:
-                is_in_forecast = False
 
             shipto_obj = do.ShipTo(
                 loc_num=row['LocNum'],
@@ -112,7 +108,7 @@ class LBForecastUI:
                 gals_per_inch=row['GalsPerInch'],
                 unit_of_length=row['UnitOfLength'],
                 subscriber=subscriber,
-                is_in_forcast=is_in_forecast
+                is_in_forcast= row['TelemetryFlag']
             )
             shipto_dict[name] = shipto_obj
         return shipto_dict

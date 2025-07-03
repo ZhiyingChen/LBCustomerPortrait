@@ -60,6 +60,7 @@ def odbc_masterData():
          CustomerProfile.ClusteringZone,CustomerProfile.PrimaryTerminal,
          rtrim(CustomerProfile.Name) as'CustFullName',
          ltrim(rtrim(right(Terminal.Name,4))) as 'SubRegion',
+         CustomerProfile.TelemetryFlag,
          CustomerTelemetry.Subscriber
         FROM
          EU_LBLogist_Rpt.dbo.LBCustProfile LBCustProfile,
