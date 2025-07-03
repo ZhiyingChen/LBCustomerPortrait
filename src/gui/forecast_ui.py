@@ -665,7 +665,7 @@ class LBForecastUI:
 
     def _set_near_customer_label(self):
         columns = ["临近客户", "KM", "DDER"]
-        col_widths = [70, 15, 20]
+        col_widths = [90, 15, 20]
 
         self.near_customer_table = ui_structure.SimpleTable(self.frame_near_customer, columns=columns,
                                                             col_widths=col_widths,

@@ -174,6 +174,7 @@ class ForecastDataRefresh:
                 nearby_shipto_info = do.NearbyShipToInfo(
                     nearby_shipto=row['ToLocNum'],
                     shipto_name=row['ToCustAcronym'],
+                    tank_acronym=row['ToTankAcronym'],
                     dder=row['DDER']
                 )
                 dtd_shipto.nearby_shipto_info_dict[row['ToLocNum']] = nearby_shipto_info
@@ -513,6 +514,7 @@ class ForecastDataRefresh:
                 f.NewTripIdn,
                 f.ToLocNum,
                 c.CustAcronym AS ToCustAcronym,
+                c.TankAcronym AS ToTankAcronym,
                 f.ActualArrivalTime,
                 1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) AS DDER
             FROM FinalResult f
@@ -582,7 +584,7 @@ class ForecastDataRefresh:
                     'LocNum': shipto_id,
                     'CustAcronym': dtd_shipto.shipto_name,
                     'ToLocNum': to_loc_num,
-                    'ToCustAcronym': nearby_shipto_info.shipto_name,
+                    'ToCustAcronym': '{}, {}'.format(nearby_shipto_info.shipto_name, nearby_shipto_info.tank_acronym),
                     'distanceKM': nearby_shipto_info.distance_km,
                     'DDER': nearby_shipto_info.dder,
                     'DataSource': nearby_shipto_info.distance_data_source
