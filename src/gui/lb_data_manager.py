@@ -292,8 +292,7 @@ class LBDataManager:
         sql = '''SELECT DISTINCT LocNum from historyReading;'''
         history_shiptos = tuple(pd.read_sql(sql, conn).LocNum)
         full_shiptos = tuple(set(forecast_shiptos + history_shiptos))
-        # print(len(forecast_shiptos), len(history_shiptos), len(full_shiptos))
-        sql = '''select LocNum, CustAcronym,
+        sql = '''select LocNum, CustAcronym, TankAcronym,
                         PrimaryTerminal, SubRegion,
                         ProductClass, DemandType, GalsPerInch,
                         UnitOfLength, Subscriber
@@ -301,7 +300,11 @@ class LBDataManager:
                 WHERE
                 LocNum IN {};'''.format(full_shiptos)
         df_name_forecast = pd.read_sql(sql, conn)
-        # print(df_name_forecast[df_name_forecast.CustAcronym.str.contains('潍坊')])
+        df_name_forecast['Acronym'] = df_name_forecast.apply(
+            lambda x: '{},{}'.format(x['CustAcronym'], x['TankAcronym']),
+            axis=1
+        )
+
         df_name_forecast = df_name_forecast.set_index('CustAcronym')
         return df_name_forecast
 
@@ -457,7 +460,7 @@ class LBDataManager:
 
         trip_df = pd.read_sql(sql_line, self.conn)
         trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
-        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'],format='%d-%m-%y %H:%M')
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'],format='mixed', dayfirst=True)
 
         trip_dict = dict()
         for trip_id, segment_df in trip_df.groupby('Trip'):
