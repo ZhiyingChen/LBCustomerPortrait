@@ -533,7 +533,7 @@ class ForecastDataRefresh:
         )
         SELECT DISTINCT*
         FROM FinalWithDDER
-        WHERE StopType = 0 AND DDER > 0
+        WHERE StopType = 0 AND DDER > 0 AND ToCustAcronym <> ''
         ORDER BY DDER DESC, CorporateIdn, TripIdn, SegmentIdn;
         '''.format(tuple(non_full_load_shiptos))
         df_nearby_shipto = pd.read_sql(sql_line, self.odbc_conn)
