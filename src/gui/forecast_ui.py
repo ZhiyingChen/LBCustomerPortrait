@@ -60,6 +60,7 @@ class LBForecastUI:
         self.delivery_shipto_dict: Dict[str, do.TripShipto] = self.data_manager.generate_trip_shipto_dict()
         self.supplement_delivery_shipto_latest_called()
 
+        self.df_name_all = self.data_manager.get_all_customer_from_sqlite()
         self.df_name_forecast = self.data_manager.get_forecast_customer_from_sqlite()
         self.df_info = None
         self.ts_history = None
@@ -350,7 +351,7 @@ class LBForecastUI:
         '''search for customer by shipto or name'''
         info = self.entry_name.get().strip()
 
-        df_name_all = self.data_manager.get_all_customer_from_sqlite()
+        df_name_all = self.df_name_all
         if info.isdigit():
             info = int(info)
             names = df_name_all[df_name_all.LocNum == info].index
@@ -1073,7 +1074,8 @@ class LBForecastUI:
             record_lt[i]["interval"] = delta_days
 
         # 最后一条记录没有“下一次”，可以设为 None 或 0
-        record_lt[-1]["interval"] = None
+        if record_lt:
+            record_lt[-1]["interval"] = None
 
         # 转换为最终展示格式
         final_records = [
