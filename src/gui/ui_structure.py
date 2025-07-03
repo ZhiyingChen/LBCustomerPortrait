@@ -110,7 +110,7 @@ class SimpleTable:
             values = self.tree.item(item_id, "values")
             if col_index < len(values):
                 value = values[col_index]
-                if len(value) > 10:  # 如果内容较长，显示 tooltip
+                if len(value) > 18:  # 如果内容较长，显示 tooltip
                     self.tooltip = tk.Toplevel(self.tree)
                     self.tooltip.withdraw()
                     self.tooltip.overrideredirect(True)

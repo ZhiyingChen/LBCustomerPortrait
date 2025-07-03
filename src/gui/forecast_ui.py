@@ -68,6 +68,8 @@ class LBForecastUI:
         self.ts_forecast_before_trip = None
         self.ts_manual = None
 
+        self.shipto_dict = self.generate_shipto_dict()
+
         # 日志记录
         self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
         func.log_connection(self.log_file, 'opened')
@@ -84,6 +86,36 @@ class LBForecastUI:
             shipto_obj = self.delivery_shipto_dict.get(cust_name)
             if shipto_obj is not None:
                 shipto_obj.latest_called = pd.to_datetime(timestamp)
+
+    def generate_shipto_dict(self):
+        forecast_list = self.df_name_forecast.index.tolist()
+
+        shipto_dict = dict()
+        for i, row in self.df_name_all.iterrows():
+            name = str(i)
+            if name in forecast_list:
+                is_in_forecast = True
+            else:
+                is_in_forecast = False
+
+            shipto_obj = do.ShipTo(
+                loc_num=row['LocNum'],
+                cust_acronym=row['CustAcronym'],
+                tank_acronym=row['TankAcronym'],
+                primary_terminal=row['PrimaryTerminal'],
+                sub_region=row['SubRegion'],
+                product_class=row['ProductClass'],
+                demand_type=row['DemandType'],
+                gals_per_inch=row['GalsPerInch'],
+                unit_of_length=row['UnitOfLength'],
+                subscriber=str(int(row['Subscriber']))
+                    if isinstance(row['Subscriber'], float) and not np.isnan(row['Subscriber'])
+                    else row['Subscriber'],
+                is_in_forcast=is_in_forecast
+            )
+            shipto_dict[name] = shipto_obj
+        return shipto_dict
+
 
     def _set_subregion_boxlist(self):
         '''subRegion boxlist'''
@@ -124,8 +156,8 @@ class LBForecastUI:
 
     def _set_delivery_type_boxlist(self):
         self.listbox_delivery_type = tk.Listbox(self.filter_frame, selectmode=tk.SINGLE,
-                                        height=3, width=10, exportselection=False)
-        delivery_type_lt = ['已安排行程', '前五后十', '全量客户']
+                                        height=4, width=10, exportselection=False)
+        delivery_type_lt = ['已安排行程', '前五后十', '全量IOT', '无IOT']
         for item in delivery_type_lt:
             self.listbox_delivery_type.insert(tk.END, item)
 
@@ -215,7 +247,6 @@ class LBForecastUI:
 
     def show_list_cust(self, event):
         '''当点击 terminal 的时候显示客户名单'''
-        df_name_forecast = self.df_name_forecast
         self.listbox_customer.delete(0, tk.END)
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
             SubRegion = None
@@ -244,54 +275,42 @@ class LBForecastUI:
             delivery_type = self.listbox_delivery_type.get(self.listbox_delivery_type.curselection()[0])
 
 
-        # get filter subregion
-        if SubRegion is None or len(SubRegion) == 0:
-            all_SubRegion = list(df_name_forecast.SubRegion.unique())
-            f_SubRegion = df_name_forecast.SubRegion.isin(all_SubRegion)
-        else:
-            f_SubRegion = df_name_forecast.SubRegion == SubRegion
-        # select for product, terminal, demandType
-        if cur_product is None or len(cur_product) == 0:
-            all_product = list(df_name_forecast.ProductClass.unique())
-            f_product = df_name_forecast.ProductClass.isin(all_product)
-        else:
-            f_product = df_name_forecast.ProductClass.isin(cur_product)
-        if cur_terminal is None or len(cur_terminal) == 0:
-            all_terminal = list(df_name_forecast.PrimaryTerminal.unique())
-            f_terminal = df_name_forecast.PrimaryTerminal.isin(all_terminal)
-        else:
-            f_terminal = df_name_forecast.PrimaryTerminal.isin(cur_terminal)
-        if cur_FO is None or len(cur_FO) == 0:
-            all_demandType = list(df_name_forecast.DemandType.unique())
-            f_FO = df_name_forecast.DemandType.isin(all_demandType)
-        else:
-            f_FO = df_name_forecast.DemandType.isin(cur_FO)
-
-
         # get selected customers
-        custName_list = list(df_name_forecast[f_SubRegion & f_product & f_terminal & f_FO].index)
+        custName_list = [
+            shipto_name for shipto_name, shipto_obj in self.shipto_dict.items()
+            if shipto_obj.sub_region == SubRegion
+               and shipto_obj.primary_terminal in cur_terminal
+            and shipto_obj.product_class in cur_product
+            and shipto_obj.demand_type in cur_FO
 
-        # ten_days_later = pd.Timestamp.now() + timedelta(days=10)
-        #
-        # trip_start_by_cust = {
-        #     i: (self.delivery_shipto_dict[i].nearest_trip_start_time, self.delivery_shipto_dict[i].nearest_trip)
-        #     if i in self.delivery_shipto_dict and self.delivery_shipto_dict[i].nearest_trip is not None else
-        #     (ten_days_later, '')
-        #     for i in custName_list
-        # }
+        ]
 
-        # filter by delivery type
+
         if delivery_type == '已安排行程':
             custName_list = [
                 i for i in custName_list
                 if i in self.delivery_shipto_dict and
                    self.delivery_shipto_dict[i].is_trip_planned
+                   and self.shipto_dict[i].is_in_forcast
             ]
         elif delivery_type == '前五后十':
             custName_list = [
                 i for i in custName_list
                 if i in self.delivery_shipto_dict
+                   and self.shipto_dict[i].is_in_forcast
             ]
+        elif delivery_type == '全量IOT':
+            custName_list = [
+                i for i in custName_list
+                if self.shipto_dict[i].is_in_forcast
+            ]
+        else:
+            custName_list = [
+                i for i in custName_list
+                if not self.shipto_dict[i].is_in_forcast
+            ]
+
+
 
         custName_list = sorted(
             custName_list
@@ -299,9 +318,9 @@ class LBForecastUI:
                 # 1. 行程开始时间
                 # trip_start_by_cust[x][0],
                 # 2. Primary Terminal
-                df_name_forecast.loc[x, 'PrimaryTerminal'],
+                self.shipto_dict[x].primary_terminal,
                 # 3. Product Class
-                df_name_forecast.loc[x, 'ProductClass'],
+                self.shipto_dict[x].product_class,
                 # 4. 首字母
                 x[0]
             )
@@ -364,29 +383,6 @@ class LBForecastUI:
             for item in sorted(names):
                 self.listbox_customer.insert(tk.END, item)
 
-    def send_feedback(self, event):
-        self.save_pic = True
-        pic_name = "./feedback.png"
-        if os.path.isfile(pic_name):
-            os.remove(pic_name)
-        # event = None
-        self.plot()
-        print('testing')
-        self.save_pic = False
-        email_worker = send_email()
-        result = self.combo_assess.get()
-        reason = self.combo_reason.get()
-        time.sleep(3)
-        rounds = 0
-        while not os.path.isfile(pic_name):
-            time.sleep(2)
-            rounds = rounds + 1
-            if rounds > 5:
-                messagebox.showinfo( title='Warning', message='No Data To Send!')
-                return
-        message_subject, message_body, addressee = email_worker.getEmailData(result, reason)
-        email_worker.outlook(addressee, message_subject, message_body)
-        messagebox.showinfo( title='Success', message='Email been sent!')
 
     def _set_detail_info_label(self):
         '''show detailed information about tank and forecast'''
@@ -504,7 +500,6 @@ class LBForecastUI:
     def calculate_by_manual(self):
         cur = self.data_manager.cur
         conn = self.data_manager.conn
-        df_name_forecast = self.df_name_forecast
 
         input_value1 = self.box_ton.get()
         input_value2 = self.box_cm.get()
@@ -528,11 +523,11 @@ class LBForecastUI:
             return
         # print(input_value1, input_value2, type(input_value1), type(input_value2))
         custName = self.listbox_customer.get(tk.ANCHOR)
-        if custName not in df_name_forecast.index:
+        if custName not in self.shipto_dict:
             messagebox.showinfo( title='Warning', message='No Data To Show.')
             return
         else:
-            shipto = int(df_name_forecast.loc[custName].values[0])
+            shipto = self.shipto_dict[custName].loc_num
         df = self.create_manual_forecast_data(shipto, input_value)
         table_name = 'manual_forecast'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -1327,33 +1322,10 @@ class LBForecastUI:
             self.annot.set_text(text)
 
     def check_cust_name_valid(self, cust_name):
-        if cust_name not in self.df_name_forecast.index:
+        if cust_name not in self.shipto_dict:
             messagebox.showinfo( title='Warning', message='No Data To Show!')
             if self.lock.locked():
                 self.lock.release()
-            return False
-        return True
-
-    def check_validate_shipto(self, shipto):
-        validate_flag = self.time_validate_check(shipto)
-
-        # 如果查询得到 shipto,则显示 shipto,否则 将 shipto 设为 1
-        if (not validate_flag[0]) and self.var_telemetry_flag.get() == 0:
-            # 2023-10-31 新增逻辑
-            # 如果 self.var_telemetry_flag 为 1,说明正在使用 api,
-            error_msg = validate_flag[1]
-            if 'Time Wrong' in error_msg:
-                # 说明时间填错
-                messagebox.showinfo( title='Warning', message=error_msg)
-                if self.lock.locked():
-                    self.lock.release()
-            else:
-                # 说明时间没有填错, 遇到了 无法预测的情况
-                # 提醒采用 dol api 的选项
-                error_msg = error_msg + ' -> 请使用 远控 最新 选项 试试'
-                messagebox.showinfo( title='Warning', message=error_msg)
-                if self.lock.locked():
-                    self.lock.release()
             return False
         return True
 
@@ -1373,14 +1345,13 @@ class LBForecastUI:
     def main_plot(self):
         '''作图主函数'''
         conn = self.data_manager.conn
-        df_name_forecast = self.df_name_forecast
 
         custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
         # 检查 From time 和 to time 是否正确
         if not self.check_cust_name_valid(custName):
             return
 
-        shipto = int(df_name_forecast.loc[custName].values[0])
+        shipto = self.shipto_dict[custName].loc_num
 
         validate_flag, error_msg = self.time_validate_check(shipto)
         print(error_msg)
@@ -1400,7 +1371,7 @@ class LBForecastUI:
             # 将选中的项的文字颜色变成黑色
             self.listbox_customer.itemconfig(index, {'fg': 'black'})
 
-        TELE_type = df_name_forecast.loc[custName, 'Subscriber']
+        TELE_type = str(self.shipto_dict[custName].subscriber)
         fromTime = pd.to_datetime(self.from_box.get())
         toTime = pd.to_datetime(self.to_box.get())
         # 2023-09-04 更新 DOL API 数据
@@ -1412,10 +1383,10 @@ class LBForecastUI:
 
         if self.var_telemetry_flag.get() == 1 or df_history.empty:
             # update DOL or LCT
-            if TELE_type == 3:
+            if TELE_type == '3':
                 updateDOL(shipto, conn)
                 error_msg = 'DOL API'
-            elif TELE_type == 7:
+            elif TELE_type == '7':
                 updateLCT(shipto, conn)
                 error_msg = 'LCT API'
 
@@ -1502,7 +1473,7 @@ class LBForecastUI:
     def draw_picture_for_current_shipto(
             self,
             custName: str,
-            shipto: int,
+            shipto: str,
             fromTime: datetime,
             toTime: datetime,
             full: float,
