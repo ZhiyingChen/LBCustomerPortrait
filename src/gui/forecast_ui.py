@@ -16,7 +16,6 @@ import matplotlib
 import time
 import threading
 from typing import Dict
-import schedule
 from .confirm_order_popup_ui import ConfirmOrderPopupUI
 from . import ui_structure
 from ..utils.dol_api import updateDOL

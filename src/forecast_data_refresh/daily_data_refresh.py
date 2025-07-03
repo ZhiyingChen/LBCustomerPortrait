@@ -1494,7 +1494,8 @@ class ForecastDataRefresh:
         df_deliveries['CustAcronym'] = (
             df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
 
-        # 跳过这一步吧，中台已经是筛选前五后十的delivery
+        # 跳过这一步吧，筛选前五后十的delivery
+
         deliveries_cols = ['Trip', 'Location', 'CustAcronym', 'LocNum', 'Arrival Time']
         df_deliveries = df_deliveries[deliveries_cols]
 

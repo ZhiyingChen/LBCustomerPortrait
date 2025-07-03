@@ -8,10 +8,12 @@ class TripShipto:
             self,
             shipto_id: str,
             cust_name: str,
+            location: str
 
     ):
         self.shipto_id = shipto_id
         self.cust_name = cust_name
+        self.location = location
         self.trip_dict: Dict[str, pd.Timestamp] = dict()
         self.latest_called: pd.Timestamp = None
 

@@ -301,24 +301,31 @@ class LBDataManager:
                 LocNum IN {};'''.format(full_shiptos)
         df_name_forecast = pd.read_sql(sql, conn)
         df_name_forecast['Acronym'] = df_name_forecast.apply(
-            lambda x: '{},{}'.format(x['CustAcronym'], x['TankAcronym']),
+            lambda x: '{}, {}'.format(x['CustAcronym'], x['TankAcronym']),
             axis=1
         )
 
-        df_name_forecast = df_name_forecast.set_index('CustAcronym')
+        df_name_forecast = df_name_forecast.set_index('Acronym')
         return df_name_forecast
 
 
     def get_all_customer_from_sqlite(self):
         '''get_all_customer_from_sqlite'''
         conn = self.conn
-        sql = '''select odbc_master.LocNum, odbc_master.CustAcronym,
+        sql = '''select odbc_master.LocNum, odbc_master.CustAcronym, TankAcronym,
                         odbc_master.PrimaryTerminal, odbc_master.SubRegion,
                         odbc_master.ProductClass, odbc_master.DemandType, odbc_master.GalsPerInch,
                         odbc_master.UnitOfLength
                  FROM odbc_master
               '''
-        df_name_all = pd.read_sql(sql, conn).drop_duplicates().set_index('CustAcronym')
+
+        df_name_all = pd.read_sql(sql, conn).drop_duplicates()
+        df_name_all['Acronym'] = df_name_all.apply(
+            lambda x: '{}, {}'.format(x['CustAcronym'], x['TankAcronym']),
+            axis=1
+        )
+        df_name_all = df_name_all.set_index('Acronym')
+
         return df_name_all
 
     def get_primary_terminal_dtd_info(self, shipto):
@@ -361,7 +368,7 @@ class LBDataManager:
     def generate_trip_shipto_dict(self):
         table_name = 'trip_shipto'
 
-        sql_line = '''SELECT LocNum, CustAcronym, Trip, TripStartTime
+        sql_line = '''SELECT LocNum, CustAcronym, Location_x, Trip, TripStartTime
          FROM {}'''.format(table_name)
 
         cursor = self.cur
@@ -369,21 +376,22 @@ class LBDataManager:
         results = cursor.fetchall()
 
         trip_shipto_dict = {}
-        for loc_num, cust_acronym, trip, trip_start_time in results:
-            if cust_acronym in trip_shipto_dict and trip is None:
+        for loc_num, cust_acronym, location, trip, trip_start_time in results:
+            if location in trip_shipto_dict and trip is None:
                 continue
 
             trip_shipto = trip_shipto_dict.get(
-                cust_acronym,
+                location,
                 do.TripShipto(
                     shipto_id=str(loc_num),
-                    cust_name=cust_acronym
+                    cust_name=cust_acronym,
+                    location=location
                 )
             )
             if trip is not None:
                 trip_shipto.trip_dict.update({trip: pd.to_datetime(trip_start_time)})
 
-            trip_shipto_dict.update({trip_shipto.cust_name: trip_shipto})
+            trip_shipto_dict.update({trip_shipto.location: trip_shipto})
         return trip_shipto_dict
 
     def generate_view_trip_dict_by_shipto_trip_lt(
