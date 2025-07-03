@@ -1494,13 +1494,7 @@ class ForecastDataRefresh:
         df_deliveries['CustAcronym'] = (
             df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
 
-        # 筛选前五后十的delivery
-        now = datetime.datetime.now()
-        five_days_ago = now - datetime.timedelta(days=5)
-        ten_days_later = now + datetime.timedelta(days=10)
-        df_deliveries['Arrival Time'] = pd.to_datetime(df_deliveries['Arrival Time'], format='mixed')
-        df_deliveries = df_deliveries[(df_deliveries['Arrival Time'] >= five_days_ago) & (df_deliveries['Arrival Time'] <= ten_days_later)]
-
+        # 跳过这一步吧，中台已经是筛选前五后十的delivery
         deliveries_cols = ['Trip', 'Location', 'CustAcronym', 'LocNum', 'Arrival Time']
         df_deliveries = df_deliveries[deliveries_cols]
 

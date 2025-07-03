@@ -457,7 +457,7 @@ class LBDataManager:
 
         trip_df = pd.read_sql(sql_line, self.conn)
         trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
-        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'],format='%d-%m-%y %H:%M')
 
         trip_dict = dict()
         for trip_id, segment_df in trip_df.groupby('Trip'):
