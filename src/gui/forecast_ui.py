@@ -93,7 +93,10 @@ class LBForecastUI:
         shipto_dict = dict()
         for i, row in self.df_name_all.iterrows():
             name = str(i)
-            if name in forecast_list:
+            subscriber = str(int(row['Subscriber'])) \
+                    if isinstance(row['Subscriber'], float) and not np.isnan(row['Subscriber']) \
+                    else row['Subscriber']
+            if name in forecast_list or subscriber in ['3', '7']:
                 is_in_forecast = True
             else:
                 is_in_forecast = False
@@ -108,9 +111,7 @@ class LBForecastUI:
                 demand_type=row['DemandType'],
                 gals_per_inch=row['GalsPerInch'],
                 unit_of_length=row['UnitOfLength'],
-                subscriber=str(int(row['Subscriber']))
-                    if isinstance(row['Subscriber'], float) and not np.isnan(row['Subscriber'])
-                    else row['Subscriber'],
+                subscriber=subscriber,
                 is_in_forcast=is_in_forecast
             )
             shipto_dict[name] = shipto_obj

@@ -43,6 +43,7 @@ class SimpleTable:
         self.tree.bind("<Double-1>", self.on_double_click)
         self.tree.bind("<Control-c>", self.copy_selected_to_clipboard)
         self.tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
+        self.tree.bind("<Leave>", self.on_leave)  # 绑定鼠标离开事件
 
         self.tooltip = None  # 初始化 tooltip
 
@@ -110,7 +111,7 @@ class SimpleTable:
             values = self.tree.item(item_id, "values")
             if col_index < len(values):
                 value = values[col_index]
-                if len(value) > 18:  # 如果内容较长，显示 tooltip
+                if len(value) > 17:  # 如果内容较长，显示 tooltip
                     self.tooltip = tk.Toplevel(self.tree)
                     self.tooltip.withdraw()
                     self.tooltip.overrideredirect(True)
@@ -119,3 +120,7 @@ class SimpleTable:
                     self.tooltip.geometry(f"+{event.x_root-len(value) * 8}+{event.y_root+10}")
                     self.tooltip.deiconify()
 
+    def on_leave(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
