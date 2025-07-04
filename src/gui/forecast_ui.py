@@ -455,11 +455,11 @@ class LBForecastUI:
         table_name = 'forecastBeforeTrip'
         sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
         df = pd.read_sql(sql, self.data_manager.conn)
-        if len(df) == 0:
+        if df.empty:
             table_name = 'historyReading'
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
             df = pd.read_sql(sql, self.data_manager.conn)
-            if len(df) == 0:
+            if df.empty:
                 messagebox.showinfo( title='Warning', message='No history Data To Show')
                 return
             start_time = df.tail(1).ReadingDate.values[0]
@@ -469,15 +469,13 @@ class LBForecastUI:
             sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
             df_forcast = pd.read_sql(sql, self.data_manager.conn)
             df_forcast = df_forcast[df_forcast.Forecasted_Reading.notna()].reset_index(drop=True)
-            if len(df_forcast) == 0:
-                messagebox.showinfo( title='Warning', message='No forecast_data_refresh Data To Show')
-                return
-            start_time = df_forcast.head(1).Next_hr.values[0]
-            start_level = df_forcast.head(1).Forecasted_Reading.values[0]
-
-            if start_level in [777777, 888888, 999999]:
-                start_time = df.tail(1).Next_hr.values[0]
-                start_level = df.tail(1).Forecasted_Reading.values[0]
+            if df_forcast.empty or df_forcast.head(1).Forecasted_Reading.values[0] in [777777, 888888, 999999]:
+                last_row = df.tail(1)
+                start_time = last_row.Next_hr.values[0]
+                start_level = last_row.Forecasted_Reading.values[0]
+            else:
+                start_time = df_forcast.head(1).Next_hr.values[0]
+                start_level = df_forcast.head(1).Forecasted_Reading.values[0]
 
         level_temp = start_level
         new_level_list = [start_level]
