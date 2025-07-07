@@ -358,7 +358,7 @@ class LBDataManager:
                    SELECT ToLocNum, ToCustAcronym, distanceKM, DDER, DataSource 
                    FROM ClusterInfo
                    WHERE LocNum={}
-                   ORDER BY distanceKM ASC
+                   ORDER BY DDER DESC
                '''.format(shipto)
 
         cursor.execute(sql_line)
