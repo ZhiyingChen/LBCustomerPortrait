@@ -233,7 +233,7 @@ class LBForecastUI:
         if not self.check_cust_name_valid(custName):
             return
 
-        shipto = int(self.df_name_forecast.loc[custName].values[0])
+        shipto = int(self.df_name_all.loc[custName].values[0])
         # 复制到剪切板
         self.root.clipboard_clear()
         self.root.clipboard_append(str(shipto))
