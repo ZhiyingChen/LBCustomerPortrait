@@ -1,7 +1,7 @@
 import pandas as pd
+from typing import List, Dict
 from ..utils import functions as func
-
-
+from .. import domain_object as do
 
 class LBDataManager:
     def __init__(
@@ -117,6 +117,15 @@ class LBDataManager:
         df_info = pd.read_sql(sql, conn)
         return df_info
 
+    def get_full_trycock_gals_by_shipto(self, shipto):
+        '''获取完整的customer数据'''
+        sql = '''select LocNum, FullTrycockGals
+                     FROM odbc_master
+                     where LocNum = {};'''.format(shipto)
+        results = self.cur.execute(sql).fetchall()
+        for (LocNum, FullTrycockGals) in results:
+            return FullTrycockGals
+
 
     def get_recent_reading(self, shipto):
         '''从 historyReading 里获取最近液位读数'''
@@ -145,14 +154,17 @@ class LBDataManager:
                 return None
 
         df1.Hour_CM = df1.Hour_CM.apply(clean_use)
-        df1['No'] = range(1, len(df1) + 1)
+
+        df1.ReadingDate = df1.ReadingDate.dt.strftime('%m-%d %H')
+        df1['Reading_Gals'] = df1.Reading_Gals.apply(lambda x: round(x / 1000, 1))
         cols = df1.columns.tolist()
-        cols = cols[-1:] + cols[:-1]
+
         # 去掉两个过度列
         cols.remove('cm_diff')
         cols.remove('time_diff')
         df1 = df1[cols]
-        df1 = df1.rename(columns={'Reading_Gals': 'Read_KG', 'Reading_CM': 'Read_CM'})
+
+        df1 = df1.rename(columns={'Reading_Gals': 'Read_Ton', 'Reading_CM': 'Read_CM'})
         return df1
 
 
@@ -184,6 +196,66 @@ class LBDataManager:
         df2 = df2[cols]
         return df2
 
+
+    def get_delivery_window_by_shipto(self, shipto: str):
+        cursor = self.cur
+        table_name = 'DeliveryWindowInfo'
+
+        sql_line = '''SELECT OrdinaryDeliveryWindow, RestrictedDeliveryPeriods FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        for (OrdinaryDeliveryWindow, RestrictedDeliveryPeriods) in results:
+            return OrdinaryDeliveryWindow, RestrictedDeliveryPeriods
+        return '', ''
+
+    def get_production_schedule_by_shipto(self, shipto: str):
+        '''获取生产计划'''
+        table_name = 'ProductionSchedule'
+        cursor = self.cur
+
+        try:
+            sql_line = '''
+                SELECT LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule 
+                FROM {} WHERE LocNum = {}
+            '''.format(table_name, shipto)
+            cursor.execute(sql_line)
+            results = cursor.fetchall()
+            for (LocNum, OrdinaryProductionSchedule, RestrictedProductionSchedule) in results:
+                return OrdinaryProductionSchedule, RestrictedProductionSchedule
+        except Exception as e:
+            print(e)
+            return '', ''
+
+
+    def get_call_log_by_shipto(self, shipto: str):
+        '''获取 call_log'''
+        table_name = 'CallLogInfo'
+
+        sql_line = '''SELECT LocNum, CallLog FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor = self.cur
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+        for loc_num, call_log in results:
+            return call_log
+        return ''
+
+    def get_special_note_by_shipto(self, shipto: str):
+        '''获取特殊说明'''
+        table_name = 'SpecialNote'
+
+        sql_line = '''SELECT LocNum, Summary FROM {} WHERE LocNum = '{}' '''.format(
+            table_name, shipto)
+        cursor = self.cur
+        try:
+            cursor.execute(sql_line)
+            results = cursor.fetchall()
+            for loc_num, special_note in results:
+                return special_note
+        except Exception as e:
+            print(e)
+            return ''
 
     def get_forecast_error(self, shipto):
         '''获取 forecastError'''
@@ -220,8 +292,7 @@ class LBDataManager:
         sql = '''SELECT DISTINCT LocNum from historyReading;'''
         history_shiptos = tuple(pd.read_sql(sql, conn).LocNum)
         full_shiptos = tuple(set(forecast_shiptos + history_shiptos))
-        # print(len(forecast_shiptos), len(history_shiptos), len(full_shiptos))
-        sql = '''select LocNum, CustAcronym,
+        sql = '''select LocNum, CustAcronym, TankAcronym,
                         PrimaryTerminal, SubRegion,
                         ProductClass, DemandType, GalsPerInch,
                         UnitOfLength, Subscriber
@@ -229,21 +300,32 @@ class LBDataManager:
                 WHERE
                 LocNum IN {};'''.format(full_shiptos)
         df_name_forecast = pd.read_sql(sql, conn)
-        # print(df_name_forecast[df_name_forecast.CustAcronym.str.contains('潍坊')])
-        df_name_forecast = df_name_forecast.set_index('CustAcronym')
+        df_name_forecast['Acronym'] = df_name_forecast.apply(
+            lambda x: '{}, {}'.format(x['CustAcronym'], x['TankAcronym']),
+            axis=1
+        )
+
+        df_name_forecast = df_name_forecast.set_index('Acronym')
         return df_name_forecast
 
 
     def get_all_customer_from_sqlite(self):
         '''get_all_customer_from_sqlite'''
         conn = self.conn
-        sql = '''select odbc_master.LocNum, odbc_master.CustAcronym,
+        sql = '''select odbc_master.LocNum, odbc_master.CustAcronym, TankAcronym,
                         odbc_master.PrimaryTerminal, odbc_master.SubRegion,
                         odbc_master.ProductClass, odbc_master.DemandType, odbc_master.GalsPerInch,
-                        odbc_master.UnitOfLength
+                        odbc_master.UnitOfLength, Subscriber, TelemetryFlag
                  FROM odbc_master
               '''
-        df_name_all = pd.read_sql(sql, conn).drop_duplicates().set_index('CustAcronym')
+
+        df_name_all = pd.read_sql(sql, conn).drop_duplicates()
+        df_name_all['Acronym'] = df_name_all.apply(
+            lambda x: '{}, {}'.format(x['CustAcronym'], x['TankAcronym']),
+            axis=1
+        )
+        df_name_all = df_name_all.set_index('Acronym')
+
         return df_name_all
 
     def get_primary_terminal_dtd_info(self, shipto):
@@ -276,9 +358,222 @@ class LBDataManager:
                    SELECT ToLocNum, ToCustAcronym, distanceKM, DDER, DataSource 
                    FROM ClusterInfo
                    WHERE LocNum={}
-                   ORDER BY distanceKM ASC
+                   ORDER BY DDER DESC
                '''.format(shipto)
 
         cursor.execute(sql_line)
         results = cursor.fetchall()
         return results
+
+    def generate_trip_shipto_dict(self):
+        table_name = 'trip_shipto'
+
+        sql_line = '''SELECT LocNum, CustAcronym, Location_x, Trip, TripStartTime
+         FROM {}'''.format(table_name)
+
+        cursor = self.cur
+        cursor.execute(sql_line)
+        results = cursor.fetchall()
+
+        trip_shipto_dict = {}
+        for loc_num, cust_acronym, location, trip, trip_start_time in results:
+            if location in trip_shipto_dict and trip is None:
+                continue
+
+            trip_shipto = trip_shipto_dict.get(
+                location,
+                do.TripShipto(
+                    shipto_id=str(loc_num),
+                    cust_name=cust_acronym,
+                    location=location
+                )
+            )
+            if trip is not None:
+                trip_shipto.trip_dict.update({trip: pd.to_datetime(trip_start_time)})
+
+            trip_shipto_dict.update({trip_shipto.location: trip_shipto})
+        return trip_shipto_dict
+
+    def generate_view_trip_dict_by_shipto_trip_lt(
+            self,
+            trip_lt: List[str]
+    ):
+        if len(trip_lt) == 0:
+            return dict()
+
+        table_name = 'view_trip'
+
+        sql_line = '''
+            SELECT Trip, TripStartTime, Status, segmentNum, Type, Loc, ToLocNum, DeliveredQty, ActualArrivalTime FROM {} WHERE Trip IN {}
+        '''.format(
+            table_name,
+            tuple(trip_lt) if len(trip_lt) > 1 else "('{}')".format(trip_lt[0])
+        )
+
+        trip_df = pd.read_sql(sql_line, self.conn)
+        trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
+
+        trip_dict = dict()
+        for trip_id, segment_df in trip_df.groupby('Trip'):
+            trip_id = str(trip_id)
+            trip = do.Trip(
+                trip_id=trip_id,
+                trip_start_time=segment_df['TripStartTime'].iloc[0]
+            )
+
+            segment_dict = dict()
+            for i, row in segment_df.iterrows():
+                segment = do.Segment(
+                    segment_num=row['segmentNum'],
+                    segment_type=row['Type'],
+                    location=row['Loc'],
+                    segment_status=row['Status'],
+                    to_loc_num=row['ToLocNum'],
+                    arrival_time=row['ActualArrivalTime'],
+                    drop_kg=row['DeliveredQty']
+                )
+                segment_dict.update({segment.segment_num: segment})
+            trip.segment_dict = segment_dict
+
+            trip_dict.update({trip.trip_id: trip})
+        return trip_dict
+
+    def generate_view_trip_dict_by_shipto(
+            self,
+            shipto: str
+    ):
+
+        sql_line = '''
+               WITH TS AS (
+                    SELECT Trip
+                    FROM trip_shipto
+                    WHERE LocNum = '{}'
+                )
+                SELECT 
+                    Trip, 
+                    TripStartTime, 
+                    Status, 
+                    segmentNum, 
+                    Type, 
+                    Loc, 
+                    ToLocNum, 
+                    DeliveredQty, 
+                    ActualArrivalTime 
+                FROM view_trip
+                WHERE Trip IN (SELECT Trip FROM TS);
+           '''.format(
+            shipto
+        )
+
+        trip_df = pd.read_sql(sql_line, self.conn)
+        trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'],format='mixed', dayfirst=True)
+
+        trip_dict = dict()
+        for trip_id, segment_df in trip_df.groupby('Trip'):
+            trip_id = str(trip_id)
+            trip = do.Trip(
+                trip_id=trip_id,
+                trip_start_time=segment_df['TripStartTime'].iloc[0]
+            )
+
+            segment_dict = dict()
+            for i, row in segment_df.iterrows():
+                segment = do.Segment(
+                    segment_num=row['segmentNum'],
+                    segment_type=row['Type'],
+                    location=row['Loc'],
+                    segment_status=row['Status'],
+                    to_loc_num=row['ToLocNum'],
+                    arrival_time=row['ActualArrivalTime'],
+                    drop_kg=row['DeliveredQty']
+                )
+                segment_dict.update({segment.segment_num: segment})
+            trip.segment_dict = segment_dict
+
+            trip_dict.update({trip.trip_id: trip})
+        return trip_dict
+
+    def generate_odbc_trip_dict_by_shipto(
+            self,
+            shipto: str,
+            latest_trip_list: List[str]
+    ):
+        table_name = 'DropRecord'
+
+        exist_trip_num = len(latest_trip_list)
+
+        if exist_trip_num == 0:
+            trip_sql = '('')'
+        elif exist_trip_num == 1:
+            trip_sql = "('{}')".format(latest_trip_list[0])
+        else:
+            trip_sql = tuple(latest_trip_list)
+
+        sql_line = \
+            '''
+                SELECT Trip, LocNum, SegmentIdn, StopType, ToLocNum, Loc, DeliveredQty, ActualArrivalTime
+                FROM {}
+                WHERE LocNum = '{}'
+                AND Trip NOT IN {}
+            '''.format(
+                table_name,
+                shipto,
+                trip_sql
+            )
+
+        trip_df = pd.read_sql(sql_line, self.conn)
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
+
+        need_extra_trip_num = 5 - exist_trip_num
+
+        trip_dict = dict()
+        trip_idx = 0
+        for trip_id, segment_df in trip_df.groupby('Trip'):
+            trip_id = str(trip_id)
+            trip = do.Trip(
+                trip_id=trip_id,
+                trip_start_time=segment_df['ActualArrivalTime'].min()
+            )
+
+            segment_dict = dict()
+            for i, row in segment_df.iterrows():
+                segment = do.Segment(
+                    segment_num=row['SegmentIdn'],
+                    segment_type=row['StopType'],
+                    location=row['Loc'],
+                    segment_status='CLSD',
+                    to_loc_num=row['ToLocNum'],
+                    arrival_time=row['ActualArrivalTime'],
+                    drop_kg=row['DeliveredQty']
+                )
+
+                segment_dict.update({segment.segment_num: segment})
+            trip.segment_dict = segment_dict
+            trip_dict.update({trip.trip_id: trip})
+
+            trip_idx += 1
+
+            # 达到了需求的数量
+            if trip_idx >= need_extra_trip_num:
+                break
+
+        return trip_dict
+
+
+
+    def get_last_refresh_time(self):
+        table = 'historyReading'
+        cur = self.cur
+
+        sql_line = '''SELECT MAX(ReadingDate) FROM {}'''.format(table)
+        cur.execute(sql_line)
+        try:
+            last_refresh_time = cur.fetchone()[0]
+            last_refresh_time = pd.to_datetime(last_refresh_time)
+            last_refresh_time = last_refresh_time.strftime('%Y-%m-%d %H:%M')
+        except Exception as e:
+            print(e)
+            last_refresh_time = ''
+        return last_refresh_time

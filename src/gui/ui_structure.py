@@ -1,45 +1,51 @@
 import tkinter as tk
 from tkinter import ttk
-
+from tkinter import messagebox
 
 class SimpleTable:
-    def __init__(self, parent, columns, col_widths=None, height=10):
+    def __init__(self, parent, columns, col_widths=None, height=10, col_stretch=None, show_header=True):
         self.root = parent
         self.frame = tk.Frame(parent)
-        self.frame.pack(fill="both", expand=True)  # 关键点1: 父容器填充扩展
+        self.frame.pack(fill="both", expand=True)  # 父容器填充扩展
 
         self.tree = ttk.Treeview(
             self.frame,
             columns=columns,
-            show="headings",
+            show="headings" if show_header else "tree",
             height=height,
-            selectmode='extended'
+            selectmode='extended',
+            yscrollcommand=lambda f, l: scrollbar_y.set(f, l)
         )
+
+        if col_stretch is None:
+            col_stretch = [True] * len(columns)
 
         # 设置列头
         for i, col in enumerate(columns):
             width = col_widths[i] if col_widths and i < len(col_widths) else 100
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=width, anchor='center')
+            self.tree.column(col, width=width, anchor='center', stretch=col_stretch[i])
 
         # 垂直滚动条
-        scrollbar_y = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar_y.set)
+        scrollbar_y = tk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
 
         self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar_y.grid(row=0, column=1, sticky="ns")
 
         self.frame.grid_rowconfigure(0, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
 
         style = ttk.Style()
         # pick a theme
-        style.theme_use('default')
+        style.theme_use('winnative')
         style.configure('Treeview', rowheight=25)
 
         self.tree.bind("<Double-1>", self.on_double_click)
         self.tree.bind("<Control-c>", self.copy_selected_to_clipboard)
+        self.tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
+        self.tree.bind("<Leave>", self.on_leave)  # 绑定鼠标离开事件
 
+        self.tooltip = None  # 初始化 tooltip
 
     def insert_rows(self, rows):
         """ 插入多行数据，清空旧数据 """
@@ -50,18 +56,33 @@ class SimpleTable:
     def clear(self):
         self.tree.delete(*self.tree.get_children())
 
-
     def on_double_click(self, event):
         item_id = self.tree.focus()
-        if item_id:
-            values = self.tree.item(item_id, "values")
-            # 弹出一个简单的窗口显示内容
-            popup = tk.Toplevel()
-            popup.title("复制内容")
-            text = tk.Text(popup, wrap="word", height=10, width=50)
-            text.insert("1.0", '\t'.join(values))  # 用 tab 分隔列
-            text.pack(padx=10, pady=10)
-            text.focus()
+        if not item_id:
+            return
+        values = self.tree.item(item_id, "values")
+        col = self.tree.identify_column(event.x)
+        col_index = int(col.replace("#", "")) - 1
+        col_name = self.tree["columns"][col_index]
+        values = self.tree.item(item_id, "values")
+        value = values[col_index]
+        # 可编辑列
+        x, y, width, height = self.tree.bbox(item_id, col)
+        entry = tk.Entry(self.tree)
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.insert(0, value)
+        entry.focus()
+
+        def save_edit(event):
+            messagebox.showerror(
+                parent=self.root,
+                title="错误",
+                message="该列不允许编辑！"
+            )
+            return
+
+        entry.bind("<Return>", save_edit)
+        entry.bind("<FocusOut>", lambda e: entry.destroy())
 
     def copy_selected_to_clipboard(self, event=None):
         selected = self.tree.selection()
@@ -71,6 +92,35 @@ class SimpleTable:
             self.root.clipboard_append(values)
             print("已复制到剪贴板：", values)
 
+    def select(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+        custName = self.tree.item(selected[0], "values")[0]
+        return custName
 
+    def on_motion(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
 
+        item_id = self.tree.identify_row(event.y)
+        col = self.tree.identify_column(event.x)
+        if item_id and col:
+            col_index = int(col.replace("#", "")) - 1
+            values = self.tree.item(item_id, "values")
+            if col_index < len(values):
+                value = values[col_index]
+                if len(value) > 17:  # 如果内容较长，显示 tooltip
+                    self.tooltip = tk.Toplevel(self.tree)
+                    self.tooltip.withdraw()
+                    self.tooltip.overrideredirect(True)
+                    label = tk.Label(self.tooltip, text=value, background="yellow", relief='solid', borderwidth=1)
+                    label.pack()
+                    self.tooltip.geometry(f"+{event.x_root-len(value) * 8}+{event.y_root+10}")
+                    self.tooltip.deiconify()
 
+    def on_leave(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None

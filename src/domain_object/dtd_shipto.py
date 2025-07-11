@@ -46,6 +46,7 @@ class NearbyShipToInfo:
             self,
             nearby_shipto: str,
             shipto_name: str,
+            tank_acronym: str,
             dder: float,
             distance_km: float = None,
             duration_hours: float = None,
@@ -53,6 +54,7 @@ class NearbyShipToInfo:
     ):
         self.nearby_shipto = nearby_shipto
         self.shipto_name = shipto_name
+        self.tank_acronym = tank_acronym
         self.distance_km = distance_km
         self.duration_hours = duration_hours
         self.dder = dder

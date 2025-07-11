@@ -2,6 +2,7 @@ from . import odbc_master
 from .. import domain_object as do
 from ..utils import field as fd
 from ..utils import decorator
+from ..utils import functions as func
 import pyodbc
 import pandas as pd
 import logging
@@ -158,7 +159,7 @@ class ForecastDataRefresh:
             # 按照 DDER 排序，并对 ToLocNum 去重
             filtered_df = filtered_df.sort_values(by=['DDER'], ascending=False).drop_duplicates(subset='ToLocNum')
             filtered_df['LocNum'] = locnum
-            filtered_df = filtered_df.head(3)
+            filtered_df = filtered_df.head(5)
             result_df = pd.concat([result_df, filtered_df], ignore_index=True)
 
         return result_df
@@ -172,7 +173,8 @@ class ForecastDataRefresh:
                 dtd_shipto = self.dtd_shipto_dict[row['LocNum']]
                 nearby_shipto_info = do.NearbyShipToInfo(
                     nearby_shipto=row['ToLocNum'],
-                    shipto_name=row['ToCustAcronym'],
+                    shipto_name=row['ToCustAcronym'].strip(' ') if isinstance(row['ToCustAcronym'], str) else '',
+                    tank_acronym=row['ToTankAcronym'],
                     dder=row['DDER']
                 )
                 dtd_shipto.nearby_shipto_info_dict[row['ToLocNum']] = nearby_shipto_info
@@ -376,6 +378,9 @@ class ForecastDataRefresh:
                 # 从 odbc 的 PointToPoint 表中获取数据
                 dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                if dtd_shipto.primary_terminal_info.distance_km == 0:
+                    dtd_shipto.primary_terminal_info.distance_km = None
+                    dtd_shipto.primary_terminal_info.duration_hours = None
                 dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
 
             # 补充信息给 sourcing terminal
@@ -391,6 +396,9 @@ class ForecastDataRefresh:
                     # 从 odbc 的 PointToPoint 表中获取数据
                     sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                         self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                    if sourcing_terminal_info.distance_km == 0:
+                        sourcing_terminal_info.distance_km = None
+                        sourcing_terminal_info.duration_hours = None
                     sourcing_terminal_info.distance_data_source = 'LBShell'
 
     def output_primary_and_source_dtd_df(self):
@@ -506,6 +514,7 @@ class ForecastDataRefresh:
                 f.NewTripIdn,
                 f.ToLocNum,
                 c.CustAcronym AS ToCustAcronym,
+                c.TankAcronym AS ToTankAcronym,
                 f.ActualArrivalTime,
                 1 - (ISNULL(t.ActualDIPDeliveryComponent, 0) + ISNULL(t.ActualDIPClusteringComponent, 0)) / NULLIF(t.ActualDIPTotalCost, 0) AS DDER
             FROM FinalResult f
@@ -524,7 +533,7 @@ class ForecastDataRefresh:
         )
         SELECT DISTINCT*
         FROM FinalWithDDER
-        WHERE StopType = 0 AND DDER > 0
+        WHERE StopType = 0 AND DDER > 0 AND ToCustAcronym <> ''
         ORDER BY DDER DESC, CorporateIdn, TripIdn, SegmentIdn;
         '''.format(tuple(non_full_load_shiptos))
         df_nearby_shipto = pd.read_sql(sql_line, self.odbc_conn)
@@ -547,9 +556,9 @@ class ForecastDataRefresh:
                     mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
-                    source = 'LBShell'
-                if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
+                    if mile_kms == 0:
+                        mile_kms = None
+                        time_hours = None
                     source = 'LBShell'
                 nearby_shipto_info.distance_km = mile_kms
                 nearby_shipto_info.distance_data_source = source
@@ -562,9 +571,9 @@ class ForecastDataRefresh:
                 record = {
                     'LocNum': shipto_id,
                     'CustAcronym': dtd_shipto.shipto_name,
-                    'ToLocNum': '无',
-                    'ToCustAcronym': '无',
-                    'distanceKM': '整车卸货',
+                    'ToLocNum': '整车卸货',
+                    'ToCustAcronym': '整车卸货',
+                    'distanceKM': '',
                     'DDER': '',
                     'Rank': 1,
                 }
@@ -575,7 +584,7 @@ class ForecastDataRefresh:
                     'LocNum': shipto_id,
                     'CustAcronym': dtd_shipto.shipto_name,
                     'ToLocNum': to_loc_num,
-                    'ToCustAcronym': nearby_shipto_info.shipto_name,
+                    'ToCustAcronym': '{}, {}'.format(nearby_shipto_info.shipto_name, nearby_shipto_info.tank_acronym),
                     'distanceKM': nearby_shipto_info.distance_km,
                     'DDER': nearby_shipto_info.dder,
                     'DataSource': nearby_shipto_info.distance_data_source
@@ -606,6 +615,629 @@ class ForecastDataRefresh:
         for table_name in table_names:
             self.drop_local_table(table_name)
 
+    def get_delivery_window(self):
+        sql_line = '''
+         SELECT CP.LocNum, CP.DlvryMonFrom, CP.DlvryMonTo, CP.DlvryTueFrom,CP.DlvryTueTo,
+            CP.DlvryWedFrom, CP.DlvryWedTo, CP.DlvryThuFrom, CP.DlvryThuTo,
+            CP.DlvryFriFrom, CP.DlvryFriTo, CP.DlvrySatFrom, CP.DlvrySatTo,
+            CP.DlvrySunFrom, CP.DlvrySunTo,
+            AD.DlvryMonFrom1, AD.DlvryMonTo1,
+            AD.DlvryTueFrom1, AD.DlvryTueTo1, AD.DlvryWedFrom1, AD.DlvryWedTo1,
+            AD.DlvryThuFrom1, AD.DlvryThuTo1, AD.DlvryFriFrom1, AD.DlvryFriTo1,
+            AD.DlvrySatFrom1, AD.DlvrySatTo1, AD.DlvrySunFrom1, AD.DlvrySunTo1
+        FROM AlternateDlvry AD
+        inner join CustomerProfile CP on AD.LocNum = CP.LocNum
+        Where CP.PrimaryTerminal like 'x%'
+        AND CP.CustAcronym not like '1%'
+        AND CP.DlvryStatus = 'A'
+        '''
+
+        delivery_window_df = pd.read_sql(sql_line, self.odbc_conn)
+        delivery_window_df['LocNum'] = delivery_window_df['LocNum'].astype(str)
+
+        delivery_window_df[delivery_window_df.columns[1:]] = delivery_window_df.loc[:, delivery_window_df.columns[1:]].applymap(
+            lambda x: pd.to_datetime(x).strftime('%H:%M'))
+
+        def df_to_delivery_times(df):
+            delivery_times = {}
+            days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            chinese_days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+            for i, day in enumerate(days):
+                cp_from = df[f'Dlvry{day}From'].iloc[0]
+                cp_to = df[f'Dlvry{day}To'].iloc[0]
+                ad_from = df[f'Dlvry{day}From1'].iloc[0]
+                ad_to = df[f'Dlvry{day}To1'].iloc[0]
+
+                time_slots = []
+                time_slots.append((cp_from, cp_to))
+                if ad_from != "00:00" and ad_to != "00:00":
+                    time_slots.append((ad_from, ad_to))
+
+                delivery_times[chinese_days[i]] = time_slots if time_slots else [("00:00", "00:00")]
+
+            return delivery_times
+
+        ordinary_delivery_text_by_shipto = dict()
+        for shipto, delivery_df in delivery_window_df.groupby('LocNum'):
+            delivery_times = df_to_delivery_times(delivery_df)
+            ordinary_delivery_window_text = func.summarize_delivery_times(delivery_times)
+            ordinary_delivery_text_by_shipto[shipto] = ordinary_delivery_window_text
+
+        return ordinary_delivery_text_by_shipto
+
+
+    def get_restricted_delivery_periods(self):
+        sql_line = '''
+            SELECT 
+            RDP.LocNum,
+            CP.CustAcronym,
+            RDP.FromDateTime,
+            RDP.ToDateTime,
+            RDP.Comment
+            FROM RestrictedDeliveryPeriods AS RDP
+            INNER JOIN CustomerProfile CP on RDP.LocNum = CP.LocNum
+            Where CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+            AND RDP.ToDateTime >= GETDATE()
+        '''
+
+        restricted_delivery_periods_df = pd.read_sql(sql_line, self.odbc_conn)
+        restricted_delivery_periods_df['LocNum'] = restricted_delivery_periods_df['LocNum'].astype(str)
+
+        time_cols = ['FromDateTime', 'ToDateTime']
+        restricted_delivery_periods_df[time_cols] = restricted_delivery_periods_df[time_cols].applymap(
+                lambda x: pd.to_datetime(x).strftime('%m-%d')
+        )
+        restricted_delivery_periods_by_shipto = dict()
+        for shipto, delivery_df in restricted_delivery_periods_df.groupby('LocNum'):
+            text_lt = []
+            idx = 1
+            for _, row in delivery_df.iterrows():
+                from_date = row['FromDateTime']
+                to_date = row['ToDateTime']
+                comment = row['Comment']
+                text = '{}. {}-{}'.format(idx,from_date, to_date)
+                if comment:
+                    text += '({})'.format(comment)
+                text_lt.append(text)
+                idx += 1
+
+            restricted_delivery_periods_by_shipto[shipto] = '; '.join(text_lt)
+        return restricted_delivery_periods_by_shipto
+
+    def refresh_delivery_window_and_restricted_delivery_periods(self):
+        ordinary_delivery_text_by_shipto = self.get_delivery_window()
+        restricted_delivery_periods_by_shipto = self.get_restricted_delivery_periods()
+
+        shipto_lt = list(
+            set(ordinary_delivery_text_by_shipto.keys()) | set(restricted_delivery_periods_by_shipto.keys())
+        )
+
+        cols = [
+            'LocNum',
+            'OrdinaryDeliveryWindow',
+            'RestrictedDeliveryPeriods'
+        ]
+        record_lt = []
+        for shipto in shipto_lt:
+            ordinary_delivery_window_text = ordinary_delivery_text_by_shipto.get(shipto, '')
+            restricted_delivery_periods_text = restricted_delivery_periods_by_shipto.get(shipto, '')
+            record = {
+                'LocNum': shipto,
+                'OrdinaryDeliveryWindow': ordinary_delivery_window_text,
+                'RestrictedDeliveryPeriods': restricted_delivery_periods_text
+            }
+            record_lt.append(record)
+        df_delivery_window = pd.DataFrame(record_lt, columns=cols)
+
+        now = datetime.datetime.now()
+        df_delivery_window['refresh_date'] = now
+        table_name = 'DeliveryWindowInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        df_delivery_window.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+        self.local_conn.commit()
+
+    def get_call_log(self):
+        sql_line = '''
+        WITH RankedCalls AS (
+            SELECT 
+                CL.CallLogID,
+                CL.LocNum,
+                CL.DateEntered,
+                CL.Comment,
+                ROW_NUMBER() OVER (PARTITION BY CL.LocNum ORDER BY CL.DateEntered DESC) AS rn
+            FROM CustomerCallLog CL
+            INNER JOIN CustomerProfile CP ON CL.LocNum = CP.LocNum
+            WHERE 
+              CP.PrimaryTerminal LIKE 'x%'
+              AND CP.CustAcronym NOT LIKE '1%'
+              AND CP.DlvryStatus = 'A'
+        )
+        SELECT 
+            CallLogID,
+            LocNum,
+            DateEntered,
+            Comment
+        FROM RankedCalls
+        WHERE rn <= 2
+        '''
+        call_log_df = pd.read_sql(sql_line, self.odbc_conn)
+        call_log_df['LocNum'] = call_log_df['LocNum'].astype(str)
+        call_log_df['DateEntered'] = pd.to_datetime(call_log_df['DateEntered'])
+        call_log_df = call_log_df.sort_values(by=['LocNum', 'DateEntered'], ascending=False).reset_index(drop=True)
+
+        call_log_dict = dict()
+
+        for shipto, df_shipto in call_log_df.groupby('LocNum'):
+            idx = 1
+            text_lt = []
+            for _, row in df_shipto.iterrows():
+
+                text = '{}. {}'.format(idx, row['Comment'])
+                text_lt.append(text)
+                idx += 1
+            call_log_dict[shipto] = '; '.join(text_lt)
+        return call_log_dict
+
+
+    def refresh_call_log(self):
+        '''
+        更新最新联络
+        '''
+        call_log_dict = self.get_call_log()
+
+        cols = [
+            'LocNum',
+            'CallLog'
+        ]
+        record_lt = []
+
+        for shipto, call_log_text in call_log_dict.items():
+            record = {
+                'LocNum': shipto,
+                'CallLog': call_log_text
+            }
+            record_lt.append(record)
+        df_call_log = pd.DataFrame(record_lt, columns=cols)
+        now = datetime.datetime.now()
+        df_call_log['refresh_date'] = now
+        table_name = 'CallLogInfo'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        df_call_log.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+        self.local_conn.commit()
+
+    def refresh_drop_record(self):
+        sql_line = '''
+        WITH RankedSegments AS (
+            SELECT 
+                S.CorporateIdn, 
+                S.TripIdn, 
+                S.ToLocNum, 
+                S.ActualArrivalTime,
+                ROW_NUMBER() OVER (PARTITION BY S.ToLocNum ORDER BY S.ActualArrivalTime DESC) AS rn
+            FROM Segment S
+            LEFT JOIN LBCustProfile CP ON S.ToLocNum = CP.LocNum
+            WHERE 
+                S.CorporateIdn LIKE 'X%' AND
+                S.StatusFlag = '6' AND
+                CP.CustAcronym NOT LIKE '1%' AND
+                CP.DlvryStatus = 'A'
+        ), 
+        TripSegment AS (
+                SELECT S.CorporateIdn, S.TripIdn,  S.SegmentIdn, S.ToLocNum, S.ToAccountNum, CP.CustAcronym, CP.TankAcronym, 
+                CASE 
+                    WHEN S.ToAccountNum = 'SAP' THEN CP.CustAcronym + ',' + CP.TankAcronym
+                    ELSE S.ToAccountNum
+                END AS Loc,
+                S.ActualArrivalTime, 
+                CASE 
+                    WHEN StopType = '0' THEN 'DELV' 
+                    WHEN StopType = '1' THEN 'Swap' 
+                    WHEN StopType = '2' THEN 'eqDrop'
+                    WHEN StopType = '3' THEN 'P/PU' 
+                    WHEN StopType = '6' THEN 'BKH' 
+                    WHEN StopType = '12' THEN 'RTST' 
+                    ELSE 'unknown' 
+                END AS StopType,
+                CASE 
+                    WHEN S.MeterGals = 0 THEN S.DeliveredQty_Invoice 
+                    ELSE S.MeterGals 
+                END AS DeliveredQty
+        
+                FROM Segment S
+                LEFT JOIN LBCustProfile CP
+                ON S.ToLocNum = CP.LocNum 
+        
+        )
+        SELECT 
+            RS.CorporateIdn +'-' + CAST(RS.TripIdn AS NVARCHAR(10)) AS Trip,
+            RS.CorporateIdn, 
+            RS.TripIdn, 
+            RS.ToLocNum AS LocNum, 
+            TS.SegmentIdn,
+            TS.StopType,
+            TS.ToLocNum,
+            TS.Loc,
+            TS.DeliveredQty,
+            TS.ActualArrivalTime
+        FROM RankedSegments RS
+        LEFT JOIN TripSegment TS
+        ON RS.CorporateIdn = TS.CorporateIdn 
+        AND RS.TripIdn = TS.TripIdn
+        WHERE RS.rn <= 5
+        ORDER BY RS.ToLocNum, 
+        RS.CorporateIdn, 
+        RS.TripIdn, 
+        TS.SegmentIdn,
+        RS.ActualArrivalTime DESC;
+        '''
+        drop_record_df = pd.read_sql(sql_line, self.odbc_conn)
+        drop_record_df['LocNum'] = drop_record_df['LocNum'].astype(str)
+        drop_record_df['ToLocNum'] = drop_record_df['ToLocNum'].astype(str)
+        drop_record_df['ActualArrivalTime'] = pd.to_datetime(drop_record_df['ActualArrivalTime'])
+
+        table_name = 'DropRecord'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        drop_record_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
+
+    def get_ordinary_production_schedule(self):
+        sql_line = '''
+        SELECT LocNum, CustAcronym, 
+            OpMonShift1StartTime,OpMonShift1EndTime,OpMonShift2StartTime,OpMonShift2EndTime,OpMonShift3StartTime,OpMonShift3EndTime,
+            OpTueShift1StartTime,OpTueShift1EndTime,OpTueShift2StartTime,OpTueShift2EndTime,OpTueShift3StartTime,OpTueShift3EndTime,
+            OpWedShift1StartTime,OpWedShift1EndTime,OpWedShift2StartTime,OpWedShift2EndTime,OpWedShift3StartTime,OpWedShift3EndTime,
+            OpThuShift1StartTime,OpThuShift1EndTime,OpThuShift2StartTime,OpThuShift2EndTime,OpThuShift3StartTime,OpThuShift3EndTime,
+            OpFriShift1StartTime,OpFriShift1EndTime,OpFriShift2StartTime,OpFriShift2EndTime,OpFriShift3StartTime,OpFriShift3EndTime,
+            OpSatShift1StartTime,OpSatShift1EndTime,OpSatShift2StartTime,OpSatShift2EndTime,OpSatShift3StartTime,OpSatShift3EndTime,
+            OpSunShift1StartTime,OpSunShift1EndTime,OpSunShift2StartTime,OpSunShift2EndTime,OpSunShift3StartTime,OpSunShift3EndTime
+        FROM CustomerProfile CP
+        WHERE CP.PrimaryTerminal LIKE 'x%'
+                AND CP.CustAcronym NOT LIKE '1%'
+                AND CP.DlvryStatus = 'A'
+        '''
+        production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
+        if production_schedule_df.empty:
+            return pd.DataFrame(columns=['LocNum', 'NaturalLanguageSummary'])
+
+        production_schedule_df['LocNum'] = production_schedule_df['LocNum'].astype(str)
+
+        # Function to summarize shifts for a day
+        def summarize_shifts(row, day):
+            start_times = [row[f'Op{day}Shift1StartTime'], row[f'Op{day}Shift2StartTime'],
+                           row[f'Op{day}Shift3StartTime']]
+            end_times = [row[f'Op{day}Shift1EndTime'], row[f'Op{day}Shift2EndTime'], row[f'Op{day}Shift3EndTime']]
+
+            # Convert to string in case they are datetime objects
+            start_times = [str(t) for t in start_times]
+            end_times = [str(t) for t in end_times]
+
+            # Filter out inactive shifts (00:00 to 00:00)
+            active_shifts = [(start, end) for start, end in zip(start_times, end_times)
+                             if not (start.endswith("00:00:00") and end.endswith("00:00:00") and
+                                     start.split()[0] == end.split()[0])]
+
+            if not active_shifts:
+                return f'{day} 00:00-00:00'
+
+            # Check if any shift spans across days
+            spans_across_days = any(start.split()[0] != end.split()[0] for start, end in active_shifts)
+
+            if spans_across_days:
+                return f'{day} 00:00-24:00'
+
+            # Combine active shifts
+            combined_start = min(start.split()[1][:-3] for start, end in active_shifts)
+            combined_end = max(end.split()[1][:-3] for start, end in active_shifts)
+
+            return f'{day} {combined_start}-{combined_end}'
+
+        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        production_schedule_df['Summary'] = production_schedule_df.apply(
+            lambda row: ' '.join(summarize_shifts(row, day) for day in days),
+            axis=1
+        )
+
+        # Function to generate natural language summary
+        def generate_natural_language_summary(summary):
+            days_map = {
+                'Mon': '周一',
+                'Tue': '周二',
+                'Wed': '周三',
+                'Thu': '周四',
+                'Fri': '周五',
+                'Sat': '周六',
+                'Sun': '周日'
+            }
+
+            # Split the summary into individual day summaries
+            day_summaries = summary.split()
+
+            # Group consecutive days with identical working hours
+            grouped_summaries = []
+            current_group = []
+            current_hours = None
+
+            for i in range(0, len(day_summaries), 2):
+                day = day_summaries[i]
+                hours = day_summaries[i + 1]
+
+                if hours == '00:00-00:00':
+                    hours = '停产'
+
+                if hours != current_hours:
+                    if current_group:
+                        grouped_summaries.append((current_group, current_hours))
+                    current_group = [days_map[day]]
+                    current_hours = hours
+                else:
+                    current_group.append(days_map[day])
+
+            if current_group:
+                grouped_summaries.append((current_group, current_hours))
+
+            # Generate natural language summary
+            natural_language_summary = []
+            for group, hours in grouped_summaries:
+                if len(group) == 1:
+                    natural_language_summary.append(f'{group[0]} {hours}')
+                else:
+                    natural_language_summary.append(f'{group[0]}到{group[-1]} {hours}')
+
+            return '，'.join(natural_language_summary)
+
+        # Apply the function to the DataFrame
+        production_schedule_df['NaturalLanguageSummary'] = production_schedule_df['Summary'].apply(
+            generate_natural_language_summary)
+
+        return production_schedule_df
+
+    def get_restricted_production_schedule(self):
+        sql_line = '''
+            SELECT 
+                OPH.LocNum,OPH.DateFrom,OPH.DateTo,OPH.RecStoreIdn,	OPH.Description,	
+                OPH.MonShift1,OPH.MonShift2,OPH.MonShift3,
+                OPH.TueShift1,OPH.TueShift2,OPH.TueShift3,
+                OPH.WedShift1,OPH.WedShift2,OPH.WedShift3,
+                OPH.ThuShift1,OPH.ThuShift2,OPH.ThuShift3,
+                OPH.FriShift1,OPH.FriShift2,OPH.FriShift3,
+                OPH.SatShift1,OPH.SatShift2,OPH.SatShift3,
+                OPH.SunShift1,OPH.SunShift2,OPH.SunShift3
+            FROM OpPatternHistory OPH
+            LEFT JOIN CustomerProfile AS CP
+            ON OPH.LocNum = CP.LocNum
+            WHERE CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+            AND OPH.RecStoreIdn NOT IN ('LBFcst', 'SYBASE')
+            AND OPH.Description NOT IN ('', 'System Generated')
+            AND GETDATE()-1 <= OPH.DateTo
+        '''
+
+        restricted_production_schedule_df = pd.read_sql(sql_line, self.odbc_conn)
+        if restricted_production_schedule_df.empty:
+            return pd.DataFrame(columns=['LocNum', 'Summary'])
+        restricted_production_schedule_df['LocNum'] = restricted_production_schedule_df['LocNum'].astype(str)
+        restricted_production_schedule_df['DateFrom'] = restricted_production_schedule_df['DateFrom'].apply(lambda x: x.strftime('%Y-%m-%d'))
+        restricted_production_schedule_df['DateTo'] = restricted_production_schedule_df['DateTo'].apply(lambda x: x.strftime('%Y-%m-%d'))
+
+        # Function to classify the ratio
+        def classify_ratio(ratio):
+            if ratio == 0:
+                return '停产'
+            elif 0 < ratio < 100:
+                return '减产'
+            elif ratio == 100:
+                return '正常'
+            else:
+                return '超产'
+
+        # Function to summarize shifts for a day
+        def summarize_shifts(row, day):
+            ratios_col = [f'{day}Shift1', f'{day}Shift2', f'{day}Shift3']
+            ratio = max(row[ratio_col] for ratio_col in ratios_col)
+            return classify_ratio(ratio)
+
+        # Function to generate summary for each row
+        def generate_summary(row):
+            days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            summary = []
+            date_from = datetime.datetime.strptime(row['DateFrom'], '%Y-%m-%d')
+            date_to = datetime.datetime.strptime(row['DateTo'], '%Y-%m-%d')
+            current_date = date_from
+            while current_date <= date_to:
+                day_of_week = days[current_date.weekday()]
+                comment = summarize_shifts(row, day_of_week)
+                summary.append((current_date.strftime('%Y-%m-%d'), comment))
+                current_date += datetime.timedelta(days=1)
+            # Combine consecutive days with the same comment
+            combined_summary = []
+            start_date = summary[0][0]
+            current_comment = summary[0][1]
+            for i in range(1, len(summary)):
+                if summary[i][1] == current_comment:
+                    continue
+                else:
+                    end_date = summary[i - 1][0]
+                    if start_date == end_date:
+                        combined_summary.append(f'{start_date} {current_comment}')
+                    else:
+                        combined_summary.append(f'{start_date} 到 {end_date} {current_comment}')
+                    start_date = summary[i][0]
+                    current_comment = summary[i][1]
+            if start_date == summary[-1][0]:
+                combined_summary.append(f'{start_date} {current_comment}')
+            else:
+                combined_summary.append(f'{start_date} 到 {summary[-1][0]} {current_comment}')
+            # Remove segments labeled as '正常'
+            final_summary = [segment for segment in combined_summary if '正常' not in segment]
+            final_summary_str = '{}: {}'.format(row['Description'].strip(), ', '.join(final_summary))
+            return final_summary_str
+
+        # Apply the summary generation function to each row
+        restricted_production_schedule_df['Summary'] = restricted_production_schedule_df.apply(generate_summary, axis=1)
+
+
+        return restricted_production_schedule_df
+
+
+    def refresh_production_schedule(self):
+        ordinary_production_schedule_df = self.get_ordinary_production_schedule()
+        restricted_production_schedule_df = self.get_restricted_production_schedule()
+
+        shipto_lt = list(set(
+            ordinary_production_schedule_df['LocNum'].tolist() +
+            restricted_production_schedule_df['LocNum'].tolist())
+        )
+        ordinary_ps_dict = dict(zip(
+            ordinary_production_schedule_df['LocNum'],
+            ordinary_production_schedule_df['NaturalLanguageSummary']
+        ))
+        restricted_ps_dict = dict(zip(
+            restricted_production_schedule_df['LocNum'],
+            restricted_production_schedule_df['Summary']
+        ))
+
+        cols = [
+            'LocNum',
+            'OrdinaryProductionSchedule',
+            'RestrictedProductionSchedule'
+        ]
+        record_lt = []
+        for shipto in shipto_lt:
+            record = {
+                'LocNum': shipto,
+                'OrdinaryProductionSchedule': ordinary_ps_dict.get(shipto, ''),
+                'RestrictedProductionSchedule': restricted_ps_dict.get(shipto, ''),
+            }
+            record_lt.append(record)
+
+        production_schedule_df = pd.DataFrame(record_lt, columns=cols)
+
+        table_name = 'ProductionSchedule'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        production_schedule_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
+
+    def get_special_note_df(self):
+        sql_line = '''
+            WITH RestrictedSource AS (
+                SELECT 
+                SR.LocNum,
+                STUFF((
+                    SELECT ',' + SR2.CorporateIdn
+                    FROM SourceRestriction SR2
+                    LEFT JOIN CustomerProfile CP2 ON SR2.LocNum = CP2.LocNum
+                    WHERE 
+                        CP2.PrimaryTerminal LIKE 'x%'
+                        AND CP2.CustAcronym NOT LIKE '1%'
+                        AND CP2.DlvryStatus = 'A'
+                        AND SR2.YesNoFlag = '0'
+                        AND SR2.LocNum = SR.LocNum
+                    FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS RestrictedCorporateIdn
+                FROM 
+                    SourceRestriction SR
+                LEFT JOIN 
+                    CustomerProfile CP ON SR.LocNum = CP.LocNum
+                WHERE 
+                    CP.PrimaryTerminal LIKE 'x%'
+                    AND CP.CustAcronym NOT LIKE '1%'
+                    AND CP.DlvryStatus = 'A'
+                    AND SR.YesNoFlag = '0'
+                GROUP BY 
+                    SR.LocNum
+            ), 
+            ACOC AS (
+                SELECT 
+                LBR.LocNum,
+                STUFF((
+                    SELECT ',' + 
+                        CASE 
+                            WHEN LBR2.SpecProductReqdIdn = 3 THEN 'COC'
+                            WHEN LBR2.SpecProductReqdIdn = 5 THEN 'COA'
+                        END
+                    FROM LBCustRqmnt LBR2
+                    LEFT JOIN CustomerProfile CP2 ON LBR2.LocNum = CP2.LocNum
+                    WHERE 
+                        CP2.PrimaryTerminal LIKE 'x%'
+                        AND CP2.CustAcronym NOT LIKE '1%'
+                        AND CP2.DlvryStatus = 'A'
+                        AND LBR2.SpecProductReqdIdn IN (3, 5)
+                        AND LBR2.LocNum = LBR.LocNum
+                    FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS Requirement
+                FROM 
+                    LBCustRqmnt LBR
+                LEFT JOIN 
+                    CustomerProfile CP ON LBR.LocNum = CP.LocNum
+                WHERE 
+                    CP.PrimaryTerminal LIKE 'x%'
+                    AND CP.CustAcronym NOT LIKE '1%'
+                    AND CP.DlvryStatus = 'A'
+                    AND LBR.SpecProductReqdIdn IN (3, 5)
+                GROUP BY 
+                    LBR.LocNum
+            
+            )
+            SELECT CP.LocNum, CP.CustAcronym, CP.ClusteringZone,CP.HighPressFlag, CP.MultTankFlag, CP.FirstStop, CP.NoDumpFlag, RS.RestrictedCorporateIdn, ACOC.Requirement
+            FROM CustomerProfile AS CP
+            LEFT JOIN RestrictedSource RS
+            ON CP.LocNum = RS.LocNum
+            LEFT JOIN ACOC
+            ON CP.LocNum = ACOC.LocNum 
+            WHERE CP.PrimaryTerminal LIKE 'x%'
+            AND CP.CustAcronym NOT LIKE '1%'
+            AND CP.DlvryStatus = 'A'
+        '''
+        special_note_df = pd.read_sql(sql_line, self.odbc_conn)
+        special_note_df['LocNum'] = special_note_df['LocNum'].astype(str)
+
+        return special_note_df
+
+    def refresh_special_note(self):
+        special_note_df = self.get_special_note_df()
+
+        # Function to summarize each row
+        def summarize_row(row):
+            summary = []
+            if pd.notna(row['ClusteringZone']) and len(row['ClusteringZone'].strip(' ')):
+                summary.append(
+                    row['ClusteringZone'].strip(' ')
+                )
+            if row['HighPressFlag']:
+                summary.append('高压车')
+            if row['MultTankFlag']:
+                summary.append('并联罐')
+            if row['FirstStop']:
+                summary.append('务必第一个卸货')
+            if row['NoDumpFlag']:
+                summary.append('不允许最后卸货')
+            if pd.notna(row['RestrictedCorporateIdn']):
+                summary.append(
+                    '禁止{}货源'.format(row['RestrictedCorporateIdn'])
+                )
+            if pd.notna(row['Requirement']):
+                summary.append(row['Requirement'])
+            return ' & '.join(summary)
+
+        # Apply the function to each row
+        special_note_df['Summary'] = special_note_df.apply(summarize_row, axis=1)
+
+        table_name = 'SpecialNote'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+
+        special_note_df.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False
+        )
+        self.local_conn.commit()
+
     def refresh_lb_daily_data(self):
         """
         这些都是冬亮之前写的，单独抽出来，不改了
@@ -615,6 +1247,17 @@ class ForecastDataRefresh:
         odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
         odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
         odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+        '''
+        新增 生产计划，delivery window，最新联络，特殊备注 相关的
+        '''
+        self.refresh_delivery_window_and_restricted_delivery_periods()
+        self.refresh_call_log()
+        self.refresh_production_schedule()
+        self.refresh_special_note()
+        '''
+        新增： 最近送货记录 CLSD
+        '''
+        self.refresh_drop_record()
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的
@@ -636,6 +1279,7 @@ class ForecastDataRefresh:
         self.refresh_forecast_data()
         self.refresh_forecast_beforeTrip_data()
         self.refresh_fe()
+        self.refresh_trip_shipto_data()
 
     def get_filename(
             self,
@@ -839,3 +1483,72 @@ class ForecastDataRefresh:
         conn.commit()
         df_fe.to_sql(table_name, con=conn, if_exists='replace', index=False)
 
+    def refresh_trip_shipto_data(self):
+        '''刷新 trip_shipto 数据'''
+        cur = self.local_cur
+        conn = self.local_conn
+
+        start_time = time.time()
+
+        filepath = r'\\shangnt\lbshell\PUAPI\PU_program\automation'
+        deliveries_filename = os.path.join(filepath, 'deliveries_new.xlsx')
+        df_deliveries = pd.read_excel(deliveries_filename)
+        df_deliveries['CustAcronym'] = (
+            df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
+
+        # 跳过这一步吧，筛选前五后十的delivery
+
+        deliveries_cols = ['Trip', 'Location', 'CustAcronym', 'LocNum', 'Arrival Time']
+        df_deliveries = df_deliveries[deliveries_cols]
+
+
+        trip_filename = os.path.join(filepath, 'view_trip.xlsx')
+        df_trip = pd.read_excel(trip_filename, dtype={'LocationID': str, 'ToLocNum': str})
+        df_trip = df_trip.fillna('')
+        df_trip['TripID'] = df_trip['TripID'].astype(str)
+        df_trip['Trip'] = df_trip.apply(lambda row: '-'.join([row['CorporateIdn'], row['TripID']]), axis=1)
+        df_trip['TripStartTime'] = df_trip.apply(
+            lambda row: ' '.join([row['StartD'], row['StartT']]), axis=1
+        )
+        df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
+
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum', 'Amount1']
+        df_trip = df_trip[trip_cols]
+
+        df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
+        df_trip_shipto = df_trip_shipto.sort_values(['TripStartTime'])
+
+        table_name = 'trip_shipto'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        conn.commit()
+        df_trip_shipto.to_sql(table_name, con=conn, if_exists='replace', index=False)
+
+        end_time = time.time()
+        print('refresh trip_shipto_data {} seconds'.format(round(end_time - start_time)))
+
+        # 定义一个函数来处理 ToLoc 的逻辑
+        def generate_to_loc(row):
+            if row['LocationID'].startswith('Terminal:') or row['LocationID'].startswith('Source:'):
+                return row['LocationID'].split(':')[1].strip()
+            else:
+                return row['Location']
+
+        df_trip = df_trip[ df_trip['Trip'].isin(df_deliveries['Trip'])]
+        df_deliveries_time = df_deliveries[['Trip', 'Location', 'Arrival Time']]
+
+        if not df_trip.empty:
+            df_trip['Loc'] = df_trip.apply(generate_to_loc, axis=1)
+        else:
+            df_trip['Loc'] = ''
+
+        df_trip = pd.merge(df_trip, df_deliveries_time, on=['Trip', 'Location'], how='left')
+
+        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum', 'Amount1', 'Arrival Time']
+        df_trip = df_trip[trip_cols]
+        df_trip.rename(columns={'Amount1': 'DeliveredQty', 'Arrival Time': 'ActualArrivalTime'}, inplace=True)
+
+        table = 'view_trip'
+        cur.execute('''DROP TABLE IF EXISTS {};'''.format(table))
+        conn.commit()
+        df_trip.to_sql(table, con=conn, if_exists='replace', index=False)
+        print('refresh view_trip {} seconds'.format(round(time.time() - end_time)))
