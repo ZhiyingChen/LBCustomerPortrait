@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     root = tk.Tk()
     width = int(root.winfo_screenwidth() * 0.9)
-    height = int(root.winfo_screenheight() * 0.9)
+    height = int(root.winfo_screenheight())
     root.geometry(f"{width}x{height}")
     root.wm_title("Air Products Forecasting Viz")
     root.resizable(True, True)

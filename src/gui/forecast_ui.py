@@ -568,7 +568,7 @@ class LBForecastUI:
         col_widths = [70, 40, 40, 40]
 
         self.reading_tree_table = ui_structure.SimpleTable(
-            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
+            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=7)
         self.reading_tree_table.frame.pack(fill="both", expand=True)
 
     def _set_delivery_window_tree(self):
@@ -803,13 +803,13 @@ class LBForecastUI:
 
     def _setup_ui(self):
         # 建立上半区：作图区域 plot frame
-        self.plot_frame = tk.LabelFrame(self.root, text='Plot')
+        self.plot_frame = tk.LabelFrame(self.root, text='Plot', height=500)
         self.plot_frame.pack(fill='x', expand=True, padx=2, pady=1)
         self._decorate_plot_frame()
 
 
         # 建立下半区：信息区域：par_frame
-        self.par_frame = tk.LabelFrame(self.root)
+        self.par_frame = tk.LabelFrame(self.root, height=500)
         self.par_frame.pack(fill='x', expand=True, padx=5, pady=1)
         self._decorate_par_frame()
 
@@ -1176,7 +1176,7 @@ class LBForecastUI:
         self.check_telemetry_flag = tk.Checkbutton(button_frame, text='远控 最新 （无液位时勾选）', variable=self.var_telemetry_flag, onvalue=1, offvalue=0)
         self.check_telemetry_flag.grid(row=0, column=4, padx=1, pady=10)
 
-        self.pic_figure = Figure(figsize=(5, 3), dpi=80)
+        self.pic_figure = Figure(figsize=(5, 6), dpi=80)
         gs = self.pic_figure.add_gridspec(1, 2, width_ratios=(6, 1),
                               left=0.08, right=0.96, bottom=0.1, top=0.9,
                               wspace=0.1, hspace=0.05)
