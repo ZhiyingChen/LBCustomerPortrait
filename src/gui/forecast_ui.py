@@ -568,7 +568,7 @@ class LBForecastUI:
         col_widths = [70, 40, 40, 40]
 
         self.reading_tree_table = ui_structure.SimpleTable(
-            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=7)
+            self.reading_tree_frame, columns=columns, col_widths=col_widths, height=5)
         self.reading_tree_table.frame.pack(fill="both", expand=True)
 
     def _set_delivery_window_tree(self):
