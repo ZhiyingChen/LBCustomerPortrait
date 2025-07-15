@@ -49,31 +49,36 @@ def odbc_masterData():
     cnxn = connect_odbc(server, database)
 
     sql = '''SELECT
-         CustomerProfile.LocNum,
-         LBCustProfile.CustAcronym,
-         CustomerProfile.TankAcronym,
-        CustomerProfile.FullTrycockGals, CustomerProfile.FullTrycockInches,
-         CustomerProfile.TypicalTrycock,  LBCustProfile.TargetGalsUser,
-         CustomerProfile.RunoutInch, CustomerProfile.RunoutGals,
-         CustomerProfile.GalsPerInch, CustomerProfile.DemandType,
-         CustomerProfile.VehicleSize, CustomerProfile.ProductClass, CustomerProfile.UnitOfLength,
-         CustomerProfile.ClusteringZone,CustomerProfile.PrimaryTerminal,
-         rtrim(CustomerProfile.Name) as'CustFullName',
-         ltrim(rtrim(right(Terminal.Name,4))) as 'SubRegion',
-         CustomerProfile.TelemetryFlag,
-         CustomerTelemetry.Subscriber
+            CustomerProfile.LocNum,
+            LBCustProfile.CustAcronym,
+            CustomerProfile.TankAcronym,
+            CustomerProfile.FullTrycockGals, CustomerProfile.FullTrycockInches,
+            CustomerProfile.TypicalTrycock,  LBCustProfile.TargetGalsUser,
+            CustomerProfile.RunoutInch, CustomerProfile.RunoutGals,
+            CustomerProfile.GalsPerInch, CustomerProfile.DemandType,
+            CustomerProfile.VehicleSize, CustomerProfile.ProductClass, CustomerProfile.UnitOfLength,
+            CustomerProfile.ClusteringZone,CustomerProfile.PrimaryTerminal,
+            rtrim(CustomerProfile.Name) as'CustFullName',
+            ltrim(rtrim(right(Terminal.Name,4))) as 'SubRegion',
+            CustomerProfile.TelemetryFlag,
+            CustomerTelemetry.Subscriber,
+            CustomerForecastParams.TargetWODlvryUser, 
+            CustomerForecastParams.FcstRunoutDate,
+            DATEDIFF(MINUTE, CustomerForecastParams.TargetWODlvryUser, CustomerForecastParams.FcstRunoutDate) / 60 AS TRRO
         FROM
-         EU_LBLogist_Rpt.dbo.LBCustProfile LBCustProfile,
-         EU_LBLogist_Rpt.dbo.CustomerProfile
-         LEFT JOIN CustomerTelemetry
-         ON CustomerProfile.LocNum=CustomerTelemetry.LocNum,
-         EU_LBLogist_Rpt.dbo.Terminal
+            EU_LBLogist_Rpt.dbo.LBCustProfile LBCustProfile,
+            EU_LBLogist_Rpt.dbo.CustomerProfile
+            LEFT JOIN CustomerTelemetry
+            ON CustomerProfile.LocNum=CustomerTelemetry.LocNum
+            LEFT JOIN CustomerForecastParams
+            ON CustomerProfile.LocNum = CustomerForecastParams.LocNum,
+            EU_LBLogist_Rpt.dbo.Terminal
         WHERE
-         LBCustProfile.LocNum = CustomerProfile.LocNum
-         AND  CustomerProfile.PrimaryTerminal=Terminal.CorporateIdn
-         AND (CustomerProfile.PrimaryTerminal like 'x%')
-         AND (CustomerProfile.CustAcronym not like '1%')
-         AND (CustomerProfile.DlvryStatus = 'A')
+            LBCustProfile.LocNum = CustomerProfile.LocNum
+            AND  CustomerProfile.PrimaryTerminal=Terminal.CorporateIdn
+            AND (CustomerProfile.PrimaryTerminal like 'x%')
+            AND (CustomerProfile.CustAcronym not like '1%')
+            AND (CustomerProfile.DlvryStatus = 'A')
         '''
     now = datetime.now()
     df = pd.read_sql(sql, cnxn)

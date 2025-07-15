@@ -269,6 +269,18 @@ class LBDataManager:
             fe = str(round(df.AverageError.values[0] * 100)) + '%'
         return fe
 
+    def get_tr_ro_value(self, shipto):
+        table_name = "odbc_master"
+        sql_line = '''SELECT LocNum, TRRO FROM {} WHERE LocNum = {}'''.format(table_name, shipto)
+        cursor = self.cur
+        try:
+            cursor.execute(sql_line)
+            results = cursor.fetchall()
+            for loc_num, TRRO in results:
+                return TRRO
+        except Exception as e:
+            print(e)
+            return ''
 
     def get_t4_t6_value(self, shipto):
         conn = self.conn

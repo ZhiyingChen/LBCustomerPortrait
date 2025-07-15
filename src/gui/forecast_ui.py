@@ -385,7 +385,7 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            # ("客户简称", "cust_name"),
+            ("TR-RO", "TR-RO"),
             ("__ 最大装载量 (T)", "max_payload_label"),
             ("目标送货时间", "target_time"),
             ("最佳充装时间", "risk_time"),
@@ -996,6 +996,9 @@ class LBForecastUI:
         fe = self.data_manager.get_forecast_error(shipto)
         self.detail_labels['forecast_error'].config(text=fe)
 
+        tr_ro = self.data_manager.get_tr_ro_value(shipto)
+        self.detail_labels['TR-RO'].config(text=tr_ro)
+
         current_primary_dt, current_max_payload = self.get_primary_dt_and_max_payload(shipto)
         current_max_payload = round(current_max_payload / 1000, 1) if isinstance(current_max_payload, float) else current_max_payload
         self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
@@ -1003,6 +1006,8 @@ class LBForecastUI:
 
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
         self.t4_t6_value_label.config(text=t4_t6_value)
+
+
 
         self.update_production_table(shipto_id=str(shipto))
         self.update_contact_table(shipto_id=str(shipto))
