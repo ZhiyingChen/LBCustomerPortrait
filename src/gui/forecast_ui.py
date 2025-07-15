@@ -453,47 +453,53 @@ class LBForecastUI:
                               command=self.reset_manual)
         btn_reset.grid(row=2, column=1, pady=3)
 
+    def create_manual_forecast_data(self, loc_num, hourly_usage_rate):
+        """Generate manual forecast data based on historical or forecasted readings."""
+        conn = self.data_manager.conn
 
+        def fetch_data(table):
+            query = f"SELECT * FROM {table} WHERE LocNum = {loc_num};"
+            return pd.read_sql(query, conn)
 
-    def create_manual_forecast_data(self, shipto, input_value):
-        '''create_manual_forecast_data'''
-        table_name = 'forecastBeforeTrip'
-        sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-        df = pd.read_sql(sql, self.data_manager.conn)
-        if df.empty:
-            table_name = 'historyReading'
-            sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-            df = pd.read_sql(sql, self.data_manager.conn)
-            if df.empty:
-                messagebox.showinfo( title='Warning', message='No history Data To Show')
+        # Step 1: Try to get forecastBeforeTrip data
+        df_trip = fetch_data('forecastBeforeTrip')
+
+        if df_trip.empty:
+            # Step 2: Fallback to historyReading
+            df_history = fetch_data('historyReading')
+            if df_history.empty:
+                messagebox.showinfo(title='Warning', message='No history data to show.')
                 return
-            start_time = df.tail(1).ReadingDate.values[0]
-            start_level = df.tail(1).Reading_Gals.values[0]
+
+            last_row = df_history.tail(1)
+            start_time = last_row['ReadingDate'].values[0]
+            start_level = last_row['Reading_Gals'].values[0]
         else:
-            table_name = 'forecastReading'
-            sql = '''select * from {} Where LocNum={};'''.format(table_name, shipto)
-            df_forcast = pd.read_sql(sql, self.data_manager.conn)
-            df_forcast = df_forcast[df_forcast.Forecasted_Reading.notna()].reset_index(drop=True)
-            if df_forcast.empty or df_forcast.head(1).Forecasted_Reading.values[0] in [777777, 888888, 999999]:
-                last_row = df.tail(1)
-                start_time = last_row.Next_hr.values[0]
-                start_level = last_row.Forecasted_Reading.values[0]
+            # Step 3: Use forecastReading if available
+            df_forecast = fetch_data('forecastReading')
+            df_forecast = df_forecast[df_forecast['Forecasted_Reading'].notna()].reset_index(drop=True)
+
+            if df_forecast.empty or df_forecast.iloc[0]['Forecasted_Reading'] in [777777, 888888, 999999]:
+                last_row = df_trip.tail(1)
+                start_time = last_row['Next_hr'].values[0]
+                start_level = last_row['Forecasted_Reading'].values[0]
             else:
-                start_time = df_forcast.head(1).Next_hr.values[0]
-                start_level = df_forcast.head(1).Forecasted_Reading.values[0]
+                start_time = df_forecast.iloc[0]['Next_hr']
+                start_level = df_forecast.iloc[0]['Forecasted_Reading']
 
-        level_temp = start_level
-        new_level_list = [start_level]
-        for i in range(72):
-            level_temp = level_temp - input_value
-            new_level_list.append(level_temp)
-        new_time_list = pd.date_range(start=start_time, periods=73, freq='H')
-        df1 = pd.DataFrame(data={'Next_hr': new_time_list, 'Forecasted_Reading': new_level_list})
-        df1['LocNum'] = shipto
-        df1['Hourly_Usage_Rate'] = input_value
-        df1 = df1.loc[df1.Forecasted_Reading >= 0, :].reset_index(drop=True)
-        return df1
+        # Step 4: Generate forecast data
+        forecast_levels = [start_level - i * hourly_usage_rate for i in range(73)]
+        forecast_times = pd.date_range(start=start_time, periods=73, freq='H')
 
+        df_forecast_result = pd.DataFrame({
+            'Next_hr': forecast_times,
+            'Forecasted_Reading': forecast_levels,
+            'LocNum': loc_num,
+            'Hourly_Usage_Rate': hourly_usage_rate
+        })
+
+        df_forecast_result = df_forecast_result[df_forecast_result['Forecasted_Reading'] >= 0].reset_index(drop=True)
+        return df_forecast_result
 
     def calculate_by_manual(self):
         cur = self.data_manager.cur
