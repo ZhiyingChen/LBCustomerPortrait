@@ -461,7 +461,7 @@ class LBForecastUI:
             query = f"SELECT * FROM {table} WHERE LocNum = {loc_num};"
             return pd.read_sql(query, conn)
 
-        # Step 0: 获取历史数据
+        # Step 1: 获取历史数据
         df_history = fetch_data('historyReading')
         if df_history.empty:
             messagebox.showinfo(title='Warning', message='No history data to show.')
@@ -470,31 +470,20 @@ class LBForecastUI:
         last_history_time = df_history['ReadingDate'].iloc[-1]
         last_history_level = df_history['Reading_Gals'].iloc[-1]
 
-        # Step 1: 获取 trip 数据
-        df_trip = fetch_data('forecastBeforeTrip')
+        # Step 2: 获取 forecast 数据
+        df_forecast = fetch_data('forecastReading')
+        df_forecast = df_forecast[df_forecast['Forecasted_Reading'].notna()].reset_index(drop=True)
 
-        # 初始化预测起点
-        pre_trip_times = []
-        pre_trip_levels = []
-
-        if df_trip.empty:
+        if df_forecast.empty or df_forecast.iloc[0]['Forecasted_Reading'] in [777777, 888888, 999999]:
             forecast_start_time = last_history_time
             forecast_start_level = last_history_level
         else:
-            # Step 2: 获取 forecast 数据
-            df_forecast = fetch_data('forecastReading')
-            df_forecast = df_forecast[df_forecast['Forecasted_Reading'].notna()].reset_index(drop=True)
+            forecast_start_time = df_forecast['Next_hr'].iloc[0]
+            forecast_start_level = df_forecast['Forecasted_Reading'].iloc[0]
 
-            if df_forecast.empty or df_forecast.iloc[0]['Forecasted_Reading'] in [777777, 888888, 999999]:
-                forecast_start_time = df_trip['Next_hr'].iloc[-1]
-                forecast_start_level = df_trip['Forecasted_Reading'].iloc[-1]
-            else:
-                forecast_start_time = df_forecast['Next_hr'].iloc[0]
-                forecast_start_level = df_forecast['Forecasted_Reading'].iloc[0]
-
-            # Step 3: 构造 trip 前的预测段
-            pre_trip_times = pd.date_range(start=last_history_time, end=forecast_start_time, freq='H')[:-1]
-            pre_trip_levels = [last_history_level - i * hourly_usage_rate for i in range(len(pre_trip_times))]
+        # Step 3: 构造 trip 前的预测段
+        pre_trip_times = pd.date_range(start=last_history_time, end=forecast_start_time, freq='H')[:-1]
+        pre_trip_levels = [last_history_level - i * hourly_usage_rate for i in range(len(pre_trip_times))]
 
         # Step 4: 构造主预测段
         main_forecast_times = pd.date_range(start=forecast_start_time, periods=73, freq='H')
