@@ -454,52 +454,65 @@ class LBForecastUI:
         btn_reset.grid(row=2, column=1, pady=3)
 
     def create_manual_forecast_data(self, loc_num, hourly_usage_rate):
-        """Generate manual forecast data based on historical or forecasted readings."""
+        """Generate manual forecast data based on historical, trip, and forecast readings."""
         conn = self.data_manager.conn
 
         def fetch_data(table):
             query = f"SELECT * FROM {table} WHERE LocNum = {loc_num};"
             return pd.read_sql(query, conn)
 
-        # Step 1: Try to get forecastBeforeTrip data
+        # Step 0: 获取历史数据
+        df_history = fetch_data('historyReading')
+        if df_history.empty:
+            messagebox.showinfo(title='Warning', message='No history data to show.')
+            return
+
+        last_history_time = df_history['ReadingDate'].iloc[-1]
+        last_history_level = df_history['Reading_Gals'].iloc[-1]
+
+        # Step 1: 获取 trip 数据
         df_trip = fetch_data('forecastBeforeTrip')
 
-        if df_trip.empty:
-            # Step 2: Fallback to historyReading
-            df_history = fetch_data('historyReading')
-            if df_history.empty:
-                messagebox.showinfo(title='Warning', message='No history data to show.')
-                return
+        # 初始化预测起点
+        pre_trip_times = []
+        pre_trip_levels = []
 
-            last_row = df_history.tail(1)
-            start_time = last_row['ReadingDate'].values[0]
-            start_level = last_row['Reading_Gals'].values[0]
+        if df_trip.empty:
+            forecast_start_time = last_history_time
+            forecast_start_level = last_history_level
         else:
-            # Step 3: Use forecastReading if available
+            # Step 2: 获取 forecast 数据
             df_forecast = fetch_data('forecastReading')
             df_forecast = df_forecast[df_forecast['Forecasted_Reading'].notna()].reset_index(drop=True)
 
             if df_forecast.empty or df_forecast.iloc[0]['Forecasted_Reading'] in [777777, 888888, 999999]:
-                last_row = df_trip.tail(1)
-                start_time = last_row['Next_hr'].values[0]
-                start_level = last_row['Forecasted_Reading'].values[0]
+                forecast_start_time = df_trip['Next_hr'].iloc[-1]
+                forecast_start_level = df_trip['Forecasted_Reading'].iloc[-1]
             else:
-                start_time = df_forecast.iloc[0]['Next_hr']
-                start_level = df_forecast.iloc[0]['Forecasted_Reading']
+                forecast_start_time = df_forecast['Next_hr'].iloc[0]
+                forecast_start_level = df_forecast['Forecasted_Reading'].iloc[0]
 
-        # Step 4: Generate forecast data
-        forecast_levels = [start_level - i * hourly_usage_rate for i in range(73)]
-        forecast_times = pd.date_range(start=start_time, periods=73, freq='H')
+            # Step 3: 构造 trip 前的预测段
+            pre_trip_times = pd.date_range(start=last_history_time, end=forecast_start_time, freq='H')[:-1]
+            pre_trip_levels = [last_history_level - i * hourly_usage_rate for i in range(len(pre_trip_times))]
 
-        df_forecast_result = pd.DataFrame({
-            'Next_hr': forecast_times,
-            'Forecasted_Reading': forecast_levels,
+        # Step 4: 构造主预测段
+        main_forecast_times = pd.date_range(start=forecast_start_time, periods=73, freq='H')
+        main_forecast_levels = [forecast_start_level - i * hourly_usage_rate for i in range(73)]
+
+        # Step 5: 合并两段预测
+        all_times = list(pre_trip_times) + list(main_forecast_times)
+        all_levels = pre_trip_levels + main_forecast_levels
+
+        df_result = pd.DataFrame({
+            'Next_hr': all_times,
+            'Forecasted_Reading': all_levels,
             'LocNum': loc_num,
             'Hourly_Usage_Rate': hourly_usage_rate
         })
 
-        df_forecast_result = df_forecast_result[df_forecast_result['Forecasted_Reading'] >= 0].reset_index(drop=True)
-        return df_forecast_result
+        df_result = df_result[df_result['Forecasted_Reading'] >= 0].reset_index(drop=True)
+        return df_result
 
     def calculate_by_manual(self):
         cur = self.data_manager.cur
