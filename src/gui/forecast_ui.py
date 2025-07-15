@@ -385,7 +385,7 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            ("TR-RO", "TR-RO"),
+            # ("TR-RO", "TR-RO"),
             ("__ 最大装载量 (T)", "max_payload_label"),
             ("目标送货时间", "target_time"),
             ("最佳充装时间", "risk_time"),
@@ -426,6 +426,11 @@ class LBForecastUI:
 
         self.t4_t6_value_label = tk.Label(self.frame_warning, text="")
         self.t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
+
+        self.tr_ro_label = tk.Label(self.frame_warning, text="TR-RO (h): ")
+        self.tr_ro_label.grid(row=1, column=0, padx=6, pady=0)
+        self.tr_ro_value_label = tk.Label(self.frame_warning, text="")
+        self.tr_ro_value_label.grid(row=1, column=1, padx=6, pady=0)
 
 
     def _set_manual_input_label(self):
@@ -992,12 +997,9 @@ class LBForecastUI:
                 text=f'{hourly_usage} T / {hourly_usage_cm} {uom}'
             )
 
-
         fe = self.data_manager.get_forecast_error(shipto)
         self.detail_labels['forecast_error'].config(text=fe)
 
-        tr_ro = self.data_manager.get_tr_ro_value(shipto)
-        self.detail_labels['TR-RO'].config(text=tr_ro)
 
         current_primary_dt, current_max_payload = self.get_primary_dt_and_max_payload(shipto)
         current_max_payload = round(current_max_payload / 1000, 1) if isinstance(current_max_payload, float) else current_max_payload
@@ -1006,7 +1008,8 @@ class LBForecastUI:
 
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
         self.t4_t6_value_label.config(text=t4_t6_value)
-
+        tr_ro = self.data_manager.get_tr_ro_value(shipto)
+        self.tr_ro_value_label.config(text=tr_ro)
 
 
         self.update_production_table(shipto_id=str(shipto))
