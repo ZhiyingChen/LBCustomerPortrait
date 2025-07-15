@@ -1352,107 +1352,92 @@ class LBForecastUI:
         return current_primary_dt, current_max_payload
 
     def main_plot(self):
-        '''作图主函数'''
+        """主作图函数：处理数据、调用 API、绘图与展示信息。"""
         conn = self.data_manager.conn
 
-        custName = self.listbox_customer.get(self.listbox_customer.curselection()[0])
-        # 检查 From time 和 to time 是否正确
-        if not self.check_cust_name_valid(custName):
+        # Step 1: 获取客户信息
+        cust_name = self.listbox_customer.get(self.listbox_customer.curselection()[0])
+        if not self.check_cust_name_valid(cust_name):
             return
 
-        shipto = self.shipto_dict[custName].loc_num
+        shipto = self.shipto_dict[cust_name].loc_num
 
-        validate_flag, error_msg = self.time_validate_check(shipto)
-        print(error_msg)
+        # Step 2: 校验时间范围
+        is_valid, error_msg = self.time_validate_check(shipto)
         if isinstance(error_msg, str) and 'Time Wrong' in error_msg:
-            # 说明时间填错
             messagebox.showinfo(title='Warning', message=error_msg)
             return
 
-        # record
-        self.order_data_manager.insert_call_log(shipto= str(shipto), cust_name=custName)
-        if custName in self.delivery_shipto_dict:
-            self.delivery_shipto_dict[custName].latest_called = pd.Timestamp.now()
+        # Step 3: 记录调用日志
+        self.order_data_manager.insert_call_log(shipto=str(shipto), cust_name=cust_name)
+        if cust_name in self.delivery_shipto_dict:
+            self.delivery_shipto_dict[cust_name].latest_called = pd.Timestamp.now()
 
+        # Step 4: UI 更新
         selected_index = self.listbox_customer.curselection()
         if selected_index:
-            index = selected_index[0]
-            # 将选中的项的文字颜色变成黑色
-            self.listbox_customer.itemconfig(index, {'fg': 'black'})
+            self.listbox_customer.itemconfig(selected_index[0], {'fg': 'black'})
 
-        TELE_type = str(self.shipto_dict[custName].subscriber)
-        fromTime = pd.to_datetime(self.from_box.get())
-        toTime = pd.to_datetime(self.to_box.get())
-        # 2023-09-04 更新 DOL API 数据
-        # print(self.var_telemetry_flag.get())
-        # 如果 shipto 是龙口的,不需要更新,不是龙口的,需要 api 查询后更新
-        # 2024-09-03 更新： 只有是 DOL 或 LCT 才需要更新；
+        # Step 5: 获取时间范围与订阅类型
+        from_time = pd.to_datetime(self.from_box.get())
+        to_time = pd.to_datetime(self.to_box.get())
+        telemetry_type = str(self.shipto_dict[cust_name].subscriber)
 
-        df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
-
+        # Step 6: 获取历史数据（必要时调用 API）
+        df_history = self.data_manager.get_history_reading(shipto, from_time, to_time)
         if self.var_telemetry_flag.get() == 1 or df_history.empty:
-            # update DOL or LCT
-            if TELE_type == '3':
+            if telemetry_type == '3':
                 updateDOL(shipto, conn)
                 error_msg = 'DOL API'
-            elif TELE_type == '7':
+            elif telemetry_type == '7':
                 updateLCT(shipto, conn)
                 error_msg = 'LCT API'
 
-            if df_history.empty and 'API' in error_msg:
-                # 说明没有数据, 则提示
-                print('由于没有历史数据，自动调用API')
+            if df_history.empty:
+                print('由于没有历史数据，自动调用 API')
+            df_history = self.data_manager.get_history_reading(shipto, from_time, to_time)
 
-
+        # Step 7: 获取预测数据
         self.df_info = self.data_manager.get_customer_info(shipto)
-        df_forecastBeforeTrip = self.data_manager.get_forecast_before_trip(shipto, fromTime, toTime)
-        df_forecast = self.data_manager.get_forecast_reading(shipto, fromTime, toTime)
+        self.df_trip = self.data_manager.get_forecast_before_trip(shipto, from_time, to_time)
+        self.df_forecast = self.data_manager.get_forecast_reading(shipto, from_time, to_time)
 
-        if 'API' in error_msg:
-            # 说明使用了 API, 则需要更新 df_history
-            df_history = self.data_manager.get_history_reading(shipto, fromTime, toTime)
+        # Step 8: 清洗异常预测值
+        if not self.df_forecast.empty and self.df_forecast.Forecasted_Reading.iloc[0] in [777777, 888888, 999999]:
+            self.df_forecast['Forecasted_Reading'] = None
 
-        # 2023-10-31 需要做一步判断：如果 df_forecast 的 Forecasted_Reading 异常,那么就需要清空。
-        if len(df_forecast) > 0:
-            if df_forecast.Forecasted_Reading.values[0] in [777777, 888888, 999999]:
-                df_forecast.Forecasted_Reading = None
-
-        # 作图数据处理
+        # Step 9: 构造时间序列
         self.ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
-        self.ts_forecast = df_forecast[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-        self.ts_forecast_before_trip = df_forecastBeforeTrip[[
-            'Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-        ts_forecast_usage = df_forecast[['Next_hr',
-                                         'Hourly_Usage_Rate']].set_index('Next_hr')
-        # 记录四个液位值
-        full = self.df_info.FullTrycockGals.values[0]
-        TR = self.df_info.TargetGalsUser.values[0]
-        RO = self.df_info.RunoutGals.values[0]
-        Risk = (RO + TR) / 2
-        # 防止 Risk 是 None 而 无法 int
-        Risk = Risk if Risk is None else int(Risk)
-        galsperinch = self.df_info.GalsPerInch.values[0]
-        unitOfLength = self.df_info.UnitOfLength.values[0]
-        uom = unitOfLength_dict[unitOfLength]
-        # 记录三个液位时间
-        if len(df_forecast) > 0:
-            TR_time = df_forecast.iloc[0].TargetRefillDate
-            Risk_time = df_forecast.iloc[0].TargetRiskDate
-            RO_time = df_forecast.iloc[0].TargetRunoutDate
-        else:
-            TR_time = None
-            Risk_time = None
-            RO_time = None
+        self.ts_forecast = self.df_forecast[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+        self.ts_forecast_before_trip = self.df_trip[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
+        ts_forecast_usage = self.df_forecast[['Next_hr', 'Hourly_Usage_Rate']].set_index('Next_hr')
 
+        # Step 10: 获取液位参考值
+        full = self.df_info.FullTrycockGals.values[0]
+        target = self.df_info.TargetGalsUser.values[0]
+        runout = self.df_info.RunoutGals.values[0]
+        risk = (runout + target) / 2 if runout is not None and target is not None else None
+        gals_per_inch = self.df_info.GalsPerInch.values[0]
+        uom = unitOfLength_dict[self.df_info.UnitOfLength.values[0]]
+
+        # Step 11: 获取预测时间点
+        if not self.df_forecast.empty:
+            TR_time = self.df_forecast.iloc[0].TargetRefillDate
+            Risk_time = self.df_forecast.iloc[0].TargetRiskDate
+            RO_time = self.df_forecast.iloc[0].TargetRunoutDate
+        else:
+            TR_time = Risk_time = RO_time = None
+
+        # Step 12: 绘图
         self.draw_picture_for_current_shipto(
-            custName=custName,
+            custName=cust_name,
             shipto=shipto,
-            fromTime=fromTime,
-            toTime=toTime,
+            fromTime=from_time,
+            toTime=to_time,
             full=full,
-            TR=TR,
-            Risk=Risk,
-            RO=RO,
+            TR=target,
+            Risk=risk,
+            RO=runout,
             TR_time=TR_time,
             Risk_time=Risk_time,
             RO_time=RO_time,
@@ -1461,23 +1446,21 @@ class LBForecastUI:
             error_msg=error_msg
         )
 
-        # 点击作图时,同时显示客户的充装的详细信息
+        # Step 13: 显示客户信息
         self.show_info(
             shipto=shipto,
-            cust_name=custName,
+            cust_name=cust_name,
             TR_time=TR_time,
             Risk_time=Risk_time,
             RO_time=RO_time,
             full=full,
-            TR=TR,
-            Risk=Risk,
-            RO=RO,
+            TR=target,
+            Risk=risk,
+            RO=runout,
             ts_forecast_usage=ts_forecast_usage,
-            galsperinch=galsperinch,
+            galsperinch=gals_per_inch,
             uom=uom
         )
-
-
 
     def draw_picture_for_current_shipto(
             self,
