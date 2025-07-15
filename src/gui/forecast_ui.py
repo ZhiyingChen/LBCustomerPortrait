@@ -165,7 +165,7 @@ class LBForecastUI:
         self.entry_name = tk.Entry(self.cust_frame, width=20, bg='white', fg='black', borderwidth=1)
         self.entry_name.grid(row=0, column=0)
 
-        self.btn_query = tk.Button(self.cust_frame, text='搜索', command=lambda: self.cust_btn_search())
+        self.btn_query = tk.Button(self.cust_frame, text='搜索', command=self.cust_btn_search)
         self.btn_query.grid(row=0, column=1, padx=2)
 
         # 添加客户列表
@@ -370,7 +370,9 @@ class LBForecastUI:
             info = int(info)
             names = df_name_all[df_name_all.LocNum == info].index
         else:
-            names = df_name_all[df_name_all.index.str.contains(info)].index
+            names = df_name_all[df_name_all.index.str.contains(
+                info.split(',')[0].strip(' ')
+            )].index
         if len(names) == 0:
             messagebox.showinfo( title='Warning', message='Check your search!')
         else:
