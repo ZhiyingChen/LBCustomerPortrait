@@ -1477,142 +1477,160 @@ class LBForecastUI:
             RO_time: datetime,
             df_history: pd.DataFrame,
             uom: str = 'Ton',
-            error_msg = ''
+            error_msg=''
     ):
-        # 开始作图
+        # 初始化图像
         self.forecast_plot_ax.clear()
-        # 下面设置zorder，防止主图和直方图的重叠，以及防止直方图挡得住主图的annotation
+        self.forecast_plot_ax_histy.clear()
         self.forecast_plot_ax.set_zorder(3)
         self.forecast_plot_ax_histy.set_zorder(1)
-        self.forecast_plot_ax.patch.set_visible(False)  # 防止主图的背景覆盖直方图
-        # 新增注释
-        self.annot = self.forecast_plot_ax.annotate("", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
-                                                    bbox=dict(boxstyle="round", fc="lightblue",
-                                                              ec="steelblue", alpha=1),
-                                                    arrowprops=dict(arrowstyle="->"),
-                                                    annotation_clip=True, zorder=5)
+        self.forecast_plot_ax.patch.set_visible(False)
+
+        # 注释框初始化
+        self.annot = self.forecast_plot_ax.annotate(
+            "", xy=(0, 0), xytext=(20, 12), textcoords="offset points",
+            bbox=dict(boxstyle="round", fc="lightblue", ec="steelblue", alpha=1),
+            arrowprops=dict(arrowstyle="->"), annotation_clip=True, zorder=5
+        )
         self.annot.set_visible(False)
 
-        # 转换历史数据和预测数据为吨
-        if len(df_history) > 0:
-            df_history['Reading_Gals'] = df_history['Reading_Gals']
-        if self.manual_plot:
-            df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
-            df_manual['Forecasted_Reading'] = df_manual['Forecasted_Reading']
-
-        main_title = '历史和预测液位'
-
+        # 标题处理
         if self.ts_forecast.empty:
             main_title = '无预测数据'
-        if df_history.empty:
+        elif df_history.empty:
             main_title = '无历史数据'
+        else:
+            main_title = '历史和预测液位'
 
-
-        pic_title = '{}({}) {} {}'.format(custName, shipto, main_title, error_msg)
-
-        self.forecast_plot_ax.set_title(pic_title, fontsize=16)
-
-        # 调整 Y 轴标签为 'Ton'
+        title = f'{custName}({shipto}) {main_title} {error_msg}'
+        self.forecast_plot_ax.set_title(title, fontsize=16)
         self.forecast_plot_ax.set_ylabel('Ton')
 
-        # 转换满载量和阈值为吨
+        # 液位转换为吨
         full_ton = full / 1000
         TR_ton = TR / 1000
-        Risk_ton = Risk / 1000 if Risk is not None else None
         RO_ton = RO / 1000
+        Risk_ton = Risk / 1000 if Risk is not None else None
 
-        # 设置 Y 轴范围
         self.forecast_plot_ax.set_ylim(bottom=0, top=full_ton * 1.18)
 
-        # 绘制历史数据和预测数据
-        if len(df_history) > 0:
+        # 历史数据绘图
+        if not df_history.empty:
             self.ts_history = df_history[['ReadingDate', 'Reading_Gals']].set_index('ReadingDate')
-            self.forecast_plot_ax.plot(self.ts_history  / 1000 , color='blue', marker='o', markersize=6,
+            self.forecast_plot_ax.plot(self.ts_history / 1000, color='blue', marker='o', markersize=6,
                                        linestyle='None', gid='point_history')
-            self.forecast_plot_ax.plot(self.ts_history  / 1000, color='blue', label='Actual', linestyle='-', gid='line_history')
+            self.forecast_plot_ax.plot(self.ts_history / 1000, color='blue', label='Actual',
+                                       linestyle='-', gid='line_history')
 
-        self.forecast_plot_ax.plot(self.ts_forecast / 1000, color='green', marker='o', markersize=6, alpha=0.45,
-                                   linestyle='None', gid='point_forecast')
-        self.forecast_plot_ax.plot(self.ts_forecast / 1000, color='green', label='Forecast', alpha=0.45,
-                                   linestyle='dashed', gid='line_forecast')
-        self.forecast_plot_ax.plot(self.ts_forecast_before_trip / 1000, color='orange', marker='o', markersize=6,
-                                   linestyle='None', gid='point_forecastBeforeTrip')
-        self.forecast_plot_ax.plot(self.ts_forecast_before_trip / 1000, color='orange',
-                                   label='FcstBfTrip', linestyle='dashed', gid='line_forecastBeforeTrip')
+        # 预测数据绘图
+        def plot_series(ts, color, label, gid_prefix, alpha=1.0, linestyle='dashed'):
+            self.forecast_plot_ax.plot(ts / 1000, color=color, marker='o', markersize=6,
+                                       linestyle='None', gid=f'point_{gid_prefix}', alpha=alpha)
+            self.forecast_plot_ax.plot(ts / 1000, color=color, label=label,
+                                       linestyle=linestyle, gid=f'line_{gid_prefix}', alpha=alpha)
 
-        if len(self.ts_forecast_before_trip) > 0 and len(self.ts_forecast) > 0:
-            try:
-                ts_join = pd.concat([self.ts_forecast_before_trip.last('1S'), self.ts_forecast.first('1S')])
+        plot_series(self.ts_forecast, 'green', 'Forecast', 'forecast', alpha=0.45)
+        plot_series(self.ts_forecast_before_trip, 'orange', 'FcstBfTrip', 'forecastBeforeTrip')
+
+        # 衔接线段
+        # 衔接线段绘制（不使用 try-except）
+        if (
+                isinstance(self.ts_forecast.index, pd.DatetimeIndex) and
+                len(self.ts_forecast)
+        ):
+            if (
+                    isinstance(self.ts_forecast_before_trip.index, pd.DatetimeIndex) and
+                    len(self.ts_forecast_before_trip)
+            ):
+                ts_join = pd.concat([
+                    self.ts_forecast_before_trip.last('1S'),
+                    self.ts_forecast.first('1S')
+                ])
                 self.forecast_plot_ax.plot(ts_join / 1000, color='orange', linestyle='dashed', gid='line_join')
-            except Exception as e:
-                print("Cannot join two time series: {}".format(e))
 
+            elif (
+                    isinstance(self.ts_history.index, pd.DatetimeIndex) and
+                    len(self.ts_history)
+            ):
+                # 统一列名为 'Level'
+                ts_history_last = self.ts_history.rename(columns={'Reading_Gals': 'Level'}).last('1S')
+                ts_forecast_first = self.ts_forecast.rename(columns={'Forecasted_Reading': 'Level'}).first('1S')
 
-        # 绘制手动预测数据
+                history_time = ts_history_last.index[0]
+                forecast_time = ts_forecast_first.index[0]
+
+                # 提取两个点的值进行比较
+                history_val = ts_history_last['Level'].iloc[0]
+                forecast_val = ts_forecast_first['Level'].iloc[0]
+
+                if history_time < forecast_time and history_val < forecast_val:
+                    ts_join = pd.concat([ts_history_last, ts_forecast_first])
+                    self.forecast_plot_ax.plot(ts_join['Level'] / 1000, color='orange', linestyle='dashed',
+                                               gid='line_join')
+
+        # 手动预测绘图
         if self.manual_plot:
+            df_manual = self.data_manager.get_manual_forecast(shipto, fromTime, toTime)
             self.ts_manual = df_manual[['Next_hr', 'Forecasted_Reading']].set_index('Next_hr')
-            self.forecast_plot_ax.plot(self.ts_manual/ 1000  , color='purple', marker='o', markersize=6,
-                                       linestyle='None', gid='point_manual', alpha=0.6)
-            self.forecast_plot_ax.plot(self.ts_manual / 1000, color='purple', label='Manual',
-                                       linestyle='dashed', alpha=0.6)
+            plot_series(self.ts_manual, 'purple', 'Manual', 'manual', alpha=0.6)
 
-        # 绘制水平线
+        # 水平线绘制
         self.forecast_plot_ax.axhline(y=full_ton, color='grey', linewidth=2, label='Full', gid='line_full')
         self.forecast_plot_ax.axhline(y=TR_ton, color='green', linewidth=2, label='TR', gid='line_TR')
         if Risk_ton is not None:
             self.forecast_plot_ax.axhline(y=Risk_ton, color='yellow', linewidth=2, label='Risk', gid='line_Risk')
         self.forecast_plot_ax.axhline(y=RO_ton, color='red', linewidth=2, label='RunOut', gid='line_RO')
 
-        # 绘制竖直线
+        # 竖直线绘制
         if TR_time is not None:
             self.plot_vertical_lines(fromTime, toTime, TR_time, Risk_time, RO_time, full_ton)
 
         # 设置 X 轴主刻度
-        if (toTime - fromTime).days <= 12:
-            self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 1)))
-        elif (toTime - fromTime).days <= 24:
-            self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 2)))
+        days_range = (toTime - fromTime).days
+        if days_range <= 12:
+            locator = DayLocator(bymonthday=range(1, 32, 1))
+        elif days_range <= 24:
+            locator = DayLocator(bymonthday=range(1, 32, 2))
         else:
-            self.forecast_plot_ax.xaxis.set_major_locator(DayLocator(bymonthday=range(1, 32, 4)))
+            locator = DayLocator(bymonthday=range(1, 32, 4))
 
+        self.forecast_plot_ax.xaxis.set_major_locator(locator)
         self.forecast_plot_ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
 
-        # 绘制第二 Y 轴
+        # 网格与单位换算
+        self.forecast_plot_ax.grid()
         factor = func.weight_length_factor(uom)
 
-        self.forecast_plot_ax.grid()
-
-        # 新增 直方图
-        beforeRD = self.data_manager.get_before_reading(shipto)
-        if len(beforeRD) > 0:
-            beforeRD = beforeRD / 1000  # 将直方图数据转换为吨
-            binwidth = 0.2  # 适当的binwidth，单位为吨
-            xymax = np.max(np.abs(beforeRD))
+        # 直方图绘制
+        before_readings = self.data_manager.get_before_reading(shipto)
+        if len(before_readings):
+            before_readings = before_readings / 1000
+            binwidth = 0.2
+            xymax = np.max(np.abs(before_readings))
             lim = (int(xymax / binwidth) + 1) * binwidth
             bins = np.arange(0, lim + binwidth, binwidth)
         else:
             bins = np.arange(0, 2, 1)
 
-        self.forecast_plot_ax_histy.clear()
-        axHist_info = self.forecast_plot_ax_histy.hist(beforeRD, bins=bins, edgecolor='black', color='blue',
-                                                       orientation='horizontal')
-        self.forecast_plot_ax_histy.tick_params(
-            axis='y',
-            which='both',  # both major and minor ticks are affected
-            bottom=False,  # ticks along the bottom edge are off
-            top=False,  # ticks along the top edge are off
-            labelleft=False,
+        hist_info = self.forecast_plot_ax_histy.hist(
+            before_readings, bins=bins, edgecolor='black', color='blue', orientation='horizontal'
         )
-        if len(beforeRD) > 0:
-            max_count = np.max(axHist_info[0])
+        self.forecast_plot_ax_histy.tick_params(axis='y', bottom=False, top=False, labelleft=False)
+
+        if len(before_readings):
+            max_count = np.max(hist_info[0])
             xticks = func.define_xticks(max_count)
         else:
             xticks = np.arange(0, 2, 1)
+
         self.forecast_plot_ax_histy.set_xticks(xticks)
         self.forecast_plot_ax_histy.grid()
+
+        # 更新图像
         self.canvas.draw_idle()
         self.toolbar.update()
 
+        # 保存图片
         if self.save_pic:
             self.pic_figure.savefig('./feedback.png')
 
@@ -1632,13 +1650,9 @@ class LBForecastUI:
                 if duration > 8:
                     if lock.locked():
                         lock.release()
-        try:
-            self.main_plot()
-        except Exception as e:
-            print(e)
-        finally:
-            if lock.locked():
-                lock.release()
+        self.main_plot()
+        if lock.locked():
+            lock.release()
 
     # endregion
 
