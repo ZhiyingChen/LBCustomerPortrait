@@ -406,50 +406,6 @@ class LBDataManager:
             trip_shipto_dict.update({trip_shipto.location: trip_shipto})
         return trip_shipto_dict
 
-    def generate_view_trip_dict_by_shipto_trip_lt(
-            self,
-            trip_lt: List[str]
-    ):
-        if len(trip_lt) == 0:
-            return dict()
-
-        table_name = 'view_trip'
-
-        sql_line = '''
-            SELECT Trip, TripStartTime, Status, segmentNum, Type, Loc, ToLocNum, DeliveredQty, ActualArrivalTime FROM {} WHERE Trip IN {}
-        '''.format(
-            table_name,
-            tuple(trip_lt) if len(trip_lt) > 1 else "('{}')".format(trip_lt[0])
-        )
-
-        trip_df = pd.read_sql(sql_line, self.conn)
-        trip_df['TripStartTime'] = pd.to_datetime(trip_df['TripStartTime'])
-        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
-
-        trip_dict = dict()
-        for trip_id, segment_df in trip_df.groupby('Trip'):
-            trip_id = str(trip_id)
-            trip = do.Trip(
-                trip_id=trip_id,
-                trip_start_time=segment_df['TripStartTime'].iloc[0]
-            )
-
-            segment_dict = dict()
-            for i, row in segment_df.iterrows():
-                segment = do.Segment(
-                    segment_num=row['segmentNum'],
-                    segment_type=row['Type'],
-                    location=row['Loc'],
-                    segment_status=row['Status'],
-                    to_loc_num=row['ToLocNum'],
-                    arrival_time=row['ActualArrivalTime'],
-                    drop_kg=row['DeliveredQty']
-                )
-                segment_dict.update({segment.segment_num: segment})
-            trip.segment_dict = segment_dict
-
-            trip_dict.update({trip.trip_id: trip})
-        return trip_dict
 
     def generate_view_trip_dict_by_shipto(
             self,
@@ -499,7 +455,7 @@ class LBDataManager:
                     segment_status=row['Status'],
                     to_loc_num=row['ToLocNum'],
                     arrival_time=row['ActualArrivalTime'],
-                    drop_kg=row['DeliveredQty']
+                    drop_kg=float(row['DeliveredQty'])
                 )
                 segment_dict.update({segment.segment_num: segment})
             trip.segment_dict = segment_dict
@@ -566,7 +522,7 @@ class LBDataManager:
                     segment_status='CLSD',
                     to_loc_num=row['ToLocNum'],
                     arrival_time=row['ActualArrivalTime'],
-                    drop_kg=row['DeliveredQty']
+                    drop_kg=float(row['DeliveredQty'])
                 )
 
                 segment_dict.update({segment.segment_num: segment})
