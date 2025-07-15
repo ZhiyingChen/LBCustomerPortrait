@@ -540,10 +540,18 @@ class LBDataManager:
 
         need_extra_trip_num = 5 - exist_trip_num
 
+        # 获取每个 trip 的最早到达时间
+        trip_earliest_arrival = trip_df.groupby('Trip')['ActualArrivalTime'].min().reset_index()
+
+        # 按照最早到达时间排序
+        trip_earliest_arrival.sort_values(by='ActualArrivalTime', ascending=False, inplace=True)
+
+        # 选择最近的 need_extra_trip_num 个 trip
+        selected_trips = trip_earliest_arrival.head(need_extra_trip_num)['Trip'].tolist()
+
         trip_dict = dict()
-        trip_idx = 0
-        for trip_id, segment_df in trip_df.groupby('Trip'):
-            trip_id = str(trip_id)
+        for trip_id in selected_trips:
+            segment_df = trip_df[trip_df['Trip'] == trip_id]
             trip = do.Trip(
                 trip_id=trip_id,
                 trip_start_time=segment_df['ActualArrivalTime'].min()
@@ -564,12 +572,6 @@ class LBDataManager:
                 segment_dict.update({segment.segment_num: segment})
             trip.segment_dict = segment_dict
             trip_dict.update({trip.trip_id: trip})
-
-            trip_idx += 1
-
-            # 达到了需求的数量
-            if trip_idx >= need_extra_trip_num:
-                break
 
         return trip_dict
 
