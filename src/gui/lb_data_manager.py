@@ -389,8 +389,11 @@ class LBDataManager:
 
         trip_shipto_dict = {}
         for loc_num, cust_acronym, location, trip, trip_start_time in results:
+            if loc_num == '':
+                continue
             if location in trip_shipto_dict and trip is None:
                 continue
+
 
             trip_shipto = trip_shipto_dict.get(
                 location,

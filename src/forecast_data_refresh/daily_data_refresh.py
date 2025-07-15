@@ -1493,6 +1493,7 @@ class ForecastDataRefresh:
         filepath = r'\\shangnt\lbshell\PUAPI\PU_program\automation'
         deliveries_filename = os.path.join(filepath, 'deliveries_new.xlsx')
         df_deliveries = pd.read_excel(deliveries_filename)
+        df_deliveries['LocNum'] = df_deliveries['LocNum'].astype(str)
         df_deliveries['CustAcronym'] = (
             df_deliveries.apply(lambda row: row['Location'].split(',')[0] if ',' in row['Location'] else row['Location'], axis=1))
 
@@ -1500,7 +1501,10 @@ class ForecastDataRefresh:
 
         deliveries_cols = ['Trip', 'Location', 'CustAcronym', 'LocNum', 'Arrival Time']
         df_deliveries = df_deliveries[deliveries_cols]
-
+        cust_acronyms_by_locnum = {
+            row['LocNum']: (row['CustAcronym'], row['Location'])
+            for _, row in df_deliveries.iterrows()
+        }
 
         trip_filename = os.path.join(filepath, 'view_trip.xlsx')
         df_trip = pd.read_excel(trip_filename, dtype={'LocationID': str, 'ToLocNum': str})
@@ -1508,15 +1512,27 @@ class ForecastDataRefresh:
         df_trip['TripID'] = df_trip['TripID'].astype(str)
         df_trip['Trip'] = df_trip.apply(lambda row: '-'.join([row['CorporateIdn'], row['TripID']]), axis=1)
         df_trip['TripStartTime'] = df_trip.apply(
-            lambda row: ' '.join([row['StartD'], row['StartT']]), axis=1
+            lambda row: ' '.join([row['TrStD'], row['TrStT']]), axis=1
         )
         df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'])
+        df_trip['SegStartTime'] = df_trip.apply(
+            lambda row: ' '.join([row['ETAD'], row['ETAT']]), axis=1
+        )
+        df_trip['SegStartTime'] = pd.to_datetime(df_trip['SegStartTime'], errors='coerce')
 
-        trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum', 'Amount1']
+        df_trip['SegStartTime'] = df_trip['SegStartTime'].fillna(df_trip['TripStartTime'])
+        # 把格式改成 %d/%m/%y %H:%M
+        df_trip['SegStartTime'] = df_trip['SegStartTime'].dt.strftime('%d/%m/%y %H:%M')
+
+        trip_cols = ['Trip', 'TripStartTime', 'SegStartTime','Tractor', 'Status', 'segmentNum', 'Type', 'Location', 'LocationID', 'ToLocNum', 'Amount1']
         df_trip = df_trip[trip_cols]
+        df_trip['LocNum'] = df_trip['ToLocNum']
 
-        df_trip_shipto = pd.merge(df_deliveries, df_trip, on='Trip', how='left')
+        df_trip_shipto = pd.merge(df_deliveries, df_trip, on=['Trip', 'LocNum'], how='outer')
+        df_trip_shipto['CustAcronym'] = df_trip_shipto.apply(lambda row: cust_acronyms_by_locnum.get(row['LocNum'], ('', ''))[0], axis=1)
+        df_trip_shipto['Location_x'] = df_trip_shipto.apply(lambda row: cust_acronyms_by_locnum.get(row['LocNum'], ('', ''))[1], axis=1)
         df_trip_shipto = df_trip_shipto.sort_values(['TripStartTime'])
+
 
         table_name = 'trip_shipto'
         cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -1533,7 +1549,7 @@ class ForecastDataRefresh:
             else:
                 return row['Location']
 
-        df_trip = df_trip[ df_trip['Trip'].isin(df_deliveries['Trip'])]
+        df_trip = df_trip[ df_trip['Trip'].isin(df_trip_shipto['Trip'])]
         df_deliveries_time = df_deliveries[['Trip', 'Location', 'Arrival Time']]
 
         if not df_trip.empty:
@@ -1542,6 +1558,7 @@ class ForecastDataRefresh:
             df_trip['Loc'] = ''
 
         df_trip = pd.merge(df_trip, df_deliveries_time, on=['Trip', 'Location'], how='left')
+        df_trip['Arrival Time'] = df_trip['Arrival Time'].fillna(df_trip['SegStartTime'])
 
         trip_cols = ['Trip', 'TripStartTime', 'Tractor', 'Status', 'segmentNum', 'Type', 'Loc', 'ToLocNum', 'Amount1', 'Arrival Time']
         df_trip = df_trip[trip_cols]
