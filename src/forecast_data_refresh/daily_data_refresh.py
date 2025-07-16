@@ -893,42 +893,43 @@ class ForecastDataRefresh:
 
         record_lt = []
         for shipto_id, df_locnum_trip in drop_record_df.groupby('LocNum'):
-            print(f'Processing {shipto_id}')
-            for trip_id, df_segment in df_locnum_trip.groupby(['Trip']):
+            for trip_id, df_segment in df_locnum_trip.groupby('Trip'):
                 trip_obj = do.Trip(
                     trip_id=str(trip_id),
                     trip_start_time=df_segment['ActualArrivalTime'].min()
                 )
 
-                segment_dict = dict()
-                for i, row in df_segment.iterrows():
+                for row in df_segment.itertuples(index=False):
                     segment = do.Segment(
-                        segment_num=row['SegmentIdn'],
-                        segment_type=row['StopType'],
-                        location=row['Loc'],
+                        segment_num=row.SegmentIdn,
+                        segment_type=row.StopType,
+                        location=row.Loc,
                         segment_status='CLSD',
-                        to_loc_num=row['ToLocNum'],
-                        arrival_time=row['ActualArrivalTime'],
-                        drop_kg=float(row['DeliveredQty'])
+                        to_loc_num=row.ToLocNum,
+                        arrival_time=row.ActualArrivalTime,
+                        drop_kg=float(row.DeliveredQty)
                     )
-                    segment_dict.update({segment.segment_num: segment})
-                trip_obj.segment_dict = segment_dict
+                    trip_obj.add_segment(segment)
 
                 segment = trip_obj.find_segment_by_shipto(str(shipto_id))
                 if segment is None or segment.arrival_time is None:
-                    continue  # 跳过无效数据
+                    continue
+
                 record = {
                     "LocNum": shipto_id,
                     "arrival_time": segment.arrival_time,
-                    "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
-                    "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
-                    "interval": None,  # 间隔时间（待补）
-                    "trip_id": trip_id,  # 行程号
-                    "status": segment.segment_status,  # segment状态
-                    "route": trip_obj.display_trip_route  # 行程详情
+                    "arrival_str": segment.arrival_time.strftime("%y-%m-%d %H"),
+                    "drop_ton": round(segment.drop_kg / 1000, 1),
+                    "interval": '',
+                    "trip_id": trip_id,
+                    "status": segment.segment_status,
+                    "route": trip_obj.display_trip_route
                 }
                 record_lt.append(record)
-        df_summary = pd.DataFrame(record_lt, columns=['arrival_time', 'arrival_str', 'drop_ton', 'interval', 'trip_id','status', 'route'])
+
+        df_summary = pd.DataFrame(record_lt)
+        df_summary['arrival_time'] = df_summary['arrival_time'].astype(str)
+        df_summary['route'] = df_summary['route'].astype(str)
 
         table_name = 'DropRecordSummary'
         self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
@@ -1308,6 +1309,7 @@ class ForecastDataRefresh:
         新增： 最近送货记录 CLSD
         '''
         self.refresh_drop_record()
+        self.refresh_drop_record_summary()
 
         '''
         以下是新增的刷新代码，增加 dtd 和 cluster 相关的

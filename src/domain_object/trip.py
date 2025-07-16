@@ -30,3 +30,7 @@ class Trip:
             if segment.to_loc_num == shipto:
                 return segment
         return None
+
+
+    def add_segment(self, segment: Segment):
+        self.segment_dict[segment.segment_num] = segment

@@ -803,7 +803,7 @@ class LBForecastUI:
         self.cluster_frame.pack_propagate(False)
         self._decorate_cluster_frame()
 
-        # par_frame column 3, row 0: 两个 Treeview 历史液位记录
+        # par_frame column 3, row 0: 行程记录
         self.par_frame.columnconfigure(3, weight=2)
         self.delivery_frame = tk.Frame(self.par_frame, width=300)
         self.delivery_frame.grid(row=0, column=3, padx=5, pady=2, sticky="nsew")
@@ -1020,7 +1020,7 @@ class LBForecastUI:
 
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
-        self.update_trip_info(shipto_id=str(shipto), cust_name=cust_name)
+        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name)
 
     def update_trip_info(self, shipto_id: str, cust_name: str):
         self.delivery_record_table.clear()
@@ -1099,7 +1099,12 @@ class LBForecastUI:
         else:
             latest_trip_dict = dict()
 
-        df_drop_record = self.data_manager.get_closed_trip_by_shipto(shipto_id, trip_list=list(latest_trip_dict.keys()))
+        need_trip_num = 10
+
+        df_drop_record = self.data_manager.get_closed_trip_by_shipto(
+            shipto_id, trip_list=list(latest_trip_dict.keys()), need_trip_num=need_trip_num
+
+        )
         # 把 df 转换为字典
         drop_record_dict = df_drop_record.to_dict(orient='index')
 
@@ -1111,7 +1116,7 @@ class LBForecastUI:
                 continue  # 跳过无效数据
             record = {
                 "arrival_time": segment.arrival_time,
-                "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
+                "arrival_str": segment.arrival_time.strftime("%y-%m-%d %H"),  # 送货时间
                 "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
                 "interval": None,  # 间隔时间（待补）
                 "trip_id": trip_id,  # 行程号
