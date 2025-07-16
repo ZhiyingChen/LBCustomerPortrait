@@ -414,7 +414,7 @@ class LBForecastUI:
     
     def _set_manipulate_frame(self):
         # 重新排版,建立 frame_detail
-        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='用量计算器')
+        self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='用量计算器', width=30)
         self.frame_manual.grid(row=0, column=0, padx=2, pady=2)
         # 输入 起始日期
         self._set_manual_input_label()
@@ -440,14 +440,14 @@ class LBForecastUI:
 
         pad_y = 0
         lb_cm = tk.Label(self.frame_manual, text='每小时 CM')
-        lb_cm.grid(row=0, column=0, padx=1, pady=pad_y)
+        lb_cm.grid(row=0, column=0, padx=3, pady=pad_y)
     
         self.box_cm = tk.Entry(self.frame_manual, width=10)
-        self.box_cm.grid(row=0, column=1, padx=1, pady=pad_y)
+        self.box_cm.grid(row=0, column=1, padx=3, pady=pad_y)
         lb_ton = tk.Label(self.frame_manual, text='每小时 Ton')
-        lb_ton.grid(row=1, column=0, padx=1, pady=pad_y)
+        lb_ton.grid(row=1, column=0, padx=3, pady=pad_y)
         self.box_ton = tk.Entry(self.frame_manual, width=10)
-        self.box_ton.grid(row=1, column=1, padx=1, pady=pad_y)
+        self.box_ton.grid(row=1, column=1, padx=3, pady=pad_y)
         btn_calculate = tk.Button(self.frame_manual, text='手工计算', width=10,
                                   command=self.calculate_by_manual)
         btn_calculate.grid(row=2, column=0, pady=3)
@@ -764,24 +764,23 @@ class LBForecastUI:
 
     def _set_additional_info_frame(self):
         self.manipulate_frame = tk.Frame(self.additional_info_frame)
-        self.manipulate_frame.grid(row=0, column=0, padx=2, pady=2)
+        self.manipulate_frame.grid(row=0, column=0, padx=2, pady=10)
         self._set_manipulate_frame()
 
-        # additional_info_frame row 1: 新增按钮区域
+        #  additional_info_frame row 1: 新增历史记录区域
+        self.reading_tree_frame = tk.Frame(self.additional_info_frame)
+        self.reading_tree_frame.grid(row=1, column=0, pady=10, sticky="ew")
+        self._set_reading_tree()
+
+        # additional_info_frame row 2: 新增按钮区域
         self.button_order_frame = tk.Frame(self.additional_info_frame)
-        self.button_order_frame.grid(row=1, column=0, pady=5, sticky="ew")
+        self.button_order_frame.grid(row=2, column=0, pady=5, sticky="ew")
 
         self.btn_open_order_window = tk.Button(
             self.button_order_frame, text="打开FO订单界面", command=self._open_order_window,
             bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10)
         )
         self.btn_open_order_window.pack(padx=10, pady=5)
-
-        #  additional_info_frame row 2: 新增历史记录区域
-
-        self.reading_tree_frame = tk.Frame(self.additional_info_frame)
-        self.reading_tree_frame.grid(row=2, column=0, pady=10, sticky="ew")
-        self._set_reading_tree()
 
 
     def _decorate_par_frame(self):
