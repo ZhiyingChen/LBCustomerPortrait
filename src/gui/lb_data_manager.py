@@ -410,7 +410,8 @@ class LBDataManager:
         return trip_shipto_dict
 
     def get_closed_trip_by_shipto(self, shipto: str, trip_list: List[str],
-        need_trip_num: int = 10):
+        need_trip_num: int = 5
+    ):
         table_name = 'DropRecordSummary'
 
         df_drop_record = pd.read_sql(
@@ -419,13 +420,13 @@ class LBDataManager:
                 '''.format(
                 table_name,
                 shipto,
-                ','.format(trip_list),
-                need_trip_num - len(trip_list)
+                ','.format(trip_list)
             ),
             self.conn
         )
         df_drop_record['arrival_time'] = pd.to_datetime(df_drop_record['arrival_time'], format='mixed')
-        df_drop_record = df_drop_record.head(need_trip_num - len(trip_list))
+        if isinstance(need_trip_num, int):
+            df_drop_record = df_drop_record.head(need_trip_num - len(trip_list))
 
         return df_drop_record
 

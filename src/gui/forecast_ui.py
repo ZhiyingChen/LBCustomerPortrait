@@ -3,6 +3,7 @@ from datetime import datetime
 from datetime import timedelta
 import matplotlib.pylab as pylab
 import tkinter as tk
+from tkinter import ttk
 import pandas as pd
 import numpy as np
 import os
@@ -565,13 +566,42 @@ class LBForecastUI:
     def _set_delivery_record_frame(self):
         columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
         col_widths = [55, 23, 10, 60, 36, 150]
-        col_stretch = [
-            False, False, False, True, False, False
-        ]
+        col_stretch = [False, False, False, True, False, False]
 
+        # 表格
         self.delivery_record_table = ui_structure.SimpleTable(
             self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
         self.delivery_record_table.frame.pack(fill="both", expand=True)
+
+        # 控制显示行数的下拉框
+        control_frame = tk.Frame(self.delivery_record_frame)
+        control_frame.pack(fill="x", pady=5)
+
+        tk.Label(control_frame, text="Max Display:").pack(side="left", padx=(10, 5))
+
+        self.max_display_var = tk.StringVar(value="10")
+        max_display_options = ["10", "15", "20", "25", "All"]
+        max_display_dropdown = ttk.Combobox(
+            control_frame,
+            textvariable=self.max_display_var, values=max_display_options, width=6, state="readonly"
+        )
+        max_display_dropdown.pack(side="left")
+        max_display_dropdown.bind("<<ComboboxSelected>>", self.on_max_display_change)
+
+    # 绑定事件：当选择变化时更新表格
+    def on_max_display_change(self, event=None):
+        value = self.max_display_var.get()
+        cust_name = self.listbox_customer.get(self.listbox_customer.curselection()[0])
+        if not self.check_cust_name_valid(cust_name):
+            return
+
+        shipto = self.shipto_dict[cust_name].loc_num
+        self.update_trip_info_v2(
+            shipto,
+            cust_name,
+            need_trip_num=value
+
+        )
 
     def _set_reading_tree(self):
         columns = ["读取时间", "T", "CM", "CM/H"]
@@ -1088,7 +1118,7 @@ class LBForecastUI:
 
         self.delivery_record_table.insert_rows(final_records)
 
-    def update_trip_info_v2(self, shipto_id: str, cust_name: str):
+    def update_trip_info_v2(self, shipto_id: str, cust_name: str, need_trip_num: str='10'):
         self.delivery_record_table.clear()
 
 
@@ -1099,7 +1129,10 @@ class LBForecastUI:
         else:
             latest_trip_dict = dict()
 
-        need_trip_num = 10
+        if need_trip_num == 'All':
+            need_trip_num = None
+        else:
+            need_trip_num = int(need_trip_num)
 
         df_drop_record = self.data_manager.get_closed_trip_by_shipto(
             shipto_id, trip_list=list(latest_trip_dict.keys()), need_trip_num=need_trip_num
