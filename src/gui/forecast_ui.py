@@ -399,7 +399,7 @@ class LBForecastUI:
             ("断气液位", "runout"),
             ("最佳卸货量", "best_drop_size"),
             ("KG/CM", "kg_per_cm"),
-            ("预测小时用量", "forecast_hourly_usage"),
+            ("预测每小时用量", "forecast_hourly_usage"),
             ("预测错误率", "forecast_error"),
         ]
 
@@ -410,7 +410,7 @@ class LBForecastUI:
             lb_value = tk.Label(self.frame_detail, text="")
             lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
 
-            if label_text in ["__ 最大装载量 (T)", "预测小时用量"]:
+            if label_text in ["__ 最大装载量 (T)"]:
                 self.detail_labels[label_text] = lb_label
             self.detail_labels[key] = lb_value
     
@@ -992,13 +992,8 @@ class LBForecastUI:
 
 
         if len(ts_forecast_usage) >= 2:
-            s_time = ts_forecast_usage.index[0].strftime("%m-%d %H")
-            e_time = ts_forecast_usage.index[min(7, len(ts_forecast_usage) - 1)].strftime("%m-%d %H")
             hourly_usage = round(ts_forecast_usage[:8].mean().values[0] / 1000, 1)
             hourly_usage_cm = round(hourly_usage / (galsperinch * factor), 1)
-            self.detail_labels['预测小时用量'].config(
-                text=f'{s_time}~{e_time}\n 预测小时用量'
-            )
             self.detail_labels['forecast_hourly_usage'].config(
                 text=f'{hourly_usage} T / {hourly_usage_cm} {uom}'
             )
