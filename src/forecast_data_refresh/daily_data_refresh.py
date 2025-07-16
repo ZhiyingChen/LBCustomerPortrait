@@ -887,6 +887,56 @@ class ForecastDataRefresh:
         )
         self.local_conn.commit()
 
+    def refresh_drop_record_summary(self):
+        drop_record_df = pd.read_sql('SELECT * FROM DropRecord', self.local_conn)
+        drop_record_df['ActualArrivalTime'] = pd.to_datetime(drop_record_df['ActualArrivalTime'])
+
+        record_lt = []
+        for shipto_id, df_locnum_trip in drop_record_df.groupby('LocNum'):
+            print(f'Processing {shipto_id}')
+            for trip_id, df_segment in df_locnum_trip.groupby(['Trip']):
+                trip_obj = do.Trip(
+                    trip_id=str(trip_id),
+                    trip_start_time=df_segment['ActualArrivalTime'].min()
+                )
+
+                segment_dict = dict()
+                for i, row in df_segment.iterrows():
+                    segment = do.Segment(
+                        segment_num=row['SegmentIdn'],
+                        segment_type=row['StopType'],
+                        location=row['Loc'],
+                        segment_status='CLSD',
+                        to_loc_num=row['ToLocNum'],
+                        arrival_time=row['ActualArrivalTime'],
+                        drop_kg=float(row['DeliveredQty'])
+                    )
+                    segment_dict.update({segment.segment_num: segment})
+                trip_obj.segment_dict = segment_dict
+
+                segment = trip_obj.find_segment_by_shipto(str(shipto_id))
+                if segment is None or segment.arrival_time is None:
+                    continue  # 跳过无效数据
+                record = {
+                    "LocNum": shipto_id,
+                    "arrival_time": segment.arrival_time,
+                    "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
+                    "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
+                    "interval": None,  # 间隔时间（待补）
+                    "trip_id": trip_id,  # 行程号
+                    "status": segment.segment_status,  # segment状态
+                    "route": trip_obj.display_trip_route  # 行程详情
+                }
+                record_lt.append(record)
+        df_summary = pd.DataFrame(record_lt, columns=['arrival_time', 'arrival_str', 'drop_ton', 'interval', 'trip_id','status', 'route'])
+
+        table_name = 'DropRecordSummary'
+        self.local_cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
+        df_summary.to_sql(
+            table_name, con=self.local_conn, if_exists='replace', index=False)
+        self.local_conn.commit()
+
+
     def get_ordinary_production_schedule(self):
         sql_line = '''
         SELECT LocNum, CustAcronym, 

@@ -1088,6 +1088,70 @@ class LBForecastUI:
 
         self.delivery_record_table.insert_rows(final_records)
 
+    def update_trip_info_v2(self, shipto_id: str, cust_name: str):
+        self.delivery_record_table.clear()
+
+
+        if cust_name in self.delivery_shipto_dict:
+            latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
+                shipto=shipto_id
+            )
+        else:
+            latest_trip_dict = dict()
+
+        df_drop_record = self.data_manager.get_closed_trip_by_shipto(shipto_id, trip_list=list(latest_trip_dict.keys()))
+        # 把 df 转换为字典
+        drop_record_dict = df_drop_record.to_dict(orient='index')
+
+        # 构建记录列表
+        record_lt = []
+        for trip_id, trip_obj in latest_trip_dict.items():
+            segment = trip_obj.find_segment_by_shipto(shipto_id)
+            if segment is None or segment.arrival_time is None:
+                continue  # 跳过无效数据
+            record = {
+                "arrival_time": segment.arrival_time,
+                "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
+                "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
+                "interval": None,  # 间隔时间（待补）
+                "trip_id": trip_id,  # 行程号
+                "status": segment.segment_status,  # segment状态
+                "route": trip_obj.display_trip_route  # 行程详情
+            }
+            record_lt.append(record)
+
+        # 合并 trip 信息
+        record_lt.extend(drop_record_dict.values())
+
+        # 按送货时间倒序排序
+        record_lt.sort(key=lambda x: x["arrival_time"], reverse=True)
+
+        # 计算间隔时间（按日期差异，单位：天）
+        for i in range(0, len(record_lt) - 1):
+            date1 = record_lt[i]["arrival_time"].date()
+            date2 = record_lt[i + 1]["arrival_time"].date()
+            delta_days = (date1 - date2).days
+            record_lt[i]["interval"] = delta_days
+
+        # 最后一条记录没有“下一次”，可以设为 None 或 0
+        if record_lt:
+            record_lt[-1]["interval"] = None
+
+        # 转换为最终展示格式
+        final_records = [
+            [
+                r["arrival_str"],
+                r["drop_ton"],
+                r['interval'] if r["interval"] is not None else '',
+                r["trip_id"],
+                r["status"],
+                r["route"]
+            ]
+            for r in record_lt
+        ]
+
+        self.delivery_record_table.insert_rows(final_records)
+
     def time_validate_check(self, shipto):
         ''''检查box的内容是否正确'''
         validate_flag = (True, '')

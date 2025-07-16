@@ -409,6 +409,20 @@ class LBDataManager:
             trip_shipto_dict.update({trip_shipto.location: trip_shipto})
         return trip_shipto_dict
 
+    def get_closed_trip_by_shipto(self, shipto: str, trip_list: List[str]):
+        table_name = 'DropRecordSummary'
+
+        df_drop_record = pd.read_sql(
+            '''SELECT arrival_time, arrival_str, drop_ton, interval, trip_id, status, route 
+                FROM {} WHERE LocNum = '{}' AND trip_id NOT IN {}'''.format(
+                table_name, shipto,
+                tuple(trip_list)
+            ),
+            self.conn
+        )
+        df_drop_record['arrival_time'] = pd.to_datetime(df_drop_record['arrival_time'], format='mixed')
+        return df_drop_record
+
 
     def generate_view_trip_dict_by_shipto(
             self,
