@@ -562,16 +562,9 @@ class LBForecastUI:
         self.delivery_record_frame.pack(fill='both', expand=True, padx=5, pady=2)
         self._set_delivery_record_frame()
 
-        # 下方 Frame：Terminal/Source DTD 模块
-        self.frame_dtd = tk.LabelFrame(self.delivery_frame)
-        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
-
-        self._set_dtd_label()
-
-
     def _set_delivery_record_frame(self):
         columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [55, 23, 10, 60, 36, 130]
+        col_widths = [55, 23, 10, 60, 36, 150]
         col_stretch = [
             False, False, False, True, False, True
         ]
@@ -588,13 +581,20 @@ class LBForecastUI:
             self.reading_tree_frame, columns=columns, col_widths=col_widths, height=14)
         self.reading_tree_table.frame.pack(fill="both", expand=True)
 
-    def _set_delivery_window_tree(self):
-        columns = ["标题", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        col_widths = [70, 30, 30, 30, 30, 30, 30, 30]
 
-        self.delivery_window_tree_table = ui_structure.SimpleTable(
-            self.delivery_window_tree_frame, columns=columns, col_widths=col_widths, height=5)
-        self.delivery_window_tree_table.frame.pack(fill="both", expand=True)
+    def _decorate_cluster_frame(self):
+        # 上方 Frame：Terminal/Source DTD 模块
+        self.frame_dtd = tk.LabelFrame(self.cluster_frame)
+        self.frame_dtd.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_dtd_label()
+
+
+        # 下方 Frame：临近客户模块
+        self.frame_near_customer = tk.LabelFrame(self.cluster_frame)
+        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
+
+        self._set_near_customer_label()
 
     def _decorate_portrait_frame(self):
         # 上方：特殊备注
@@ -615,11 +615,7 @@ class LBForecastUI:
 
         self._set_production_frame()
 
-        # 下方 Frame：临近客户模块
-        self.frame_near_customer = tk.LabelFrame(self.portrait_frame)
-        self.frame_near_customer.pack(fill='both', expand=True, padx=5, pady=2)
 
-        self._set_near_customer_label()
 
     def _set_production_frame(self):
         columns = ["P&W", "平时", "临时被限制"]
@@ -787,21 +783,27 @@ class LBForecastUI:
 
     def _decorate_par_frame(self):
 
-        # par_frame column 1, row 0: 建立 frame_detail
-        self.par_frame.columnconfigure(1, weight=1)
+        # par_frame column 0, row 0: 建立 frame_detail
+        self.par_frame.columnconfigure(0, weight=1)
         self.frame_detail = tk.LabelFrame(self.par_frame)
-        self.frame_detail.grid(row=0, column=1, padx=5, pady=2)
+        self.frame_detail.grid(row=0, column=0, padx=5, pady=2)
         self._set_detail_info_label()
 
-        # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
-        self.par_frame.columnconfigure(2, weight=2)
-        self.portrait_frame = tk.Frame(self.par_frame, width=200)
-        self.portrait_frame.grid(row=0, column=2, padx=5, pady=2, sticky="nsew")
+        # par_frame column 1, row 0：特殊备注，最新联络，生产计划，收货窗口
+        self.par_frame.columnconfigure(1, weight=2)
+        self.portrait_frame = tk.Frame(self.par_frame, width=150)
+        self.portrait_frame.grid(row=0, column=1, padx=5, pady=2, sticky="nsew")
         self.portrait_frame.pack_propagate(False)
         self._decorate_portrait_frame()
 
+        # par_frame column 2, row 0：: 点对点 和 临近客户
+        self.par_frame.columnconfigure(2, weight=2)
+        self.cluster_frame = tk.Frame(self.par_frame, width=100)
+        self.cluster_frame.grid(row=0, column=2, padx=5, pady=2, sticky="nsew")
+        self.cluster_frame.pack_propagate(False)
+        self._decorate_cluster_frame()
 
-        # par_frame column 3, row 0: 两个 Treeview 历史液位记录和 临近客户
+        # par_frame column 3, row 0: 两个 Treeview 历史液位记录
         self.par_frame.columnconfigure(3, weight=2)
         self.delivery_frame = tk.Frame(self.par_frame, width=300)
         self.delivery_frame.grid(row=0, column=3, padx=5, pady=2, sticky="nsew")
@@ -848,7 +850,7 @@ class LBForecastUI:
         data = [
             [comment_text]
         ]
-        self.comment_table.insert_rows(data)
+        self.comment_table.insert_rows(data, make_red=True)
 
     def update_dtd_table(self, shipto_id: str, risk_time: pd.Timestamp):
         self.dtd_table.clear()

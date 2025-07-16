@@ -469,7 +469,8 @@ class LBDataManager:
     def generate_odbc_trip_dict_by_shipto(
             self,
             shipto: str,
-            latest_trip_list: List[str]
+            latest_trip_list: List[str],
+            need_trip_num: int = 12
     ):
         table_name = 'DropRecord'
 
@@ -497,7 +498,7 @@ class LBDataManager:
         trip_df = pd.read_sql(sql_line, self.conn)
         trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
 
-        need_extra_trip_num = 5 - exist_trip_num
+        need_extra_trip_num = need_trip_num - exist_trip_num
 
         # 获取每个 trip 的最早到达时间
         trip_earliest_arrival = trip_df.groupby('Trip')['ActualArrivalTime'].min().reset_index()

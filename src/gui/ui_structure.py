@@ -47,11 +47,16 @@ class SimpleTable:
 
         self.tooltip = None  # 初始化 tooltip
 
-    def insert_rows(self, rows):
+    def insert_rows(self, rows, make_red=False):
         """ 插入多行数据，清空旧数据 """
         self.tree.delete(*self.tree.get_children())
+
         for row in rows:
-            self.tree.insert("", "end", values=row)
+            if make_red:
+                # 插入行时应用 'red' 标签
+                self.tree.insert("", "end", values=row, tags=('red',))
+            else:
+                self.tree.insert("", "end", values=row)
 
     def clear(self):
         self.tree.delete(*self.tree.get_children())
