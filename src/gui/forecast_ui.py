@@ -387,16 +387,18 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            # ("TR-RO", "TR-RO"),
+            ('T6-T4近三次平均(h)', 't4_t6_value'),
             ("__ 最大装载量 (T)", "max_payload_label"),
             ("目标送货时间", "target_time"),
             ("最佳充装时间", "risk_time"),
             ("断气时间", "runout_time"),
+            ("目标充装到断气时间(h)", "tr_ro"),
             ("满液位", "full_trycock"),
             ("目标送货液位", "target_refill"),
             ("最佳充装液位", "risk"),
             ("断气液位", "runout"),
             ("最佳卸货量", "best_drop_size"),
+            ("KG/CM", "kg_per_cm"),
             ("预测小时用量", "forecast_hourly_usage"),
             ("预测错误率", "forecast_error"),
         ]
@@ -785,19 +787,10 @@ class LBForecastUI:
 
     def _decorate_par_frame(self):
 
-
         # par_frame column 1, row 0: 建立 frame_detail
         self.par_frame.columnconfigure(1, weight=1)
-        self.level_frame = tk.LabelFrame(self.par_frame)
-        self.level_frame.grid(row=0, column=1, padx=5, pady=2)
-
-
-        self.frame_warning = tk.LabelFrame(self.level_frame)
-        self.frame_warning.grid(row=0, column=0, padx=5, pady=2)
-        self._set_frame_warning_label()
-
-        self.frame_detail = tk.LabelFrame(self.level_frame)
-        self.frame_detail.grid(row=1, column=0, padx=5, pady=2)
+        self.frame_detail = tk.LabelFrame(self.par_frame)
+        self.frame_detail.grid(row=0, column=1, padx=5, pady=2)
         self._set_detail_info_label()
 
         # par_frame column 2, row 0：: 新增 DTD and Cluster 的 Frame
@@ -972,7 +965,7 @@ class LBForecastUI:
                   Risk, RO, ts_forecast_usage, galsperinch, uom):
         '''显示客户的充装的详细信息'''
         self.clean_detailed_info()
-
+        self.detail_labels['kg_per_cm'].config(text=galsperinch)
         factor = func.weight_length_factor(uom)
 
         full_cm = int(full / galsperinch / factor)
@@ -1018,9 +1011,9 @@ class LBForecastUI:
         self.detail_labels['max_payload_label'].config(text=f'{current_max_payload}')
 
         t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
-        self.t4_t6_value_label.config(text=t4_t6_value)
+        self.detail_labels['t4_t6_value'].config(text=t4_t6_value)
         tr_ro = self.data_manager.get_tr_ro_value(shipto)
-        self.tr_ro_value_label.config(text=tr_ro)
+        self.detail_labels['tr_ro'].config(text=tr_ro)
 
 
         self.update_production_table(shipto_id=str(shipto))
