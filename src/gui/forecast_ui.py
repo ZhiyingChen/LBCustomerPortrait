@@ -1046,7 +1046,8 @@ class LBForecastUI:
 
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
-        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name)
+        value = self.max_display_var.get()
+        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name, need_trip_num=value)
 
     def update_trip_info(self, shipto_id: str, cust_name: str):
         self.delivery_record_table.clear()

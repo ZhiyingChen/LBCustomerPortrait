@@ -44,6 +44,12 @@ class SimpleTable:
         self.tree.bind("<Control-c>", self.copy_selected_to_clipboard)
         self.tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
         self.tree.bind("<Leave>", self.on_leave)  # 绑定鼠标离开事件
+        # 添加右键菜单
+        self.menu = tk.Menu(self.tree, tearoff=0)
+        self.menu.add_command(label="复制整张表格", command=self.copy_all_to_clipboard)
+
+        # 绑定右键事件
+        self.tree.bind("<Button-3>", self.show_context_menu)
 
         self.tooltip = None  # 初始化 tooltip
 
@@ -138,3 +144,31 @@ class SimpleTable:
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
+
+    def copy_all_to_clipboard(self):
+        all_items = self.tree.get_children()
+        if not all_items:
+            return
+
+        # 获取列名
+        headers = self.tree["columns"]
+        data = [headers]
+
+        # 获取所有行数据
+        for item in all_items:
+            row = self.tree.item(item, "values")
+            data.append(row)
+
+        # 拼接为制表符分隔的字符串
+        text = "\n".join(["\t".join(map(str, row)) for row in data])
+
+        # 复制到剪贴板
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        print("整张表格已复制到剪贴板")
+
+    def show_context_menu(self, event):
+        try:
+            self.menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu.grab_release()
