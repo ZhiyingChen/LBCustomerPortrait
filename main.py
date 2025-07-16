@@ -30,8 +30,8 @@ if __name__ == '__main__':
         func.copyfile(dbname=db_name, from_dir=path1, to_dir='./')
 
     root = tk.Tk()
-    width = int(root.winfo_screenwidth() * 0.9)
-    height = int(root.winfo_screenheight())
+    width = int(root.winfo_screenwidth())
+    height = int(root.winfo_screenheight() * 0.9)
     root.geometry(f"{width}x{height}")
     root.wm_title("Air Products Forecasting Viz")
     root.resizable(True, True)

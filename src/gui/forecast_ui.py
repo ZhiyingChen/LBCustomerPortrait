@@ -387,7 +387,7 @@ class LBForecastUI:
 
         pad_y = 0
         label_info = [
-            ('T6-T4近三次平均(h)', 't4_t6_value'),
+            # ('T6-T4近三次平均(h)', 't4_t6_value'),
             ("__ 最大装载量 (T)", "max_payload_label"),
             ("目标送货时间", "target_time"),
             ("最佳充装时间", "risk_time"),
@@ -566,7 +566,7 @@ class LBForecastUI:
         columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
         col_widths = [55, 23, 10, 60, 36, 150]
         col_stretch = [
-            False, False, False, True, False, True
+            False, False, False, True, False, False
         ]
 
         self.delivery_record_table = ui_structure.SimpleTable(
@@ -1007,8 +1007,7 @@ class LBForecastUI:
         self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
         self.detail_labels['max_payload_label'].config(text=f'{current_max_payload}')
 
-        t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
-        self.detail_labels['t4_t6_value'].config(text=t4_t6_value)
+
         tr_ro = self.data_manager.get_tr_ro_value(shipto)
         self.detail_labels['tr_ro'].config(text=tr_ro)
 
@@ -1618,6 +1617,13 @@ class LBForecastUI:
 
         self.forecast_plot_ax_histy.set_xticks(xticks)
         self.forecast_plot_ax_histy.grid()
+        t4_t6_value = self.data_manager.get_t4_t6_value(shipto=shipto)
+        try:
+            t4_t6_value = int(t4_t6_value)
+        except:
+            pass
+        self.forecast_plot_ax_histy.set_title('T6-T4近三次平均(h): {}'.format(t4_t6_value))
+
 
         # 更新图像
         self.canvas.draw_idle()

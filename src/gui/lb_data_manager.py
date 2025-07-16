@@ -496,7 +496,7 @@ class LBDataManager:
             )
 
         trip_df = pd.read_sql(sql_line, self.conn)
-        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'])
+        trip_df['ActualArrivalTime'] = pd.to_datetime(trip_df['ActualArrivalTime'], format='mixed')
 
         need_extra_trip_num = need_trip_num - exist_trip_num
 
