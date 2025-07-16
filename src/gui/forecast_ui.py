@@ -294,7 +294,7 @@ class LBForecastUI:
                 if i in self.delivery_shipto_dict
                    and self.shipto_dict[i].is_in_forcast
             ]
-        elif delivery_type == '全量IOT':
+        elif delivery_type == '所有远控客户':
             custName_list = [
                 i for i in custName_list
                 if self.shipto_dict[i].is_in_forcast
