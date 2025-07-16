@@ -575,14 +575,14 @@ class LBForecastUI:
 
         tk.Label(control_frame, text="呈现条数:").pack(side="left", padx=(10, 5))
 
-        self.max_display_var = tk.StringVar(value="10")
-        max_display_options = ["10", "15", "20", "25", "All"]
-        max_display_dropdown = ttk.Combobox(
+        self.max_display_var = tk.StringVar(value="5")
+        max_display_options = ["5", "10",  "20", "All"]
+        self.max_display_dropdown = ttk.Combobox(
             control_frame,
             textvariable=self.max_display_var, values=max_display_options, width=6, state="readonly"
         )
-        max_display_dropdown.pack(side="left")
-        max_display_dropdown.bind("<<ComboboxSelected>>", self.on_max_display_change)
+        self.max_display_dropdown.pack(side="left")
+        self.max_display_dropdown.bind("<<ComboboxSelected>>", self.on_max_display_change)
 
     # 绑定事件：当选择变化时更新表格
     def on_max_display_change(self, event=None):
@@ -593,10 +593,9 @@ class LBForecastUI:
 
         shipto = self.shipto_dict[cust_name].loc_num
         self.update_trip_info_v2(
-            shipto,
+            str(shipto),
             cust_name,
             need_trip_num=value
-
         )
 
     def _set_reading_tree(self):
@@ -1046,8 +1045,8 @@ class LBForecastUI:
 
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
-        value = self.max_display_var.get()
-        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name, need_trip_num=value)
+        self.max_display_var.set("5")
+        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name)
 
     def update_trip_info(self, shipto_id: str, cust_name: str):
         self.delivery_record_table.clear()
@@ -1115,24 +1114,24 @@ class LBForecastUI:
 
         self.delivery_record_table.insert_rows(final_records)
 
-    def update_trip_info_v2(self, shipto_id: str, cust_name: str, need_trip_num: str='10'):
+    def update_trip_info_v2(self, shipto_id: str, cust_name: str, need_trip_num: str='5'):
         self.delivery_record_table.clear()
 
 
         if cust_name in self.delivery_shipto_dict:
             latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
-                shipto=shipto_id
+                shipto=str(shipto_id)
             )
         else:
             latest_trip_dict = dict()
 
         if need_trip_num == 'All':
-            need_trip_num = None
+            need_trip_num = 'All'
         else:
             need_trip_num = int(need_trip_num)
 
         df_drop_record = self.data_manager.get_closed_trip_by_shipto(
-            shipto_id, trip_list=list(latest_trip_dict.keys()), need_trip_num=need_trip_num
+            str(shipto_id), trip_list=list(latest_trip_dict.keys()), need_trip_num=need_trip_num
 
         )
         # 把 df 转换为字典

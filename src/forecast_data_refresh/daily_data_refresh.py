@@ -868,7 +868,7 @@ class ForecastDataRefresh:
         LEFT JOIN TripSegment TS
         ON RS.CorporateIdn = TS.CorporateIdn 
         AND RS.TripIdn = TS.TripIdn
-        WHERE RS.rn <= 12
+        -- WHERE RS.rn <= 12
         ORDER BY RS.ToLocNum, 
         RS.CorporateIdn, 
         RS.TripIdn, 
