@@ -71,10 +71,6 @@ class LBForecastUI:
 
         self.shipto_dict = self.generate_shipto_dict()
 
-        # 日志记录
-        self.log_file = os.path.join(path1, 'LB_Forecasting\\log.txt')
-        func.log_connection(self.log_file, 'opened')
-
         self.order_popup_ui = None
         self.confirm_order_popup = None
         # setup ui
@@ -577,7 +573,7 @@ class LBForecastUI:
         control_frame = tk.Frame(self.delivery_record_frame)
         control_frame.pack(fill="x", pady=5)
 
-        tk.Label(control_frame, text="Max Display:").pack(side="left", padx=(10, 5))
+        tk.Label(control_frame, text="呈现条数:").pack(side="left", padx=(10, 5))
 
         self.max_display_var = tk.StringVar(value="10")
         max_display_options = ["10", "15", "20", "25", "All"]
@@ -1769,8 +1765,6 @@ class LBForecastUI:
             self.show_list_cust(None)
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='最新液位时间:\n{}'.format(refresh_time_text))
-
-            func.log_connection(self.log_file, 'refreshed')
             if show_message:
                 messagebox.showinfo(title='success', message='data to sqlite success!')
         except Exception as e:
