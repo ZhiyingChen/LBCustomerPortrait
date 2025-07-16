@@ -641,7 +641,7 @@ class LBForecastUI:
             self.frame_comment, columns=columns, col_widths=col_widths, height=1, col_stretch=col_stretch
         )
         self.comment_table.frame.pack(fill="both")
-        self.comment_table.insert_rows(data)
+        self.comment_table.insert_rows(data, make_red=True)
 
     def _set_contact_frame(self):
         columns = ["最新联络"]
@@ -656,7 +656,7 @@ class LBForecastUI:
             self.frame_contact, columns=columns, col_widths=col_widths, height=2, col_stretch=col_stretch
         )
         self.contact_table.frame.pack(fill="both")
-        self.contact_table.insert_rows(data)
+        self.contact_table.insert_rows(data, align='w')
 
     def _set_dtd_label(self):
         columns = ["DT", "KM", "时长(h)", "发车时间", "数据源"]
@@ -842,7 +842,7 @@ class LBForecastUI:
         data = [
             [text.strip(" \n")] for text in call_log_text.split('; ')
         ]
-        self.contact_table.insert_rows(data)
+        self.contact_table.insert_rows(data, align='w')
 
     def update_comment_table(self, shipto_id: str):
         self.comment_table.clear()

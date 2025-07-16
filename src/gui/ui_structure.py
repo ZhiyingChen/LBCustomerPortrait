@@ -47,16 +47,25 @@ class SimpleTable:
 
         self.tooltip = None  # 初始化 tooltip
 
-    def insert_rows(self, rows, make_red=False):
+    def insert_rows(self, rows, make_red=False, align='center'):
         """ 插入多行数据，清空旧数据 """
         self.tree.delete(*self.tree.get_children())
 
+        if make_red:
+            # 配置一个名为 'red' 的标签样式
+            self.tree.tag_configure('red', foreground='red')
+
+        # 调整列的对齐方式
+        for col in self.tree["columns"]:
+            self.tree.column(col, anchor=align)
+
+        # 配置标签样式
         for row in rows:
+            tags = []
             if make_red:
-                # 插入行时应用 'red' 标签
-                self.tree.insert("", "end", values=row, tags=('red',))
-            else:
-                self.tree.insert("", "end", values=row)
+                tags.append('red')
+
+            self.tree.insert("", "end", values=row, tags=tuple(tags))
 
     def clear(self):
         self.tree.delete(*self.tree.get_children())
