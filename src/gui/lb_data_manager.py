@@ -148,7 +148,7 @@ class LBDataManager:
             # 对小时用量进行清理
             if pd.isnull(x):
                 return x
-            if x <= 0:
+            if x <= 0 and x != -float('inf'):
                 return -int(x)
             else:
                 return None
@@ -487,6 +487,44 @@ class LBDataManager:
             trip_dict.update({trip.trip_id: trip})
         return trip_dict
 
+    def generate_latest_future_trip_by_shipto(
+            self,
+            shipto: str
+    ):
+
+        # 读取所有相关行
+        sql = '''
+            SELECT 
+                Trip, 
+                TripStartTime, 
+                Status, 
+                segmentNum, 
+                Type, 
+                Loc, 
+                ToLocNum, 
+                DeliveredQty, 
+                ActualArrivalTime 
+            FROM view_trip
+            WHERE Trip IN (
+                SELECT Trip FROM trip_shipto WHERE LocNum = ?
+            )
+            AND ToLocNum = ?
+        '''
+        df = pd.read_sql(sql, self.conn, params=(shipto, shipto,))
+
+        # 解析时间格式
+        df['ActualArrivalTime'] = pd.to_datetime(df['ActualArrivalTime'], format='%d/%m/%y %H:%M')
+
+        # 过滤当前时间之后的记录
+        df = df[df['ActualArrivalTime'] >= pd.Timestamp.now()]
+
+        # 排序并取最新一条
+        df = df.sort_values(by='ActualArrivalTime', ascending=False).head(1)
+
+        for i, row in df.iterrows():
+            return row['DeliveredQty']
+
+        return None
     def generate_odbc_trip_dict_by_shipto(
             self,
             shipto: str,

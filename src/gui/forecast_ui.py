@@ -485,9 +485,17 @@ class LBForecastUI:
             forecast_start_time = df_forecast['Next_hr'].iloc[0]
             forecast_start_level = df_forecast['Forecasted_Reading'].iloc[0]
 
+
         # Step 3: 构造 trip 前的预测段
         pre_trip_times = pd.date_range(start=last_history_time, end=forecast_start_time, freq='H')[:-1]
         pre_trip_levels = [last_history_level - i * hourly_usage_rate for i in range(len(pre_trip_times))]
+
+        # Step 3.5: 获取 trip 数据
+        delivered_qty = self.data_manager.generate_latest_future_trip_by_shipto(shipto=str(loc_num))
+        if delivered_qty is not None and len(pre_trip_levels):
+            full = self.df_info.FullTrycockGals.values[0]
+
+            forecast_start_level = min(pre_trip_levels[-1] + delivered_qty, full)
 
         # Step 4: 构造主预测段
         main_forecast_times = pd.date_range(start=forecast_start_time, periods=73, freq='H')
