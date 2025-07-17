@@ -1781,9 +1781,9 @@ class LBForecastUI:
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='最新液位时间:\n{}'.format(refresh_time_text))
             if show_message:
-                messagebox.showinfo(title='success', message='data to sqlite success!')
+                messagebox.showinfo(title='success', message='数据刷新成功!')
         except Exception as e:
-            messagebox.showinfo(title='failure', message='failure, please check! {}'.format(e))
+            messagebox.showinfo(title='failure', message='数据刷新失败！\n 请重新手动刷新！\n{}'.format(e))
 
 
     # endregion
