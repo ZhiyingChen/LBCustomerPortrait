@@ -380,6 +380,9 @@ class LBForecastUI:
 
     def _set_detail_info_label(self):
         '''show detailed information about tank and forecast'''
+        self.frame_detail = tk.LabelFrame(self.info_frame, width=100)
+        self.frame_detail.grid(row=0, column=0, padx=5, pady=2)
+
         self.detail_labels = {}
 
         pad_y = 0
@@ -401,16 +404,16 @@ class LBForecastUI:
         ]
 
         for i, (label_text, key) in enumerate(label_info):
-            lb_label = tk.Label(self.frame_detail, text=label_text)
-            lb_label.grid(row=i, column=0, padx=6, pady=pad_y)
+            lb_label = tk.Label(self.frame_detail, text=label_text, anchor='w')
+            lb_label.grid(row=i, column=0, padx=6, pady=0, sticky="w")
 
-            lb_value = tk.Label(self.frame_detail, text="")
-            lb_value.grid(row=i, column=1, padx=6, pady=pad_y)
+            lb_value = tk.Label(self.frame_detail, text="", anchor='w')
+            lb_value.grid(row=i, column=1, padx=2, pady=0, sticky="w")
 
             if label_text in ["__ 最大装载量 (T)"]:
                 self.detail_labels[label_text] = lb_label
             self.detail_labels[key] = lb_value
-    
+
     def _set_manipulate_frame(self):
         # 重新排版,建立 frame_detail
         self.frame_manual = tk.LabelFrame(self.manipulate_frame, text='用量计算器', width=30)
@@ -560,13 +563,13 @@ class LBForecastUI:
         self._set_delivery_record_frame()
 
     def _set_delivery_record_frame(self):
-        columns = ["到货时间", "卸货量(T)", "频率", "行程号", "状态", "行程详情"]
-        col_widths = [55, 23, 10, 60, 36, 150]
-        col_stretch = [False, False, False, True, False, False]
+        columns = ["到货时间", "卸货量(T)", "频率(天)", "行程号", "状态", "行程详情"]
+        col_widths = [50, 20, 20, 45, 35, 350]
+        col_stretch = [True, True, True, True, True, False]
 
         # 表格
         self.delivery_record_table = ui_structure.SimpleTable(
-            self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5)
+            self.delivery_record_frame, columns=columns, col_widths=col_widths, height=5, col_stretch=col_stretch)
         self.delivery_record_table.frame.pack(fill="both", expand=True)
 
         # 控制显示行数的下拉框
@@ -576,7 +579,7 @@ class LBForecastUI:
         tk.Label(control_frame, text="呈现条数:").pack(side="left", padx=(10, 5))
 
         self.max_display_var = tk.StringVar(value="5")
-        max_display_options = ["5", "10",  "20", "All"]
+        max_display_options = ["5", "10", "All"]
         self.max_display_dropdown = ttk.Combobox(
             control_frame,
             textvariable=self.max_display_var, values=max_display_options, width=6, state="readonly"
@@ -809,27 +812,30 @@ class LBForecastUI:
     def _decorate_par_frame(self):
 
         # par_frame column 0, row 0: 建立 frame_detail
-        self.par_frame.columnconfigure(0, weight=1)
-        self.frame_detail = tk.LabelFrame(self.par_frame)
-        self.frame_detail.grid(row=0, column=0, padx=5, pady=2)
+
+        self.par_frame.columnconfigure(0, weight=2, uniform="col")
+        self.info_frame = tk.Frame(self.par_frame, width=100)
+        self.info_frame.grid(row=0, column=0, padx=15, pady=2, sticky="nsew")
+        self.info_frame.pack_propagate(False)
+
         self._set_detail_info_label()
 
         # par_frame column 1, row 0：特殊备注，最新联络，生产计划，收货窗口
-        self.par_frame.columnconfigure(1, weight=2)
-        self.portrait_frame = tk.Frame(self.par_frame, width=150)
-        self.portrait_frame.grid(row=0, column=1, padx=5, pady=2, sticky="nsew")
+        self.par_frame.columnconfigure(1, weight=3, uniform="col")
+        self.portrait_frame = tk.Frame(self.par_frame, width=90)
+        self.portrait_frame.grid(row=0, column=1, padx=0, pady=2, sticky="nsew")
         self.portrait_frame.pack_propagate(False)
         self._decorate_portrait_frame()
 
         # par_frame column 2, row 0：: 点对点 和 临近客户
-        self.par_frame.columnconfigure(2, weight=2)
+        self.par_frame.columnconfigure(2, weight=2, uniform="col")
         self.cluster_frame = tk.Frame(self.par_frame, width=100)
         self.cluster_frame.grid(row=0, column=2, padx=5, pady=2, sticky="nsew")
         self.cluster_frame.pack_propagate(False)
         self._decorate_cluster_frame()
 
         # par_frame column 3, row 0: 行程记录
-        self.par_frame.columnconfigure(3, weight=2)
+        self.par_frame.columnconfigure(3, weight=5, uniform="col")
         self.delivery_frame = tk.Frame(self.par_frame, width=300)
         self.delivery_frame.grid(row=0, column=3, padx=5, pady=2, sticky="nsew")
         self.delivery_frame.pack_propagate(False)
@@ -1030,7 +1036,7 @@ class LBForecastUI:
         current_primary_dt, current_max_payload = self.get_primary_dt_and_max_payload(shipto)
         current_max_payload = round(current_max_payload / 1000, 1) if isinstance(current_max_payload, float) else current_max_payload
         self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
-        self.detail_labels['max_payload_label'].config(text=f'{current_max_payload}')
+        self.detail_labels['max_payload_label'].config(text=f'{current_primary_dt} {current_max_payload}')
 
 
         tr_ro = self.data_manager.get_tr_ro_value(shipto)
