@@ -587,12 +587,16 @@ class ForecastDataRefresh:
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
                     source = 'LBShell'
+                    if mile_kms == 0:
+                        mile_kms = None
+                        time_hours = None
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
                     source = 'LBShell'
-                if mile_kms == 0 and  source == 'LBShell':
-                    mile_kms = None
-                    time_hours = None
+                    if mile_kms == 0:
+                        mile_kms = None
+                        time_hours = None
+
                 nearby_shipto_info.distance_km = mile_kms
                 nearby_shipto_info.distance_data_source = source
 
