@@ -373,8 +373,14 @@ class ForecastDataRefresh:
             dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                 self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
             dtd_shipto.primary_terminal_info.distance_data_source = 'DTD'
+
             if (dtd_shipto.primary_terminal_info.distance_km is None or
                     dtd_shipto.primary_terminal_info.duration_hours is None):
+                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
+                    self.get_distance_and_duration_from_sharepoint(to_loc, from_loc))
+
+            if (dtd_shipto.primary_terminal_info.distance_km is None or
+                        dtd_shipto.primary_terminal_info.duration_hours is None):
                 # 从 odbc 的 PointToPoint 表中获取数据
                 dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
@@ -383,19 +389,44 @@ class ForecastDataRefresh:
                     dtd_shipto.primary_terminal_info.duration_hours = None
                 dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
 
+            if (dtd_shipto.primary_terminal_info.distance_km is None or
+                    dtd_shipto.primary_terminal_info.duration_hours is None):
+                # 从 odbc 的 PointToPoint 表中获取数据
+                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
+                    self.get_distance_and_duration_from_local_p2p(to_loc, from_loc))
+                if dtd_shipto.primary_terminal_info.distance_km == 0:
+                    dtd_shipto.primary_terminal_info.distance_km = None
+                    dtd_shipto.primary_terminal_info.duration_hours = None
+                dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
+
+
             # 补充信息给 sourcing terminal
             for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
                 from_loc = sourcing_terminal
                 to_loc = shipto_id
 
+                sourcing_terminal_info.distance_data_source = 'DTD'
                 # 从 dtd_sharepoint_df 中获取数据
                 sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                     self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
-                sourcing_terminal_info.distance_data_source = 'DTD'
+
+                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
+                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
+                        self.get_distance_and_duration_from_sharepoint(to_loc, from_loc))
+
                 if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
                     # 从 odbc 的 PointToPoint 表中获取数据
                     sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
                         self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
+                    if sourcing_terminal_info.distance_km == 0:
+                        sourcing_terminal_info.distance_km = None
+                        sourcing_terminal_info.duration_hours = None
+                    sourcing_terminal_info.distance_data_source = 'LBShell'
+
+                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
+                    # 从 odbc 的 PointToPoint 表中获取数据
+                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
+                        self.get_distance_and_duration_from_local_p2p(to_loc, from_loc))
                     if sourcing_terminal_info.distance_km == 0:
                         sourcing_terminal_info.distance_km = None
                         sourcing_terminal_info.duration_hours = None
@@ -553,13 +584,16 @@ class ForecastDataRefresh:
                 mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
                 source = 'DTD'
                 if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
+                    mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(nearby_shipto_id, shipto_id)
                 if mile_kms is None or time_hours is None:
                     mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
-                    if mile_kms == 0:
-                        mile_kms = None
-                        time_hours = None
                     source = 'LBShell'
+                if mile_kms is None or time_hours is None:
+                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
+                    source = 'LBShell'
+                if mile_kms == 0 and  source == 'LBShell':
+                    mile_kms = None
+                    time_hours = None
                 nearby_shipto_info.distance_km = mile_kms
                 nearby_shipto_info.distance_data_source = source
 
