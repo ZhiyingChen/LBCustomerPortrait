@@ -104,7 +104,7 @@ class LBDataManager:
                  AND Next_hr <= '{}'
                  AND LocNum = {};'''.format(fromTime, toTime, shipto)
         df_manual = pd.read_sql(sql, conn)
-        df_manual.Next_hr = pd.to_datetime(df_manual.Next_hr)
+        df_manual.Next_hr = pd.to_datetime(df_manual.Next_hr, format='mixed')
         return df_manual
 
 

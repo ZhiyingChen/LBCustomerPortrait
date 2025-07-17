@@ -488,7 +488,8 @@ class LBForecastUI:
         # Step 3: 获取 trip 数据
         delivered_qty, delivered_time = self.data_manager.generate_latest_future_trip_by_shipto(shipto=str(loc_num))
         if delivered_time is not None:
-            forecast_start_time = delivered_time + pd.Timedelta(hours=1)
+            hourly_fill_rate = 12000
+            forecast_start_time = delivered_time + pd.Timedelta(hours=delivered_qty / hourly_fill_rate)
 
         pre_trip_times = pd.date_range(start=last_history_time, end=forecast_start_time, freq='H')[:-1]
         pre_trip_levels = [last_history_level - i * hourly_usage_rate for i in range(len(pre_trip_times))]
