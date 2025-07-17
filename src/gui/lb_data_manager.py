@@ -522,9 +522,10 @@ class LBDataManager:
         df = df.sort_values(by='ActualArrivalTime', ascending=False).head(1)
 
         for i, row in df.iterrows():
-            return row['DeliveredQty']
+            return row['DeliveredQty'], row['ActualArrivalTime']
 
-        return None
+        return None, None
+
     def generate_odbc_trip_dict_by_shipto(
             self,
             shipto: str,
