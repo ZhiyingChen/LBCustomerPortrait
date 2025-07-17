@@ -353,8 +353,7 @@ class ForecastDataRefresh:
                         duration
                     FROM PointToPoint
                     WHERE (FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%') 
-                    OR (ToLoc LIKE '%{}%' AND FromLoc LIKE '%{}%');
-                '''.format(from_loc, to_loc, to_loc, from_loc)
+                '''.format(from_loc, to_loc)
         self.local_cur.execute(sql_line)
 
         results = self.local_cur.fetchall()
