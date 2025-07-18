@@ -513,6 +513,7 @@ class LBDataManager:
         df = pd.read_sql(sql, self.conn, params=(shipto, shipto,))
 
         # 解析时间格式
+        df['DeliveryQty'] = df['DeliveredQty'].astype(float)
         df['ActualArrivalTime'] = pd.to_datetime(df['ActualArrivalTime'], format='%d/%m/%y %H:%M')
 
         # 过滤当前时间之后的记录
@@ -522,7 +523,7 @@ class LBDataManager:
         df = df.sort_values(by='ActualArrivalTime', ascending=False).head(1)
 
         for i, row in df.iterrows():
-            return row['DeliveredQty'], row['ActualArrivalTime']
+            return float(row['DeliveredQty']), row['ActualArrivalTime']
 
         return None, None
 
