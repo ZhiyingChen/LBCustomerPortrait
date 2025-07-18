@@ -489,7 +489,8 @@ class LBDataManager:
 
     def generate_latest_future_trip_by_shipto(
             self,
-            shipto: str
+            shipto: str,
+            latest_time: pd.Timestamp
     ):
 
         # 读取所有相关行
@@ -517,10 +518,10 @@ class LBDataManager:
         df['ActualArrivalTime'] = pd.to_datetime(df['ActualArrivalTime'], format='%d/%m/%y %H:%M')
 
         # 过滤当前时间之后的记录
-        df = df[df['ActualArrivalTime'] >= pd.Timestamp.now()]
+        df = df[df['ActualArrivalTime'] >= latest_time]
 
         # 排序并取最新一条
-        df = df.sort_values(by='ActualArrivalTime', ascending=False).head(1)
+        df = df.sort_values(by='ActualArrivalTime', ascending=True).head(1)
 
         for i, row in df.iterrows():
             return float(row['DeliveredQty']), row['ActualArrivalTime']

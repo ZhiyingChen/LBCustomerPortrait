@@ -486,7 +486,9 @@ class LBForecastUI:
             forecast_start_level = df_forecast['Forecasted_Reading'].iloc[0]
 
         # Step 3: 获取 trip 数据
-        delivered_qty, delivered_time = self.data_manager.generate_latest_future_trip_by_shipto(shipto=str(loc_num))
+        delivered_qty, delivered_time = self.data_manager.generate_latest_future_trip_by_shipto(
+            shipto=str(loc_num), latest_time=last_history_time
+        )
         if delivered_time is not None:
             hourly_fill_rate = 12000
             forecast_start_time = delivered_time + pd.Timedelta(hours=delivered_qty / hourly_fill_rate)
