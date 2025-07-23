@@ -1367,8 +1367,8 @@ class ForecastDataRefresh:
 
 
     def refresh_all(self):
-        self.refresh_lb_daily_data()
         self.refresh_lb_hourly_data()
+        self.refresh_lb_daily_data()
 
     # refresh hourly data
     def refresh_lb_hourly_data(self):
