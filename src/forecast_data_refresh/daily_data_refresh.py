@@ -776,6 +776,7 @@ class ForecastDataRefresh:
         df_delivery_window.to_sql(
             table_name, con=self.local_conn, if_exists='replace', index=False)
         self.local_conn.commit()
+        logging.info("Delivery window and restricted delivery periods refreshed.")
 
     def get_call_log(self):
         sql_line = '''
@@ -846,6 +847,7 @@ class ForecastDataRefresh:
         df_call_log.to_sql(
             table_name, con=self.local_conn, if_exists='replace', index=False)
         self.local_conn.commit()
+        logging.info("Call log refreshed.")
 
     def refresh_drop_record(self):
         sql_line = '''
@@ -923,6 +925,7 @@ class ForecastDataRefresh:
             table_name, con=self.local_conn, if_exists='replace', index=False
         )
         self.local_conn.commit()
+        logging.info("Drop record refreshed.")
 
     def refresh_drop_record_summary(self):
         drop_record_df = pd.read_sql('SELECT * FROM DropRecord', self.local_conn)
@@ -973,6 +976,7 @@ class ForecastDataRefresh:
         df_summary.to_sql(
             table_name, con=self.local_conn, if_exists='replace', index=False)
         self.local_conn.commit()
+        logging.info("Drop record summary refreshed.")
 
 
     def get_ordinary_production_schedule(self):
@@ -1214,6 +1218,7 @@ class ForecastDataRefresh:
             table_name, con=self.local_conn, if_exists='replace', index=False
         )
         self.local_conn.commit()
+        logging.info("Production schedule refreshed.")
 
     def get_special_note_df(self):
         sql_line = '''
@@ -1325,16 +1330,10 @@ class ForecastDataRefresh:
             table_name, con=self.local_conn, if_exists='replace', index=False
         )
         self.local_conn.commit()
+        logging.info("Special note refreshed.")
 
     def refresh_lb_daily_data(self):
-        """
-        这些都是冬亮之前写的，单独抽出来，不改了
-        """
-        odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_beforeReading(conn=self.local_conn)
-        odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+
         '''
         新增 生产计划，delivery window，最新联络，特殊备注 相关的
         '''
@@ -1356,6 +1355,16 @@ class ForecastDataRefresh:
         self.refresh_dtd_data()
         self.refresh_cluster_data()
         self.drop_local_tables()
+
+        """
+            这些都是冬亮之前写的，单独抽出来，不改了
+        """
+        odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_beforeReading(conn=self.local_conn)
+        odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
+
 
     def refresh_all(self):
         self.refresh_lb_daily_data()
