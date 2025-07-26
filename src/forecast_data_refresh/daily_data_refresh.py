@@ -265,9 +265,6 @@ class ForecastDataRefresh:
         multiprocessing.freeze_support()
         p1 = Process(target=self.output_dtd_sharepoint_df, args=(queue,))
         p1.start()
-        p1.join(timeout=180)  # 等待进程完成
-        s = queue.get()
-        print('dtd_sharepoint_df refresh success: {}'.format(s))
 
         dtd_sharepoint_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.DTD_FILE_NAME))
 

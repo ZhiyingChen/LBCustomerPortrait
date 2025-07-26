@@ -305,9 +305,6 @@ def refresh_max_payload_by_ship2(cur, conn):
 
     p1 = Process(target=sharepoint_equipment_list, args=(queue, ))  # 实例化进程对象
     p1.start()
-    p1.join(timeout=180)  # 等待进程完成
-    s = queue.get()
-    print('equipment update: {}'.format(s))
 
     equipment_list_df = pd.read_feather(os.path.join(fd.SHAREPOINT_TEMP_DIRECTORY, fd.EQUIPMENT_FILE_NAME))
 
