@@ -90,20 +90,34 @@ class ForecastDataRefresh:
         logging.info('loaded: {}'.format(len(self.dtd_shipto_dict)))
 
     def get_source_terminal_info_for_shipto_dataframe(self):
-        shipto_list = list(self.dtd_shipto_dict.keys())
         sql_line = '''
-            WITH GroupedData AS (
+            WITH LOCS AS (
                 SELECT 
-                    ToLocNum,
-                    SourceOfProduct,
-                    COUNT(*) AS Frequency
-                FROM Segment
+                    cp.LocNum, 
+                    cp.CustAcronym, 
+                    cp.PrimaryTerminal,
+                    (cp.FullTrycockGals - lb.TargetGalsUser) AS TRA
+                FROM CustomerProfile cp
+                LEFT JOIN DemandTypesinfo dt ON cp.LocNum = dt.LocNum
+                LEFT JOIN CustomerTelemetry ct ON cp.LocNum = ct.LocNum
+                LEFT JOIN LBCustProfile lb ON cp.LocNum = lb.LocNum
                 WHERE 
-                    ToLocNum IN {}
-                    AND ActualArrivalTime >= DATEADD(year, -1, GETDATE()) 
+                    cp.State = 'CN' AND
+                    cp.Dlvrystatus = 'A' AND
+                    cp.CustAcronym NOT LIKE '1%'
+            ),
+            GroupedData AS (
+                SELECT 
+                    s.ToLocNum,
+                    s.SourceOfProduct,
+                    COUNT(*) AS Frequency
+                FROM Segment s
+                WHERE 
+                    s.ToLocNum IN (SELECT LocNum FROM LOCS) AND
+                    s.ActualArrivalTime >= DATEADD(YEAR, -1, GETDATE())
                 GROUP BY 
-                    ToLocNum, 
-                    SourceOfProduct
+                    s.ToLocNum, 
+                    s.SourceOfProduct
             )
             SELECT 
                 ToLocNum,
@@ -112,18 +126,19 @@ class ForecastDataRefresh:
                 Rank
             FROM (
                 SELECT 
-                    *,
+                    gd.*,
                     ROW_NUMBER() OVER (
-                        PARTITION BY ToLocNum 
-                        ORDER BY Frequency DESC
+                        PARTITION BY gd.ToLocNum 
+                        ORDER BY gd.Frequency DESC
                     ) AS Rank
-                FROM GroupedData
+                FROM GroupedData gd
             ) AS RankedData
             WHERE Rank <= 5
             ORDER BY 
                 ToLocNum, 
                 Frequency DESC;
-        '''.format(tuple(shipto_list))
+    
+        '''
 
         df_source_terminal = pd.read_sql(sql_line, self.odbc_conn)
         df_source_terminal['ToLocNum'] = df_source_terminal['ToLocNum'].astype(str)
@@ -1362,7 +1377,7 @@ class ForecastDataRefresh:
 
 
     def refresh_all(self):
-        # self.refresh_lb_hourly_data()
+        self.refresh_lb_hourly_data()
         self.refresh_lb_daily_data()
 
     # refresh hourly data
