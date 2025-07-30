@@ -48,10 +48,8 @@ class ForecastDataRefresh:
             ON CustomerProfile.LocNum = LBCustProfile.LocNum
             WHERE
             CustomerProfile.State='CN' AND
-            (CustomerProfile.Dlvrystatus='A' OR CustomerProfile.Dlvrystatus='T') AND
-            ((CustomerTelemetry.Subscriber=3) OR
-            (CustomerTelemetry.Subscriber=7) OR
-            (CustomerProfile.PrimaryTerminal='XZ2' AND CustomerProfile.TelemetryFlag='True'))
+            CustomerProfile.Dlvrystatus='A' AND
+            CustomerProfile.CustAcronym NOT LIKE '1%' 
         '''
         df_shipto = pd.read_sql(sql_line, self.odbc_conn)
         df_shipto['LocNum'] = df_shipto['LocNum'].astype(str)
@@ -1364,7 +1362,7 @@ class ForecastDataRefresh:
 
 
     def refresh_all(self):
-        self.refresh_lb_hourly_data()
+        # self.refresh_lb_hourly_data()
         self.refresh_lb_daily_data()
 
     # refresh hourly data
