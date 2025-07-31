@@ -1343,6 +1343,14 @@ class ForecastDataRefresh:
         logging.info("Special note refreshed.")
 
     def refresh_lb_daily_data(self):
+        """
+                   这些都是冬亮之前写的，单独抽出来，不改了
+               """
+        odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_beforeReading(conn=self.local_conn)
+        odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
+        odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
 
         '''
         新增 生产计划，delivery window，最新联络，特殊备注 相关的
@@ -1366,14 +1374,7 @@ class ForecastDataRefresh:
         self.refresh_cluster_data()
         self.drop_local_tables()
 
-        """
-            这些都是冬亮之前写的，单独抽出来，不改了
-        """
-        odbc_master.refresh_odbcMasterData(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_beforeReading(conn=self.local_conn)
-        odbc_master.refresh_DeliveryWindow(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_t4_t6_data(cur=self.local_cur, conn=self.local_conn)
-        odbc_master.refresh_max_payload_by_ship2(cur=self.local_cur, conn=self.local_conn)
+
 
 
     def refresh_all(self):
