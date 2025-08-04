@@ -344,105 +344,53 @@ class ForecastDataRefresh:
 
         return df_result
 
-    def get_distance_and_duration_from_sharepoint(self, from_loc: str, to_loc: str):
-        sql_line = '''
-            SELECT 
-                MileKMs,
-                TimeHours
-            FROM DTDRecords
-            WHERE FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%';
-        '''.format(from_loc, to_loc)
-        self.local_cur.execute(sql_line)
 
-        results = self.local_cur.fetchall()
-        for (mile_kms, time_hours) in results:
-            return mile_kms, time_hours
-        return None, None
+    @decorator.record_time_decorator('加载距离和时间数据')
+    def _load_distance_data(self):
+        self.df_dtd = pd.read_sql("SELECT FromLoc, ToLoc, MileKMs, TimeHours FROM DTDRecords", self.local_conn)
+        self.df_p2p = pd.read_sql("SELECT FromLoc, ToLoc, distance, duration FROM PointToPoint WHERE distance IS NOT NULL", self.local_conn)
 
-    def get_distance_and_duration_from_local_p2p(self, from_loc: str, to_loc: str):
-        sql_line = '''
-                    SELECT 
-                        distance,
-                        duration
-                    FROM PointToPoint
-                    WHERE (FromLoc LIKE '%{}%' AND ToLoc LIKE '%{}%') 
-                '''.format(from_loc, to_loc)
-        self.local_cur.execute(sql_line)
+        self.distance_cache = {}
 
-        results = self.local_cur.fetchall()
-        for (mile_kms, time_hours) in results:
-            return mile_kms, time_hours
-        return None, None
+        for _, row in self.df_dtd.iterrows():
+            key = (row['FromLoc'], row['ToLoc'])
+            self.distance_cache[key] = (row['MileKMs'], row['TimeHours'], 'DTD')
+
+        for _, row in self.df_p2p.iterrows():
+            key = (row['FromLoc'], row['ToLoc'])
+            if row['distance'] != 0:
+                self.distance_cache.setdefault(key, (row['distance'], row['duration'], 'LBShell'))
+
+    def get_distance_from_df(self, from_loc, to_loc):
+        key1 = (from_loc, to_loc)
+        key2 = (to_loc, from_loc)
+
+        if key1 in self.distance_cache:
+            return self.distance_cache[key1]
+        if key2 in self.distance_cache:
+            return self.distance_cache[key2]
+
+        return None, None, None
 
     @decorator.record_time_decorator('设置primary和source terminal的距离和时间')
     def set_distance_and_duration_of_primary_and_source_terminal(self):
         for shipto_id, dtd_shipto in self.dtd_shipto_dict.items():
-            # 补充信息给 primary terminal
+            # Primary terminal
             from_loc = dtd_shipto.primary_terminal_info.primary_terminal
             to_loc = shipto_id
+            km, hrs, source = self.get_distance_from_df(from_loc, to_loc)
+            dtd_shipto.primary_terminal_info.distance_km = km
+            dtd_shipto.primary_terminal_info.duration_hours = hrs
+            dtd_shipto.primary_terminal_info.distance_data_source = source
 
-            # 从 dtd_sharepoint_df 中获取数据
-            dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
-                self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
-            dtd_shipto.primary_terminal_info.distance_data_source = 'DTD'
-
-            if (dtd_shipto.primary_terminal_info.distance_km is None or
-                    dtd_shipto.primary_terminal_info.duration_hours is None):
-                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
-                    self.get_distance_and_duration_from_sharepoint(to_loc, from_loc))
-
-            if (dtd_shipto.primary_terminal_info.distance_km is None or
-                        dtd_shipto.primary_terminal_info.duration_hours is None):
-                # 从 odbc 的 PointToPoint 表中获取数据
-                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
-                    self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
-                if dtd_shipto.primary_terminal_info.distance_km == 0:
-                    dtd_shipto.primary_terminal_info.distance_km = None
-                    dtd_shipto.primary_terminal_info.duration_hours = None
-                dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
-
-            if (dtd_shipto.primary_terminal_info.distance_km is None or
-                    dtd_shipto.primary_terminal_info.duration_hours is None):
-                # 从 odbc 的 PointToPoint 表中获取数据
-                dtd_shipto.primary_terminal_info.distance_km, dtd_shipto.primary_terminal_info.duration_hours = (
-                    self.get_distance_and_duration_from_local_p2p(to_loc, from_loc))
-                if dtd_shipto.primary_terminal_info.distance_km == 0:
-                    dtd_shipto.primary_terminal_info.distance_km = None
-                    dtd_shipto.primary_terminal_info.duration_hours = None
-                dtd_shipto.primary_terminal_info.distance_data_source = 'LBShell'
-
-
-            # 补充信息给 sourcing terminal
+            # Sourcing terminals
             for sourcing_terminal, sourcing_terminal_info in dtd_shipto.sourcing_terminal_info_dict.items():
                 from_loc = sourcing_terminal
                 to_loc = shipto_id
-
-                sourcing_terminal_info.distance_data_source = 'DTD'
-                # 从 dtd_sharepoint_df 中获取数据
-                sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
-                    self.get_distance_and_duration_from_sharepoint(from_loc, to_loc))
-
-                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
-                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
-                        self.get_distance_and_duration_from_sharepoint(to_loc, from_loc))
-
-                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
-                    # 从 odbc 的 PointToPoint 表中获取数据
-                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
-                        self.get_distance_and_duration_from_local_p2p(from_loc, to_loc))
-                    if sourcing_terminal_info.distance_km == 0:
-                        sourcing_terminal_info.distance_km = None
-                        sourcing_terminal_info.duration_hours = None
-                    sourcing_terminal_info.distance_data_source = 'LBShell'
-
-                if sourcing_terminal_info.distance_km is None or sourcing_terminal_info.duration_hours is None:
-                    # 从 odbc 的 PointToPoint 表中获取数据
-                    sourcing_terminal_info.distance_km, sourcing_terminal_info.duration_hours = (
-                        self.get_distance_and_duration_from_local_p2p(to_loc, from_loc))
-                    if sourcing_terminal_info.distance_km == 0:
-                        sourcing_terminal_info.distance_km = None
-                        sourcing_terminal_info.duration_hours = None
-                    sourcing_terminal_info.distance_data_source = 'LBShell'
+                km, hrs, source = self.get_distance_from_df(from_loc, to_loc)
+                sourcing_terminal_info.distance_km = km
+                sourcing_terminal_info.duration_hours = hrs
+                sourcing_terminal_info.distance_data_source = source
 
     def output_primary_and_source_dtd_df(self):
         cols = ['LocNum', 'CustAcronym', 'DTType', 'DT', 'Distance', 'Duration', 'Rank', 'Frequency', 'DataSource']
@@ -590,27 +538,10 @@ class ForecastDataRefresh:
             if dtd_shipto.is_full_load:
                 continue
 
-            for nearby_shipto_id in dtd_shipto.nearby_shipto_info_dict:
-                nearby_shipto_info = dtd_shipto.nearby_shipto_info_dict[nearby_shipto_id]
-
-                mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(shipto_id, nearby_shipto_id)
-                source = 'DTD'
-                if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_sharepoint(nearby_shipto_id, shipto_id)
-                if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(shipto_id, nearby_shipto_id)
-                    source = 'LBShell'
-                    if mile_kms == 0:
-                        mile_kms = None
-                        time_hours = None
-                if mile_kms is None or time_hours is None:
-                    mile_kms, time_hours = self.get_distance_and_duration_from_local_p2p(nearby_shipto_id, shipto_id)
-                    source = 'LBShell'
-                    if mile_kms == 0:
-                        mile_kms = None
-                        time_hours = None
-
-                nearby_shipto_info.distance_km = mile_kms
+            for nearby_shipto_id, nearby_shipto_info in dtd_shipto.nearby_shipto_info_dict.items():
+                km, hrs, source = self.get_distance_from_df(shipto_id, nearby_shipto_id)
+                nearby_shipto_info.distance_km = km
+                nearby_shipto_info.duration_hours = hrs
                 nearby_shipto_info.distance_data_source = source
 
     def output_cluster_df(self):
@@ -1373,10 +1304,10 @@ class ForecastDataRefresh:
         '''
         self.generate_shipto_info()
         self.prepare_dtd_data()
+        self._load_distance_data()
         self.refresh_dtd_data()
         self.refresh_cluster_data()
         self.drop_local_tables()
-
 
 
 
