@@ -37,57 +37,60 @@ class ForecastDataRefresh:
 
     def get_lb_tele_shipto_dataframe(self):
         sql_line = '''
-            Select CustomerProfile.LocNum, CustomerProfile.CustAcronym, CustomerProfile.PrimaryTerminal,
-            (CustomerProfile.FullTrycockGals - LBCustProfile.TargetGalsUser) AS TRA
-            FROM CustomerProfile
-            LEFT JOIN DemandTypesinfo
-            ON CustomerProfile.LocNum=DemandTypesinfo.LocNum
-            LEFT JOIN CustomerTelemetry
-            ON CustomerProfile.LocNum=CustomerTelemetry.LocNum
-            LEFT JOIN LBCustProfile
-            ON CustomerProfile.LocNum = LBCustProfile.LocNum
-            WHERE
-            CustomerProfile.State='CN' AND
-            CustomerProfile.Dlvrystatus='A' AND
-            CustomerProfile.CustAcronym NOT LIKE '1%' 
+           SELECT 
+                cp.LocNum, 
+                cp.CustAcronym, 
+                cp.PrimaryTerminal,
+                (cp.FullTrycockGals - lb.TargetGalsUser) AS TRA
+            FROM CustomerProfile cp
+            LEFT JOIN LBCustProfile lb ON cp.LocNum = lb.LocNum
+            WHERE 
+                cp.State = 'CN' AND
+                cp.Dlvrystatus = 'A' AND
+                cp.CustAcronym NOT LIKE '1%'
+
         '''
         df_shipto = pd.read_sql(sql_line, self.odbc_conn)
         df_shipto['LocNum'] = df_shipto['LocNum'].astype(str)
         return df_shipto
 
-    def get_max_payload_by_ship2(self, shipto: str):
-        sql_line = f'''
+    def get_max_payload_all(self):
+        sql_line = '''
             SELECT 
                 ToLocNum,
                 LicenseFill
             FROM 
                 odbc_MaxPayloadByShip2
-            WHERE 
-                ToLocNum = '{shipto}'
-            '''
-        self.local_cur.execute(sql_line)
+        '''
+        df_payload = pd.read_sql(sql_line, self.local_conn)
+        df_payload['ToLocNum'] = df_payload['ToLocNum'].astype(str)
+        return df_payload
 
-        results = self.local_cur.fetchall()
-        for (loc_num, max_payload) in results:
-            return max_payload
-        return 0
-    
     def generate_initial_dtd_shipto_dict(self):
         df_shipto = self.get_lb_tele_shipto_dataframe()
+        df_payload = self.get_max_payload_all()
+
+        # 合并 max_payload 信息
+        df_shipto = df_shipto.merge(df_payload, how='left', left_on='LocNum', right_on='ToLocNum')
+        df_shipto['LicenseFill'] = df_shipto['LicenseFill'].fillna(0)
+
+        logging.info('loaded df: {}'.format(len(df_shipto)))
 
         for idx, row in df_shipto.iterrows():
             dtd_shipto = do.DTDShipto(
                 shipto=row['LocNum'],
                 shipto_name=row['CustAcronym'],
                 tra=row['TRA'],
-                max_payload=self.get_max_payload_by_ship2(row['LocNum']),
+                max_payload=row['LicenseFill'],
             )
             primary_terminal_info = do.PrimaryDTInfo(
                 primary_terminal=row['PrimaryTerminal']
             )
             dtd_shipto.primary_terminal_info = primary_terminal_info
             self.dtd_shipto_dict[row['LocNum']] = dtd_shipto
+
         logging.info('loaded: {}'.format(len(self.dtd_shipto_dict)))
+
 
     def get_source_terminal_info_for_shipto_dataframe(self):
         sql_line = '''
