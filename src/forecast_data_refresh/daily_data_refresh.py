@@ -445,6 +445,7 @@ class ForecastDataRefresh:
         self.get_dtd_sharepoint_df()
         self.get_dtd_odbc_df()
 
+    @decorator.record_time_decorator('刷新 DTD 数据')
     def refresh_dtd_data(self):
         self.set_distance_and_duration_of_primary_and_source_terminal()
         self.output_primary_and_source_dtd_df()
@@ -582,7 +583,7 @@ class ForecastDataRefresh:
         df_cluster.to_sql(
             table_name, con=self.local_conn, if_exists='replace', index=False)
 
-
+    @decorator.record_time_decorator('刷新Cluster数据')
     def refresh_cluster_data(self):
         self.set_nearby_shipto_distance_for_shipto()
         self.output_cluster_df()
