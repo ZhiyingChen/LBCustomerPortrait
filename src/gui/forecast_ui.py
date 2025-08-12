@@ -518,6 +518,38 @@ class LBForecastUI:
         df_result = df_result[df_result['Forecasted_Reading'] >= 0].reset_index(drop=True)
         return df_result
 
+    def update_forecast_tr_ro_risk_label(self, manual_usage_rate: float=0):
+        target_refill = self.df_info.TargetGalsUser.values[0]
+
+        runout = self.df_info.RunoutGals.values[0]
+
+        risk = (target_refill + runout) / 2
+
+        # 当前液位
+        latest_level = self.ts_history.Reading_Gals.iloc[-1]
+        latest_time = self.ts_history.index[-1]
+
+        # 根据 manual usage rate 计算还有几个小时到达 target_refill 和 runout
+        if manual_usage_rate > 0 and latest_level > target_refill:
+            reach_target_hrs = (latest_level - target_refill) / manual_usage_rate
+            reach_risk_hrs = (latest_level - risk) / manual_usage_rate
+            reach_runout_hrs = (latest_level - runout) / manual_usage_rate
+
+            forecast_reach_target_time = latest_time + pd.Timedelta(hours=reach_target_hrs)
+            forecast_reach_risk_time = latest_time + pd.Timedelta(hours=reach_risk_hrs)
+            forecast_reach_runout_time = latest_time + pd.Timedelta(hours=reach_runout_hrs)
+
+            self.detail_labels['target_time'].config(text=forecast_reach_target_time.strftime("%m-%d %H:%M"))
+            self.detail_labels['risk_time'].config(text=forecast_reach_risk_time.strftime("%m-%d %H:%M"))
+            self.detail_labels['runout_time'].config(text=forecast_reach_runout_time.strftime("%m-%d %H:%M"))
+
+            self.df_forecast['TargetRefillDate'] = forecast_reach_target_time
+            self.df_forecast['TargetRiskDate'] = forecast_reach_risk_time
+            self.df_forecast['TargetRunoutDate'] = forecast_reach_runout_time
+
+
+
+
     def calculate_by_manual(self):
         cur = self.data_manager.cur
         conn = self.data_manager.conn
@@ -557,6 +589,7 @@ class LBForecastUI:
 
         self.manual_plot = True
         self.plot()
+        self.update_forecast_tr_ro_risk_label(manual_usage_rate=input_value)
         self.manual_plot = False
 
 
