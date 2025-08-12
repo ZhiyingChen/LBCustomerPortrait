@@ -16,6 +16,7 @@ class ConfirmOrderPopupUI:
             order_data_manager: LBOrderDataManager,
             df_info: pd.DataFrame,
             order_popup_ui: OrderPopupUI,
+            note: str = "",
             show_time = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
             loadAMT = 0,
 
@@ -31,8 +32,8 @@ class ConfirmOrderPopupUI:
         self.from_time = (dt - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
         self.to_time = (dt + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
         self.amt = loadAMT
-        self.note = ""
-        self.po_number = ""
+        self.note = note
+
 
         self.popup = tk.Toplevel(self.root)
         self.popup.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -89,7 +90,6 @@ class ConfirmOrderPopupUI:
         self.to_time = self.to_entry.get()
         self.amt = self.amt_entry.get()
         self.note = self.note_entry.get("1.0", tk.END).strip()
-        self.po_number = self.po_entry.get("1.0", tk.END).strip()
 
         self.add_forecast_order()
         print('current orders: {}'.format(self.order_data_manager.forecast_order_dict.keys()))
@@ -116,7 +116,7 @@ class ConfirmOrderPopupUI:
             to_time=pd.to_datetime(self.to_time),
             drop_kg=self.amt,
             comments=self.note,
-            po_number=self.po_number,
+            po_number='',
             order_type=enums.OrderType.FO
         )
         self.order_data_manager.add_forecast_order(forecast_order)
@@ -163,12 +163,8 @@ class ConfirmOrderPopupUI:
         # 备注
         ttk.Label(self.popup, text="备注:").grid(row=4, column=0, padx=5, pady=5)
         self.note_entry = tk.Text(self.popup, height=4, width=28)
+        self.note_entry.insert(tk.END, self.note)
         self.note_entry.grid(row=4, column=1, padx=5, pady=5)
-
-        # 备注
-        ttk.Label(self.popup, text="PO号:").grid(row=5, column=0, padx=5, pady=5)
-        self.po_entry = tk.Text(self.popup, height=2, width=28)
-        self.po_entry.grid(row=5, column=1, padx=5, pady=5)
 
         # 提交按钮
         self.submit_btn = ttk.Button(self.popup, text="提交：建立FO订单", command=self._submit)

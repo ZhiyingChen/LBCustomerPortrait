@@ -68,6 +68,7 @@ class LBForecastUI:
         self.ts_forecast = None
         self.ts_forecast_before_trip = None
         self.ts_manual = None
+        self.comment_text = ''
 
         self.shipto_dict = self.generate_shipto_dict()
 
@@ -921,9 +922,9 @@ class LBForecastUI:
 
     def update_comment_table(self, shipto_id: str):
         self.comment_table.clear()
-        comment_text = self.data_manager.get_special_note_by_shipto(shipto_id)
+        self.comment_text = self.data_manager.get_special_note_by_shipto(shipto_id)
         data = [
-            [comment_text]
+            [self.comment_text]
         ]
         self.comment_table.insert_rows(data, make_red=True)
 
@@ -1410,6 +1411,8 @@ class LBForecastUI:
             messagebox.showinfo( title='提示', message='订单确认弹窗已经打开，请勿重复打开!')
             return
 
+
+
         for curve in self.forecast_plot_ax.get_lines():
             if curve.contains(event)[0]:
                 graph_id = curve.get_gid()
@@ -1434,6 +1437,7 @@ class LBForecastUI:
                         df_info = self.df_info,
                         show_time=show_time,
                         loadAMT=loadAMT,
+                        note = self.comment_text,
                         order_popup_ui=self.order_popup_ui
                     )
                     return
@@ -1451,6 +1455,7 @@ class LBForecastUI:
                 root=self.root,
                 order_data_manager=self.order_data_manager,
                 df_info=self.df_info,
+                note=self.comment_text,
                 order_popup_ui=self.order_popup_ui
             )
             return

@@ -231,6 +231,7 @@ class OrderPopupUI:
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
             data = [
                 fo.order_id,
+                fo.order_type,
                 fo.shipto,
                 fo.cust_name,
                 fo.product,
@@ -238,14 +239,12 @@ class OrderPopupUI:
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
                 fo.comments,
-                fo.po_number,
-                "1" if fo.is_in_trip_draft else "",
                 fo.so_number
             ]
             insert_data.append(data)
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注", "PO号","行程草稿？"],
+            editable_cols=["From", "To", "KG", "备注"],
             insert_data=insert_data
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
@@ -257,8 +256,8 @@ class OrderPopupUI:
             editable_cols=None,
             insert_data=None
     ):
-        columns = ["临时Id", "ShipTo", "客户简称", "产品", "From", "To", "KG", "备注", 'PO号', "行程草稿？", "SO号"]
-        widths = [80, 60, 70, 30, 110, 110, 40, 80, 40, 30, 80]
+        columns = ["临时Id", "类型","ShipTo", "客户简称", "产品", "From", "To", "KG", "备注",  "SO号"]
+        widths = [80, 20, 60, 70, 30, 110, 110, 40, 80, 80]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -561,6 +560,7 @@ class OrderPopupUI:
     ):
         data = [
             order.order_id,
+            order.order_type,
             order.shipto,
             order.cust_name,
             order.product,
@@ -568,8 +568,6 @@ class OrderPopupUI:
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
             order.comments,
-            order.po_number,
-            "1" if order.is_in_trip_draft else "",
             order.so_number
         ]
         self.working_tree.insert("", "end", values=tuple(data))
