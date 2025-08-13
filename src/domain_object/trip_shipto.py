@@ -35,7 +35,7 @@ class TripShipto:
         for trip_id, trip_start_time in self.trip_dict.items():
             if trip_start_time is None:
                 continue
-            if pd.Timestamp.now() <= trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=2):
+            if pd.Timestamp.now() <= trip_start_time <= pd.Timestamp.now() + datetime.timedelta(hours=3):
                 return trip_id
         return None
 
@@ -59,7 +59,7 @@ class TripShipto:
             return False
         if self.nearest_trip is None:
             return True
-        if self.latest_called >= self.nearest_trip_start_time - datetime.timedelta(hours=2):
+        if self.latest_called >= self.nearest_trip_start_time - datetime.timedelta(hours=3):
             return True
         return False
 

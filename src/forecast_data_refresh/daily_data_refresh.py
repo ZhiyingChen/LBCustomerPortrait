@@ -1556,7 +1556,7 @@ class ForecastDataRefresh:
         df_trip['TripID'] = df_trip['TripID'].astype(str)
         df_trip['Trip'] = df_trip.apply(lambda row: '-'.join([row['CorporateIdn'], row['TripID']]), axis=1)
         df_trip['TripStartTime'] = df_trip.apply(
-            lambda row: ' '.join([row['TrStD'], row['TrStT']]), axis=1
+            lambda row: ' '.join([row['StartD'], row['StartT']]), axis=1
         )
         df_trip['TripStartTime'] = pd.to_datetime(df_trip['TripStartTime'], errors='coerce')
         df_trip['SegStartTime'] = df_trip.apply(
