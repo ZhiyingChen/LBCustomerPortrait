@@ -1431,6 +1431,7 @@ class LBForecastUI:
                     # 弹出消息框
                     self.confirm_order_popup = ConfirmOrderPopupUI(
                         root=self.root,
+                        lb_data_manager=self.data_manager,
                         order_data_manager=self.order_data_manager,
                         df_info = self.df_info,
                         show_time=show_time,
@@ -1455,6 +1456,7 @@ class LBForecastUI:
             self.confirm_order_popup = ConfirmOrderPopupUI(
                 root=self.root,
                 order_data_manager=self.order_data_manager,
+                lb_data_manager=self.data_manager,
                 df_info=self.df_info,
                 note=self.comment_text,
                 order_popup_ui=self.order_popup_ui,

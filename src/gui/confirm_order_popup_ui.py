@@ -15,7 +15,7 @@ class ConfirmOrderPopupUI:
             self,
             root,
             order_data_manager: LBOrderDataManager,
-
+            lb_data_manager: LBDataManager,
             df_info: pd.DataFrame,
             order_popup_ui: OrderPopupUI,
             note: str = "",
@@ -31,6 +31,7 @@ class ConfirmOrderPopupUI:
         self.root = root
         self.df_info = df_info
         self.order_data_manager = order_data_manager
+        self.lb_data_manager = lb_data_manager
 
         self.order_popup_ui = order_popup_ui
         # 默认时间
@@ -86,7 +87,7 @@ class ConfirmOrderPopupUI:
             )
             return
 
-        max_drop_kg = int(self.df_info.FullTrycockGals.values[0])
+        max_drop_kg = self.lb_data_manager.get_max_payload_value_by_ship2(ship2=str(self.df_info.LocNum.values[0]))
         if amt <= 0 or amt > max_drop_kg:
             messagebox.showwarning(
                 parent=self.popup,
@@ -120,7 +121,7 @@ class ConfirmOrderPopupUI:
         forecast_order = do.Order(
             order_id=func.generate_new_forecast_order_id(),
             shipto=shipto,
-            cust_name=str(self.df_info.CustAcronym.values[0]),
+            cust_name='{}, {}'.format(self.df_info.CustAcronym.values[0], self.df_info.TankAcronym.values[0]),
             product=str(self.df_info.ProductClass.values[0]),
             corporate_idn=self.df_info.PrimaryTerminal.values[0],
             from_time=pd.to_datetime(self.from_time),

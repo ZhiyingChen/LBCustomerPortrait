@@ -10,9 +10,7 @@ from .lb_order_data_manager import LBOrderDataManager
 from .lb_data_manager import LBDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
-from ..rpa.main import BuildOrder
-from ..utils import functions as func
-from ..utils.email_report import outlook_sender
+
 
 class OrderPopupUI:
     def __init__(
@@ -57,21 +55,6 @@ class OrderPopupUI:
 
         # 左侧：Working FO List 和 OO List
         self._create_working_tree()
-
-    def update_rpa_result_info(self, result_rpa_order_list):
-        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
-            return
-
-        for order_info in result_rpa_order_list:
-            # 完成RPA之后，更新FO缓存中的SONUMBER
-            order_id = order_info['OrderId']
-            so_number = order_info['sonumber']
-            order = self.order_data_manager.forecast_order_dict[order_id]
-            order.complete_so_number(so_number=so_number)
-            # 更新 FOList 和 FORecordList 中的SONUMBER
-            if not order.has_valid_so_number:
-                continue
-            self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
 
 
     # region 创建初始界面
@@ -151,26 +134,7 @@ class OrderPopupUI:
         col_name = tree["columns"][col_index]
         values = tree.item(item_id, "values")
         value = values[col_index]
-        so_number = values[-1]
 
-        if col_name == "行程草稿？":
-            if do.Order.is_so_number_valid(so_number):
-                messagebox.showerror(
-                    parent=self.window,
-                    title="错误",
-                    message="该订单已有SO号，不能编辑！若需要修改，请直接去LBShell修改。"
-                )
-                return
-            # 切换 "行程草稿？" 列的值
-            new_value = "1" if value == "" else ""
-            values = list(values)
-            values[col_index] = new_value
-            tree.item(item_id, values=values)
-            order_id = values[0]
-            order = self.order_data_manager.forecast_order_dict[order_id]
-            order.is_in_trip_draft = 1 if new_value == "1" else 0
-            self.order_data_manager.update_forecast_order_in_fo_list(order=order)
-            return
 
         # 可编辑列
         x, y, width, height = tree.bbox(item_id, col)
@@ -186,13 +150,6 @@ class OrderPopupUI:
                     parent=self.window,
                     title="错误",
                     message="该列不允许编辑！"
-                )
-                return
-            if do.Order.is_so_number_valid(so_number):
-                messagebox.showerror(
-                    parent=self.window,
-                    title="错误",
-                    message="该订单已有SO号，不能编辑！若需要修改，请直接去LBShell修改。"
                 )
                 return
             new_value = entry.get()
@@ -230,11 +187,11 @@ class OrderPopupUI:
                         parent=self.window
                     )
                     return
-                full = self.data_manager.get_full_trycock_gals_by_shipto(shipto=order.shipto)
-                if new_value <= 0 or new_value > full:
+                max_drop_kg = self.data_manager.get_max_payload_value_by_ship2(ship2=order.shipto)
+                if new_value <= 0 or new_value > max_drop_kg:
                     messagebox.showerror(
                         title="错误",
-                        message="KG应该大于0且小于等于最大配送量{}！".format(full),
+                        message="KG应该大于0且小于等于最大配送量{}！".format(max_drop_kg),
                         parent=self.window
                     )
                     return
@@ -248,8 +205,7 @@ class OrderPopupUI:
             )
             if col_name in ["From", "To"]:
                 new_value = new_value.strftime("%Y/%m/%d %H:%M")
-            if col_name == "行程草稿？":
-                new_value = "1" if new_value == 1 else ""
+
             values[col_index] = new_value
             tree.item(item_id, values=values)
             entry.destroy()

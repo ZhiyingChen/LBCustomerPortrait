@@ -94,6 +94,20 @@ class LBDataManager:
         result_df = pd.read_sql(sql_statement, conn)
         return result_df
 
+    def get_max_payload_value_by_ship2(
+            self,
+            ship2: str,
+        ):
+        sql_statement = \
+            ("SELECT CorporateIdn, LicenseFill "
+             "FROM odbc_MaxPayloadByShip2 "
+             "WHERE ToLocNum = '{}' ").format(ship2)
+        self.cur.execute(sql_statement)
+        results = self.cur.fetchall()
+        for (CorporateIdn, LicenseFill) in results:
+            return LicenseFill
+        return 0
+
 
     def get_manual_forecast(self, shipto, fromTime, toTime):
         '''get manually calculated data'''
