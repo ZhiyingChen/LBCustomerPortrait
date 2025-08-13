@@ -62,7 +62,7 @@ class OrderPopupUI:
 
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注"]
+            editable_cols=["订单从", "订单到", "吨", "备注"]
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
         self.working_tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
@@ -81,7 +81,7 @@ class OrderPopupUI:
             title,
             editable_cols=None
     ):
-        columns = ["订单", "类型", "DT","产品", "ShipTo", "客户简称",  "订单从", "订单到", "KG", "备注", "目标充装", "最佳充装", "断气"]
+        columns = ["订单", "类型", "DT","产品", "ShipTo", "客户简称",  "订单从", "订单到", "吨", "备注", "目标充装", "最佳充装", "断气"]
         widths = [80, 20, 30, 30, 60, 80,  110, 110, 40, 80, 110, 110, 110]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
@@ -157,7 +157,7 @@ class OrderPopupUI:
             order_id = values[0]
             order = self.order_data_manager.forecast_order_dict[order_id]
             # 校验
-            if col_name in ["From", "To"]:
+            if col_name in ["订单从", "订单到"]:
                 try:
                     new_value = pd.to_datetime(new_value)
                 except ValueError:
@@ -167,8 +167,8 @@ class OrderPopupUI:
                         parent=self.window
                     )
                     return
-                if (col_name == "From" and new_value >= order.to_time or
-                        col_name == "To" and new_value <= order.from_time):
+                if (col_name == "订单从" and new_value >= order.to_time or
+                        col_name == "订单到" and new_value <= order.from_time):
                     messagebox.showerror(
                         title="错误",
                         message="时间范围不正确，应该在订单开始和结束时间之间！",
@@ -177,25 +177,29 @@ class OrderPopupUI:
                     return
 
 
-            elif col_name == "KG":
+            elif col_name == "吨":
                 try:
-                    new_value = int(new_value)
+                    new_value = float(new_value)
                 except ValueError:
                     messagebox.showerror(
                         title="错误",
-                        message="KG格式不正确，应该为整数，请重新输入！",
-                        parent=self.window
-                    )
-                    return
-                max_drop_kg = self.data_manager.get_max_payload_value_by_ship2(ship2=order.shipto)
-                if new_value <= 0 or new_value > max_drop_kg:
-                    messagebox.showerror(
-                        title="错误",
-                        message="KG应该大于0且小于等于最大配送量{}！".format(max_drop_kg),
+                        message="吨格式不正确，应该为一位小数，请重新输入！",
                         parent=self.window
                     )
                     return
 
+                max_drop_kg = self.data_manager.get_max_payload_value_by_ship2(ship2=order.shipto)  / 1000
+                if new_value <= 0 or new_value > max_drop_kg:
+                    messagebox.showerror(
+                        title="错误",
+                        message="吨应该大于0且小于等于最大配送量{}！".format(max_drop_kg),
+                        parent=self.window
+                    )
+                    return
+            values[col_index] = new_value  # 更新界面
+
+            if col_name == "吨":
+                new_value = new_value * 1000
             # 1. 更新缓存中该ShipTo的FO订单的信息
             setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
 
@@ -203,10 +207,10 @@ class OrderPopupUI:
             self.order_data_manager.update_forecast_order_in_fo_list(
                 order=order
             )
-            if col_name in ["From", "To"]:
+            if col_name in ["订单从", "订单到"]:
                 new_value = new_value.strftime("%Y/%m/%d %H:%M")
 
-            values[col_index] = new_value
+
             tree.item(item_id, values=values)
             entry.destroy()
 
@@ -291,7 +295,7 @@ class OrderPopupUI:
             order.cust_name,
             order.from_time.strftime("%Y/%m/%d %H:%M"),
             order.to_time.strftime("%Y/%m/%d %H:%M"),
-            int(order.drop_kg),
+            round(order.drop_kg / 1000, 1),
             order.comments,
             order.target_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.target_date, datetime.datetime) and pd.notnull(
                 order.target_date) else "",
