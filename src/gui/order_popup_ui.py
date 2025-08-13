@@ -30,25 +30,26 @@ class OrderPopupUI:
         self.window.geometry("1200x600")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
+
         # 上方框架
         top_frame = tk.Frame(self.window)
         top_frame.pack(side='top', fill='x', padx=10, pady=5)
 
         # 按钮容器
-        # button_container = tk.Frame(top_frame)
-        # button_container.pack(side='right', fill='x')
-        #
-        # # 一键在LBShell建立SO订单按钮
-        # btn_rpa = tk.Button(button_container, text="一键在LBShell\n建立SO订单",
-        #                     command=self._send_data_to_lb_shell,
-        #                     bg="#4CAF50", fg="white", relief="raised", font=("Arial", 10))
-        # btn_rpa.pack(side='right', padx=5, pady=5)
-        #
-        # # 一键清除已经创建的SO号的订单按钮
-        # btn_clear_so = tk.Button(button_container, text="一键清除已创建\nSO号的订单",
-        #                          command=self._clear_all_with_so_number,
-        #                          bg='#ADD8E6',fg="black", relief="raised", font=("Arial", 10))
-        # btn_clear_so.pack(side='left', padx=5, pady=5)
+        button_container = tk.Frame(top_frame)
+        button_container.pack(side='right', fill='x')
+
+
+        # 一键清除已经创建的订单按钮
+        btn_clear_so = tk.Button(button_container, text="一键清除订单",
+                                 command=self._clear_all,
+                                 bg='#ADD8E6',fg="black", relief="raised", font=("Arial", 10))
+        btn_clear_so.pack(side='left', padx=5, pady=5)
+
+        btn_copy_table = tk.Button(button_container, text="复制表格",
+                                 command=self.copy_all_to_clipboard,
+                                 bg="#009A49",fg="white", relief="raised", font=("Arial", 10))
+        btn_copy_table.pack(side='left', padx=5, pady=5)
 
         # 主体区域
         self.main_frame = tk.Frame(self.window)
@@ -56,78 +57,6 @@ class OrderPopupUI:
 
         # 左侧：Working FO List 和 OO List
         self._create_working_tree()
-
-    def _run_rpa(self):
-        valid_order_list = {
-            k: v for k, v in self.order_data_manager.forecast_order_dict.items()
-            if v.is_in_trip_draft and not v.has_valid_so_number
-        }
-        """
-            对于已经有SO号的订单，或者不在行程草稿中的订单，不进行RPA操作 
-        """
-        if len(valid_order_list) == 0:
-            return
-
-        rpa_order_list = []
-        for o_id, order in valid_order_list.items():
-            rpa_order_list.append(
-                {
-                    'OrderId': order.order_id,
-                    'LocNum': order.shipto,
-                    'from': order.from_time.strftime('%d/%m/%y %H:%M'),
-                    'to': order.to_time.strftime('%d/%m/%y %H:%M'),
-                    'kg': str(int(order.drop_kg)),
-                    'comment': order.comments,
-                    'PONumber': order.po_number,
-                    'sonumber': ''
-                }
-            )
-
-        pic_dir = r'\\shangnt\lbshell\PUAPI\PU_program\automation\rpa_pic'
-        lbshell_exe_name = "LbShell32.exe"
-        lb_shell_path = r'C:\Program Files (x86)'  # 需要替换为你的LBshell所在c盘folder,大部分无需替换。
-
-        result_rpa_order_list = BuildOrder().get_sonumber(
-            LBversion='cn',
-            path_pic=pic_dir,
-            file_name=lbshell_exe_name,
-            search_path=lb_shell_path,
-            data_list=rpa_order_list
-        )
-
-        return result_rpa_order_list
-
-    def _fake_run_rpa(self):
-        if len(self.order_data_manager.forecast_order_dict) == 0:
-            messagebox.showerror(
-                title="错误",
-                message="没有订单数据，请先添加订单！",
-                parent=self.window
-            )
-            return
-
-        rpa_order_list = []
-        for o_id, order in self.order_data_manager.forecast_order_dict.items():
-            if order.has_valid_so_number or not order.is_in_trip_draft:
-                """
-                对于已经有SO号的订单，或者不在行程草稿中的订单，不进行RPA操作 
-                """
-                continue
-            rpa_order_list.append(
-                {
-                    'OrderId': order.order_id,
-                    'LocNum': order.shipto,
-                    'from': order.from_time.strftime('%d/%m/%y %H:%M'),
-                    'to': order.to_time.strftime('%d/%m/%y %H:%M'),
-                    'kg': str(int(order.drop_kg)),
-                    'comment': order.comments,
-                    'PONumber': order.po_number,
-                    'sonumber': 'SO123456'
-                }
-            )
-        return rpa_order_list
-
-
 
     def update_rpa_result_info(self, result_rpa_order_list):
         if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
@@ -145,116 +74,32 @@ class OrderPopupUI:
             self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
 
 
-    def _write_result_to_excel(self, result_df):
-        # Define the output file path
-        if func.get_user_name() not in ['chenz32', 'zhaol12', 'huy15', 'wangj78']:
-            return
-
-        result_file_path = './output/rpa_result.xlsx'
-
-        # Check if the file exists
-        if os.path.exists(result_file_path):
-            # Append to existing file
-            with pd.ExcelWriter(result_file_path, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
-                startrow = writer.sheets['Sheet1'].max_row
-                if startrow == 0:
-                    result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow)
-                else:
-                    result_df.to_excel(writer, index=False, sheet_name='Sheet1', startrow=startrow, header=False)
-
-        else:
-            # Create a new file
-            result_df.to_excel(result_file_path, index=False, engine='openpyxl')
-
-    def _send_result_to_email(self, result_rpa_order_list):
-        if func.get_user_name().lower() not in ['zhaol12', 'huy15', 'wangj78']:
-            return
-        if not isinstance(result_rpa_order_list, list) or len(result_rpa_order_list) == 0:
-            return
-        try:
-            user_name = func.get_user_name()
-
-            # 输出到excel做几路
-            result_df = pd.DataFrame(result_rpa_order_list)
-
-            # Add timestamp column
-            result_df['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            result_df['是否成功'] = result_df['sonumber'].apply(
-                lambda x: '成功' if do.Order.is_so_number_valid(x) else '失败')
-
-            self._write_result_to_excel(result_df)
-
-            emailer = '{}@airproducts.com;chenz32@airproducts.com;zhaol12@airproducts.com'.format(user_name)
-
-            success_df = result_df[result_df['是否成功'] == '成功']
-            fail_df = result_df[result_df['是否成功'] == '失败']
-
-            total_number = len(result_df)
-            success_number = len(success_df)
-            fail_number = len(fail_df)
-
-            now = datetime.datetime.now()
-
-            message_subject = "LBShell RPA 操作结果 {}: 失败{}条".format(now.strftime("%Y-%m-%d %H:%M"), fail_number)
-
-
-            message_body = (
-                "以下是RPA操作结果表格，总共{}条订单：\n\n "
-                "其中， sonumber 列为RPA操作生成的订单号，如果该订单号不以SO开头，则表示RPA操作失败。\n\n "
-                "失败订单{}条，失败订单如下：\n\n "
-                "{}  \n\n"
-                "成功订单{}条，成功订单如下：\n\n "
-                "{}  \n\n".format(
-                    total_number,
-                fail_number,
-                fail_df.to_html(index=False),
-                success_number,
-                success_df.to_html(index=False)
-            )
-            )
-
-            outlook_sender(sender=emailer, addressee=emailer, message_subject=message_subject, message_body=message_body)
-            logging.info("发送邮件成功！")
-        except Exception as e:
-            logging.error("发生邮件失败： {}" .format(e))
-
-
     # region 创建初始界面
     def _create_working_tree(self):
-        insert_data = []
-        for shipto, fo in self.order_data_manager.forecast_order_dict.items():
-            data = [
-                fo.order_id,
-                fo.order_type,
-                fo.corporate_idn,
-                fo.shipto,
-                fo.cust_name,
-                fo.product,
-                fo.from_time.strftime("%Y/%m/%d %H:%M"),
-                fo.to_time.strftime("%Y/%m/%d %H:%M"),
-                int(fo.drop_kg),
-                fo.comments,
-                fo.target_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.target_date, datetime.datetime) and pd.notnull(fo.target_date) else "",
-                fo.risk_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.risk_date, datetime.datetime) and pd.notnull(fo.risk_date) else "",
-                fo.run_out_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.run_out_date, datetime.datetime) and pd.notnull(fo.run_out_date)else "",
-            ]
-            insert_data.append(data)
+
         self.working_tree = self._create_table(
             self.main_frame, title="Working FO List",
-            editable_cols=["From", "To", "KG", "备注"],
-            insert_data=insert_data
+            editable_cols=["From", "To", "KG", "备注"]
         )
         self.working_tree.bind("<Button-3>", lambda e, t=self.working_tree: self._on_right_click(e, t))
+        self.working_tree.bind("<Motion>", self.on_motion)  # 绑定鼠标移动事件
+        self.working_tree.bind("<Leave>", self.on_leave)  # 绑定鼠标离开事件
+
+        self.tooltip = None  # 初始化 tooltip
+
+        for shipto, fo in self.order_data_manager.forecast_order_dict.items():
+            self.add_order_display_in_working_tree(order=fo)
+
+
 
     def _create_table(
             self,
             parent,
             title,
-            editable_cols=None,
-            insert_data=None
+            editable_cols=None
     ):
-        columns = ["临时Id", "类型", "DT","ShipTo", "客户简称", "产品", "订单从", "订单到", "KG", "备注", "目标充装", "最佳充装", "断气"]
-        widths = [80, 20, 30, 60, 70, 30, 110, 110, 40, 80, 80, 80, 80]
+        columns = ["订单", "类型", "DT","产品", "ShipTo", "客户简称",  "订单从", "订单到", "KG", "备注", "目标充装", "最佳充装", "断气"]
+        widths = [80, 20, 30, 30, 60, 80,  110, 110, 40, 80, 110, 110, 110]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -275,11 +120,6 @@ class OrderPopupUI:
 
         # 双击事件：显示客户简称或编辑
         tree.bind("<Double-1>", lambda e, t=tree: self._on_double_click(e, t, editable_cols))
-
-        # 示例数据
-        if insert_data:
-            for data in insert_data:
-                tree.insert("", "end", values=tuple(data))
 
         return tree
 
@@ -435,13 +275,13 @@ class OrderPopupUI:
             self.delete_order(order_id, tree, item)
 
 
-    def _clear_all_with_so_number(self):
+    def _clear_all(self):
         """
          点击“清空所有有SO号的行”按钮，清空所有有SO号的行
         """
         confirm = messagebox.askyesno(
             title="提示",
-            message="确认清空所有有SO号的行吗？",
+            message="确认清空所有有的行吗？",
             parent=self.window
         )
         if not confirm:
@@ -450,82 +290,34 @@ class OrderPopupUI:
         for item in self.working_tree.get_children():
             values = list(self.working_tree.item(item, "values"))
             order_id = values[0]
-            order = self.order_data_manager.forecast_order_dict[order_id]
-            if order.has_valid_so_number:
-               self.delete_order(order_id, self.working_tree, item)
+            self.delete_order(order_id, self.working_tree, item)
 
 
-    def _send_data_to_lb_shell(self):
-        confirm = messagebox.askyesno(
+    def copy_all_to_clipboard(self):
+        all_items = self.working_tree.get_children()
+        if not all_items:
+            return
+
+        # 获取列名
+        headers = self.working_tree["columns"]
+        data = [headers]
+
+        # 获取所有行数据
+        for item in all_items:
+            row = self.working_tree.item(item, "values")
+            data.append(row)
+
+        # 拼接为制表符分隔的字符串
+        text = "\n".join(["\t".join(map(str, row)) for row in data])
+
+        # 复制到剪贴板
+        self.window.clipboard_clear()
+        self.window.clipboard_append(text)
+        messagebox.showinfo(
             title="提示",
-            message="确认一键在LBShell建立SO订单吗？"
-                    "\n（只有勾选行程草稿的订单且没有SO号的订单会被处理）\n"
-                    "如果确认，则在建完所有订单前，请勿使用鼠标，"
-                    "请耐心等待。",
-            parent=self.window
+            message="已复制到剪贴板！",
         )
-        if not confirm:
-            return
 
-        # 对于没有SONUMBER且勾选行程草稿的订单执行RPA功能，完成之后更新缓存中的SONUMBER
-        valid_order_list = {
-            k: v for k, v in self.order_data_manager.forecast_order_dict.items()
-            if v.is_in_trip_draft and not v.has_valid_so_number
-        }
-
-        if not valid_order_list:
-            messagebox.showinfo(
-                title="提示",
-                message="没有需要处理的订单！",
-                parent=self.window
-            )
-            return
-
-        rpa_email_result_dict = dict()
-        for i in range(2):
-            valid_order_list = {
-                k: v for k, v in self.order_data_manager.forecast_order_dict.items()
-                if v.is_in_trip_draft and not v.has_valid_so_number
-            }
-            if not valid_order_list:
-                continue
-            print('RPA第{}次尝试...剩余{}个订单...'.format(i+1, len(valid_order_list)))
-
-            rpa_result_lt = self._run_rpa()
-
-            self.update_rpa_result_info(rpa_result_lt)
-
-            # 把更新后的SONUMBER 展示在界面
-            self._update_so_number_in_working_tree()
-
-
-            time.sleep(5)
-
-            for item in rpa_result_lt:
-                rpa_email_result_dict.update(
-                    {
-                        item['OrderId']: item
-                    }
-                )
-        self._send_result_to_email(list(rpa_email_result_dict.values()))
-
-    def _update_so_number_in_working_tree(self):
-        """
-         把更新后的SONUMBER展示在界面
-        """
-        for item in self.working_tree.get_children():
-            values = list(self.working_tree.item(item, "values"))
-            order_id = values[0]
-            order = self.order_data_manager.forecast_order_dict[order_id]
-            so_number = order.so_number
-            values[-1] = so_number
-            self.working_tree.item(item, values=values)
-
-
-
-    def _clear_all_rows(self, tree):
-        for item in tree.get_children():
-            tree.delete(item)
 
     def _on_close(self):
         self.closed = True
@@ -538,9 +330,9 @@ class OrderPopupUI:
             order.order_id,
             order.order_type,
             order.corporate_idn,
+            order.product,
             order.shipto,
             order.cust_name,
-            order.product,
             order.from_time.strftime("%Y/%m/%d %H:%M"),
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
@@ -553,3 +345,29 @@ class OrderPopupUI:
                 order.run_out_date) else "",
         ]
         self.working_tree.insert("", "end", values=tuple(data))
+
+    def on_motion(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+        item_id = self.working_tree.identify_row(event.y)
+        col = self.working_tree.identify_column(event.x)
+        if item_id and col:
+            col_index = int(col.replace("#", "")) - 1
+            values = self.working_tree.item(item_id, "values")
+            if col_index < len(values):
+                value = values[col_index]
+                if len(value) > 10:  # 如果内容较长，显示 tooltip
+                    self.tooltip = tk.Toplevel(self.working_tree)
+                    self.tooltip.withdraw()
+                    self.tooltip.overrideredirect(True)
+                    label = tk.Label(self.tooltip, text=value, background="yellow", relief='solid', borderwidth=1)
+                    label.pack()
+                    self.tooltip.geometry(f"+{event.x_root-len(value) * 8}+{event.y_root+10}")
+                    self.tooltip.deiconify()
+
+    def on_leave(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
