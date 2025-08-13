@@ -28,7 +28,7 @@ class Order:
         self.product = product
         self.from_time = pd.to_datetime(from_time) if isinstance(from_time, str) else from_time
         self.to_time = pd.to_datetime(to_time) if isinstance(to_time, str) else to_time
-        self.drop_kg = drop_kg
+        self.drop_kg = float(drop_kg)
         self.comments = comments
         self.po_number = po_number
         self.order_type = order_type

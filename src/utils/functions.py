@@ -97,7 +97,7 @@ def generate_new_forecast_order_id():
     生成新的订单ID
     '''
     now = datetime.datetime.now()
-    return now.strftime('%m%d%H%M%S')
+    return now.strftime('%y%m%d%H%M%S')
 
 def get_user_name():
     home = str(os.path.expanduser("~")).split('\\')
