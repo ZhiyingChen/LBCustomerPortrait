@@ -1407,9 +1407,14 @@ class LBForecastUI:
             messagebox.showinfo( title='提示', message='订单确认弹窗已经打开，请勿重复打开!')
             return
 
-        target_date = self.df_forecast['TargetRefillDate'].iloc[0]
-        risk_date = self.df_forecast['TargetRiskDate'].iloc[0]
-        run_out_date = self.df_forecast['TargetRunoutDate'].iloc[0]
+        try:
+            target_date = self.df_forecast['TargetRefillDate'].iloc[0]
+            risk_date = self.df_forecast['TargetRiskDate'].iloc[0]
+            run_out_date = self.df_forecast['TargetRunoutDate'].iloc[0]
+        except:
+            target_date = None
+            risk_date = None
+            run_out_date = None
 
         for curve in self.forecast_plot_ax.get_lines():
             if curve.contains(event)[0]:
