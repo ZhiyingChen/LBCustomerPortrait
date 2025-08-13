@@ -423,21 +423,6 @@ class LBForecastUI:
         self._set_manual_input_label()
 
 
-
-    def _set_frame_warning_label(self):
-        # 添加一个标签作为示例
-        self.t4_t6_label = tk.Label(self.frame_warning, text="T6-T4 近三次平均 (h) : ")
-        self.t4_t6_label.grid(row=0, column=0, padx=6, pady=0)
-
-        self.t4_t6_value_label = tk.Label(self.frame_warning, text="")
-        self.t4_t6_value_label.grid(row=0, column=1, padx=6, pady=0)
-
-        self.tr_ro_label = tk.Label(self.frame_warning, text="TR-RO (h): ")
-        self.tr_ro_label.grid(row=1, column=0, padx=6, pady=0)
-        self.tr_ro_value_label = tk.Label(self.frame_warning, text="")
-        self.tr_ro_value_label.grid(row=1, column=1, padx=6, pady=0)
-
-
     def _set_manual_input_label(self):
         '''for schedulers manually input their estimation about hourly usage'''
 
@@ -519,19 +504,24 @@ class LBForecastUI:
         df_result = df_result[df_result['Forecasted_Reading'] >= 0].reset_index(drop=True)
         return df_result
 
-    def update_forecast_tr_ro_risk_label(self, manual_usage_rate: float=0):
+    def update_forecast_tr_ro_risk_label(self, df_manual: pd.DataFrame, manual_usage_rate: float=0):
         target_refill = self.df_info.TargetGalsUser.values[0]
 
         runout = self.df_info.RunoutGals.values[0]
 
         risk = (target_refill + runout) / 2
 
-        # 当前液位
-        latest_level = self.ts_history.Reading_Gals.iloc[-1]
-        latest_time = self.ts_history.index[-1]
+        # 找到最高点的 液位和时间
+        # 找到 Forecasted_Reading 最大值的索引
+        max_index = df_manual['Forecasted_Reading'].idxmax()
+
+        # 获取最大值和对应的 Next_hr
+        latest_level = df_manual.loc[max_index, 'Forecasted_Reading']
+        latest_time = df_manual.loc[max_index, 'Next_hr']
+
 
         # 根据 manual usage rate 计算还有几个小时到达 target_refill 和 runout
-        if manual_usage_rate > 0 and latest_level > target_refill:
+        if manual_usage_rate > 0:
             reach_target_hrs = (latest_level - target_refill) / manual_usage_rate
             reach_risk_hrs = (latest_level - risk) / manual_usage_rate
             reach_runout_hrs = (latest_level - runout) / manual_usage_rate
@@ -543,6 +533,9 @@ class LBForecastUI:
             self.detail_labels['target_time'].config(text=forecast_reach_target_time.strftime("%m-%d %H:%M"))
             self.detail_labels['risk_time'].config(text=forecast_reach_risk_time.strftime("%m-%d %H:%M"))
             self.detail_labels['runout_time'].config(text=forecast_reach_runout_time.strftime("%m-%d %H:%M"))
+
+            tr_ro = round((forecast_reach_risk_time - forecast_reach_target_time).total_seconds() / 3600)
+            self.detail_labels['tr_ro'].config(text=tr_ro)
 
             self.df_forecast['TargetRefillDate'] = forecast_reach_target_time
             self.df_forecast['TargetRiskDate'] = forecast_reach_risk_time
@@ -590,7 +583,7 @@ class LBForecastUI:
 
         self.manual_plot = True
         self.plot()
-        self.update_forecast_tr_ro_risk_label(manual_usage_rate=input_value)
+        self.update_forecast_tr_ro_risk_label(df_manual=df, manual_usage_rate=input_value)
         self.manual_plot = False
 
 
@@ -1062,9 +1055,13 @@ class LBForecastUI:
             tr = TR_time.strftime("%m-%d %H:%M")
             risk = Risk_time.strftime("%m-%d %H:%M")
             ro = RO_time.strftime("%m-%d %H:%M")
+            tr_ro = round((Risk_time - TR_time).total_seconds() / 3600)
+
             self.detail_labels['target_time'].config(text=tr)
             self.detail_labels['risk_time'].config(text=risk)
             self.detail_labels['runout_time'].config(text=ro)
+
+            self.detail_labels['tr_ro'].config(text=tr_ro)
 
 
         if len(ts_forecast_usage) >= 2:
@@ -1084,8 +1081,7 @@ class LBForecastUI:
         self.detail_labels['max_payload_label'].config(text=f'{current_primary_dt} {current_max_payload}')
 
 
-        tr_ro = self.data_manager.get_tr_ro_value(shipto)
-        self.detail_labels['tr_ro'].config(text=tr_ro)
+
 
 
         self.update_production_table(shipto_id=str(shipto))
