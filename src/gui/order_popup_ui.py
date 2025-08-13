@@ -34,11 +34,6 @@ class OrderPopupUI:
         top_frame = tk.Frame(self.window)
         top_frame.pack(side='top', fill='x', padx=10, pady=5)
 
-        # 上次修改时间标签
-        self.last_modified_label = tk.Label(top_frame, text=f"上次修改时间: ", anchor='w',
-                                            fg='#009DD0', font=("Arial", 12))
-        self.last_modified_label.pack(side='left', fill='x', expand=True)
-        self.update_last_modified_time()
         # 按钮容器
         # button_container = tk.Frame(top_frame)
         # button_container.pack(side='right', fill='x')
@@ -148,7 +143,6 @@ class OrderPopupUI:
             if not order.has_valid_so_number:
                 continue
             self.order_data_manager.update_so_number_in_fo_list(order_id=order_id, so_number=order.so_number)
-            self.order_data_manager.update_so_number_in_fo_record_list(order_id=order_id, so_number=order.so_number)
 
 
     def _write_result_to_excel(self, result_df):
@@ -232,6 +226,7 @@ class OrderPopupUI:
             data = [
                 fo.order_id,
                 fo.order_type,
+                fo.corporate_idn,
                 fo.shipto,
                 fo.cust_name,
                 fo.product,
@@ -239,7 +234,9 @@ class OrderPopupUI:
                 fo.to_time.strftime("%Y/%m/%d %H:%M"),
                 int(fo.drop_kg),
                 fo.comments,
-                fo.so_number
+                fo.target_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.target_date, datetime.datetime) and pd.notnull(fo.target_date) else "",
+                fo.risk_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.risk_date, datetime.datetime) and pd.notnull(fo.risk_date) else "",
+                fo.run_out_date.strftime("%Y/%m/%d %H:%M") if isinstance(fo.run_out_date, datetime.datetime) and pd.notnull(fo.run_out_date)else "",
             ]
             insert_data.append(data)
         self.working_tree = self._create_table(
@@ -256,8 +253,8 @@ class OrderPopupUI:
             editable_cols=None,
             insert_data=None
     ):
-        columns = ["临时Id", "类型","ShipTo", "客户简称", "产品", "From", "To", "KG", "备注",  "SO号"]
-        widths = [80, 20, 60, 70, 30, 110, 110, 40, 80, 80]
+        columns = ["临时Id", "类型", "DT","ShipTo", "客户简称", "产品", "订单从", "订单到", "KG", "备注", "目标充装", "最佳充装", "断气"]
+        widths = [80, 20, 30, 60, 70, 30, 110, 110, 40, 80, 80, 80, 80]
         frame = tk.LabelFrame(parent, text=title)
         frame.pack(fill='both', expand=True, pady=5)
 
@@ -333,8 +330,6 @@ class OrderPopupUI:
             order = self.order_data_manager.forecast_order_dict[order_id]
             order.is_in_trip_draft = 1 if new_value == "1" else 0
             self.order_data_manager.update_forecast_order_in_fo_list(order=order)
-            self.order_data_manager.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Modify)
-            self.update_last_modified_time()
             return
 
         # 可编辑列
@@ -411,12 +406,6 @@ class OrderPopupUI:
             self.order_data_manager.update_forecast_order_in_fo_list(
                 order=order
             )
-            if col_name != "行程草稿？":
-                # 3. FORecordList 增加一行 EditType 为Modify 的信息
-                self.order_data_manager.insert_order_record_in_fo_record_list(
-                    order=order,
-                    edit_type=enums.EditType.Modify
-                )
             if col_name in ["From", "To"]:
                 new_value = new_value.strftime("%Y/%m/%d %H:%M")
             if col_name == "行程草稿？":
@@ -424,8 +413,6 @@ class OrderPopupUI:
             values[col_index] = new_value
             tree.item(item_id, values=values)
             entry.destroy()
-            self.update_last_modified_time()
-
 
         entry.bind("<Return>", save_edit)
         entry.bind("<FocusOut>", lambda e: entry.destroy())
@@ -434,12 +421,6 @@ class OrderPopupUI:
         #   FOList里面删除原来的行
         self.order_data_manager.delete_forecast_order_from_fo_list(
             order_id=order_id
-        )
-
-        #   FORecordList 增加一行 EditType 为 Delete 的信息
-        self.order_data_manager.insert_order_record_in_fo_record_list(
-            order=self.order_data_manager.forecast_order_dict[order_id],
-            edit_type=enums.EditType.Delete
         )
         #   界面里面删除本行
         tree.delete(item)
@@ -453,11 +434,6 @@ class OrderPopupUI:
             order_id = tree.item(item, "values")[0]
             self.delete_order(order_id, tree, item)
 
-        self.update_last_modified_time()
-
-    def update_last_modified_time(self):
-        last_modified_time = self.order_data_manager.get_last_modified_time()
-        self.last_modified_label.config(text=f"上次修改时间：{last_modified_time}")
 
     def _clear_all_with_so_number(self):
         """
@@ -561,6 +537,7 @@ class OrderPopupUI:
         data = [
             order.order_id,
             order.order_type,
+            order.corporate_idn,
             order.shipto,
             order.cust_name,
             order.product,
@@ -568,7 +545,11 @@ class OrderPopupUI:
             order.to_time.strftime("%Y/%m/%d %H:%M"),
             int(order.drop_kg),
             order.comments,
-            order.so_number
+            order.target_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.target_date, datetime.datetime) and pd.notnull(
+                order.target_date) else "",
+            order.risk_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.risk_date, datetime.datetime) and pd.notnull(
+                order.risk_date) else "",
+            order.run_out_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.run_out_date, datetime.datetime) and pd.notnull(
+                order.run_out_date) else "",
         ]
         self.working_tree.insert("", "end", values=tuple(data))
-        self.update_last_modified_time()

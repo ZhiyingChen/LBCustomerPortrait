@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import datetime
 import sqlite3
+import time
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
@@ -151,11 +152,15 @@ class LBOrderDataManager:
                     {} TEXT PRIMARY KEY,   -- order_id
                     {} TEXT NOT NULL, -- shipto
                     {} TEXT NOT NULL, -- cust_name
+                    {} TEXT NOT NULL, -- corporate_idn
                     {} TEXT NOT NULL, -- product
                     {} TEXT NOT NULL, -- from_time
                     {} TEXT NOT NULL, -- to_time
                     {} REAL NOT NULL, -- drop_kg
                     {} TEXT, -- comment
+                    {} TEXT NOT NULL, -- target_date
+                    {} TEXT NOT NULL, -- risk_date
+                    {} TEXT NOT NULL, -- run_out_date
                     {} TEXT NOT NULL, -- po_number
                     {} TEXT NOT NULL, -- in_trip_draft
                     {} TEXT NOT NULL, -- so_number
@@ -167,55 +172,20 @@ class LBOrderDataManager:
                 oh.order_id,
                 oh.shipto,
                 oh.cust_name,
+                oh.corporate_idn,
                 oh.product,
                 oh.from_time,
                 oh.to_time,
                 oh.drop_kg,
                 oh.comment,
+                oh.target_date,
+                oh.risk_date,
+                oh.run_out_date,
                 oh.po_number,
                 oh.in_trip_draft,
                 oh.so_number,
                 oh.apex_id,
                 oh.timestamp
-            )
-        )
-        self.conn.commit()
-
-    def create_new_fo_record_list(self):
-        oh = fd.OrderListHeader
-        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_RECORD_LIST_TABLE))
-        self.cur.execute(
-            """
-                CREATE TABLE {} (
-                     {} TEXT NOT NULL,   -- order_id
-                    {} TEXT NOT NULL,   -- shipto
-                    {} TEXT NOT NULL, -- cust_name
-                    {} TEXT NOT NULL, -- product
-                    {} TEXT NOT NULL, -- from_time
-                    {} TEXT NOT NULL, -- to_time
-                    {} REAL NOT NULL, -- drop_kg
-                    {} TEXT, -- comment
-                    {} TEXT NOT NULL, -- po_number
-                    {} TEXT NOT NULL, -- edit_type
-                    {} TEXT NOT NULL, -- timestamp
-                    {} TEXT NOT NULL, -- so_number
-                    {} TEXT NOT NULL -- apex_id
-                );
-            """.format(
-                fd.FO_RECORD_LIST_TABLE,
-                oh.order_id,
-                oh.shipto,
-                oh.cust_name,
-                oh.product,
-                oh.from_time,
-                oh.to_time,
-                oh.drop_kg,
-                oh.comment,
-                oh.po_number,
-                oh.edit_type,
-                oh.timestamp,
-                oh.so_number,
-                oh.apex_id
             )
         )
         self.conn.commit()
@@ -239,8 +209,6 @@ class LBOrderDataManager:
             logging.info('FOList table not found, creating...')
             # 如果表不存在，则创建表
             self.create_new_fo_list()
-            self.create_new_fo_record_list()
-
 
 
     def get_forecast_order_result_list(self):
@@ -255,6 +223,9 @@ class LBOrderDataManager:
         )
         forecast_order_df[oh.from_time] = pd.to_datetime(forecast_order_df[oh.from_time])
         forecast_order_df[oh.to_time] = pd.to_datetime(forecast_order_df[oh.to_time])
+        forecast_order_df[oh.target_date] = pd.to_datetime(forecast_order_df[oh.target_date])
+        forecast_order_df[oh.risk_date] = pd.to_datetime(forecast_order_df[oh.risk_date])
+        forecast_order_df[oh.run_out_date] = pd.to_datetime(forecast_order_df[oh.run_out_date])
         forecast_order_df[oh.comment] = forecast_order_df[oh.comment].fillna('')
         forecast_order_df[oh.po_number] = forecast_order_df[oh.po_number].fillna('')
         return forecast_order_df
@@ -271,6 +242,7 @@ class LBOrderDataManager:
                 order_id=row[oh.order_id],
                 shipto=row[oh.shipto],
                 cust_name=row[oh.cust_name],
+                corporate_idn=row[oh.corporate_idn],
                 product=row[oh.product],
                 from_time=row[oh.from_time],
                 to_time=row[oh.to_time],
@@ -278,6 +250,9 @@ class LBOrderDataManager:
                 comments=row[oh.comment],
                 po_number=row[oh.po_number],
                 order_type=enums.OrderType.FO,
+                target_date=row[oh.target_date],
+                risk_date=row[oh.risk_date],
+                run_out_date=row[oh.run_out_date],
                 so_number=row[oh.so_number],
                 is_in_trip_draft=int(row[oh.in_trip_draft])
             )
@@ -338,11 +313,15 @@ class LBOrderDataManager:
                        ?, -- order_id
                        ?, -- shipto
                        ?, -- cust_name
+                       ?, -- corporate_idn
                        ?, -- product
                        ?, -- from_time
                        ?, -- to_time
                        ?, -- drop_kg
                        ?, -- comment
+                       ?, -- target_date
+                       ?, -- risk_date
+                       ?, -- run_out_date
                        ?, -- po_number
                        ?, -- in_trip_draft
                        ?, -- so_number
@@ -356,11 +335,15 @@ class LBOrderDataManager:
                 order.order_id,
                 order.shipto,
                 order.cust_name,
+                order.corporate_idn,
                 order.product,
                 order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
                 order.drop_kg,
                 order.comments,
+                order.target_date.strftime('%Y-%m-%d %H:%M:%S') if isinstance(order.target_date, datetime.datetime) else '',
+                order.risk_date.strftime('%Y-%m-%d %H:%M:%S') if isinstance(order.risk_date, datetime.datetime) else '',
+                order.run_out_date.strftime('%Y-%m-%d %H:%M:%S') if isinstance(order.run_out_date, datetime.datetime) else '',
                 order.po_number,
                 order.is_in_trip_draft,
                 order.so_number,
@@ -408,47 +391,6 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order modified in FOList: {}'.format(order.shipto))
 
-    def insert_order_record_in_fo_record_list(self, order: do.Order, edit_type: enums.EditType):
-        fo_sql_line = '''
-                   INSERT INTO {} VALUES 
-                   (
-                       ?, -- order_id
-                       ?, -- shipto
-                       ?, -- cust_name
-                       ?, -- product
-                       ?, -- from_time
-                       ?, -- to_time
-                       ?, -- drop_kg
-                       ?, -- comment
-                       ?, -- po_number
-                       ?, -- edit_type
-                       ?, -- timestamp
-                       ?, -- so_number
-                       ? -- apex_id
-                   )
-               '''.format(fd.FO_RECORD_LIST_TABLE)
-        self.cur.execute(
-            fo_sql_line,
-            (
-                order.order_id,
-                order.shipto,
-                order.cust_name,
-                order.product,
-                order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
-                order.to_time.strftime('%Y-%m-%d %H:%M:%S'),
-                order.drop_kg,
-                order.comments,
-                order.po_number,
-                edit_type,
-                pd.to_datetime(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
-                order.so_number,
-                func.get_user_name()
-            )
-        )
-
-        self.conn.commit()
-        logging.info('Order record added to FORecordList: {}, {}'.format(order.shipto, edit_type))
-
     def update_so_number_in_fo_list(self, order_id: str, so_number: str):
         oh = fd.OrderListHeader
         fo_sql_line = '''
@@ -470,26 +412,6 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('update so number {} of oder {} in FOList'.format(so_number, order_id))
 
-    def update_so_number_in_fo_record_list(self, order_id: str, so_number: str):
-        oh = fd.OrderListHeader
-        fo_sql_line = '''
-                           UPDATE {} SET 
-                           {} = ? -- so_number
-                           WHERE {} = ?
-                        '''.format(
-            fd.FO_RECORD_LIST_TABLE,
-            oh.so_number,
-            oh.order_id
-        )
-        self.cur.execute(
-            fo_sql_line,
-            (
-                so_number,
-                order_id
-            )
-        )
-        self.conn.commit()
-        logging.info('update so number {} of oder {} in FORecordList'.format(so_number,order_id))
 
     def add_forecast_order(
             self, order: do.Order
@@ -498,8 +420,6 @@ class LBOrderDataManager:
         self.forecast_order_dict.update({order.order_id: order})
 
         self.insert_order_in_fo_list(order=order)
-        self.insert_order_record_in_fo_record_list(order=order, edit_type=enums.EditType.Create)
-
 
 
     def delete_forecast_order_from_fo_list(
@@ -525,7 +445,6 @@ class LBOrderDataManager:
           4. 清空缓存中的所有FO订单信息
         '''
         self.create_new_fo_list()
-        self.create_new_fo_record_list()
         self.forecast_order_dict.clear()
 
     def get_last_modified_time(self):

@@ -8,17 +8,22 @@ from .. import domain_object as do
 from .lb_order_data_manager import LBOrderDataManager
 from .order_popup_ui import OrderPopupUI
 from ..utils import functions as func
+from .lb_data_manager import LBDataManager
 
 class ConfirmOrderPopupUI:
     def __init__(
             self,
             root,
             order_data_manager: LBOrderDataManager,
+
             df_info: pd.DataFrame,
             order_popup_ui: OrderPopupUI,
             note: str = "",
             show_time = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
             loadAMT = 0,
+            target_date: pd.Timestamp = None,
+            risk_date: pd.Timestamp = None,
+            run_out_date: pd.Timestamp = None,
 
     ):
         super().__init__()
@@ -26,6 +31,7 @@ class ConfirmOrderPopupUI:
         self.root = root
         self.df_info = df_info
         self.order_data_manager = order_data_manager
+
         self.order_popup_ui = order_popup_ui
         # 默认时间
         dt = datetime.strptime(show_time, "%Y-%m-%d %H:%M")
@@ -34,6 +40,9 @@ class ConfirmOrderPopupUI:
         self.amt = loadAMT
         self.note = note
 
+        self.target_date = target_date
+        self.risk_date = risk_date
+        self.run_out_date = run_out_date
 
         self.popup = tk.Toplevel(self.root)
         self.popup.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -106,18 +115,23 @@ class ConfirmOrderPopupUI:
             )
             if not confirm:
                 return
+
         # 生成一个订单
         forecast_order = do.Order(
             order_id=func.generate_new_forecast_order_id(),
             shipto=shipto,
             cust_name=str(self.df_info.CustAcronym.values[0]),
             product=str(self.df_info.ProductClass.values[0]),
+            corporate_idn=self.df_info.PrimaryTerminal.values[0],
             from_time=pd.to_datetime(self.from_time),
             to_time=pd.to_datetime(self.to_time),
             drop_kg=self.amt,
             comments=self.note,
             po_number='',
-            order_type=enums.OrderType.FO
+            order_type=enums.OrderType.FO,
+            target_date=self.target_date,
+            risk_date=self.risk_date,
+            run_out_date=self.run_out_date,
         )
         self.order_data_manager.add_forecast_order(forecast_order)
 
