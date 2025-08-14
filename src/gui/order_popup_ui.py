@@ -4,6 +4,7 @@ from tkinter import messagebox
 import pandas as pd
 import datetime
 from tksheet import Sheet
+from tkcalendar import DateEntry
 from .lb_order_data_manager import LBOrderDataManager
 from .lb_data_manager import LBDataManager
 from .. import domain_object as do
@@ -33,19 +34,37 @@ class OrderPopupUI:
         filter_frame = tk.LabelFrame(top_frame, text="筛选")
         filter_frame.pack(side='left', padx=10)
 
+        # 在 filter_frame 中添加
+        tk.Label(filter_frame, text="开始日期").grid(row=0, column=0, padx=5)
+        self.start_date_var = tk.StringVar()
+        self.start_date_picker = DateEntry(filter_frame, textvariable=self.start_date_var, date_pattern="yyyy-mm-dd")
+        self.start_date_picker.grid(row=0, column=1, padx=5)
+
+        tk.Label(filter_frame, text="结束日期").grid(row=0, column=2, padx=5)
+        self.end_date_var = tk.StringVar()
+        self.end_date_picker = DateEntry(filter_frame, textvariable=self.end_date_var, date_pattern="yyyy-mm-dd")
+        self.end_date_picker.grid(row=0, column=3, padx=5)
+
         self.filter_vars = {
             "DT": tk.StringVar(value="全部"),
             "产品": tk.StringVar(value="全部"),
-            "类型": tk.StringVar(value="全部")
         }
 
-        for idx, label_text in enumerate(["DT", "产品", "类型"]):
-            tk.Label(filter_frame, text=label_text).grid(row=0, column=idx * 2, padx=5)
+        for idx, label_text in enumerate(["DT", "产品"]):
+            tk.Label(filter_frame, text=label_text).grid(row=1, column=idx * 2, padx=5)
             combo = ttk.Combobox(filter_frame, textvariable=self.filter_vars[label_text],
                                  state="readonly", width=10)
             combo['values'] = ["全部"]
-            combo.grid(row=0, column=idx * 2 + 1, padx=5)
+            combo.grid(row=1, column=idx * 2 + 1, padx=5)
             setattr(self, f"{label_text}_combo", combo)
+
+
+        # 设置默认值
+        today = datetime.date.today()
+        start_default = today + datetime.timedelta(days=1)
+        end_default = start_default + datetime.timedelta(days=2)
+        self.start_date_var.set(start_default.strftime("%Y-%m-%d"))
+        self.end_date_var.set(end_default.strftime("%Y-%m-%d"))
 
         btn_apply_filter = tk.Button(filter_frame, text="应用筛选",
                                      command=self._apply_dropdown_filter,
@@ -55,7 +74,7 @@ class OrderPopupUI:
         btn_clear_filter = tk.Button(filter_frame, text="清除筛选",
                                      command=self._clear_filter,
                                      bg="#D3D3D3", fg="black", relief="raised", font=("Arial", 10))
-        btn_clear_filter.grid(row=0, column=7, padx=5)
+        btn_clear_filter.grid(row=1, column=6, padx=5)
 
         # ========== 2. 隐藏模块 ==========
         hide_frame = tk.LabelFrame(top_frame, text="列操作")
@@ -121,7 +140,7 @@ class OrderPopupUI:
         2) 旧：OptionMenu，属性名为 {col_name}_dropdown（便于逐步迁移）
         """
         headers = self.sheet.headers()
-        for col_name in ["DT", "产品", "类型"]:
+        for col_name in ["DT", "产品"]:
             if col_name not in headers:
                 continue
 
@@ -194,57 +213,67 @@ class OrderPopupUI:
 
     def _apply_dropdown_filter(self):
         headers = self.sheet.headers()
-        # 收集筛选条件（排除“全部”）
         criteria = {}
-        for col_name in ["DT", "产品", "类型"]:
+        for col_name in ["DT", "产品"]:
             selected = self.filter_vars[col_name].get()
             if selected != "全部":
                 criteria[col_name] = selected
-
-        # 从“全量数据”获取所有行
-        all_rows = self._get_all_rows_from_source()
-
-        if not criteria:
-            # 没有任何条件，直接显示全部
-            self.sheet.set_sheet_data(all_rows)
-            # 更新下拉选项（基于全量）
-            self._update_filter_options()
+        # 获取日期范围
+        try:
+            start_date = datetime.datetime.strptime(self.start_date_var.get(), "%Y-%m-%d").date()
+            end_date = datetime.datetime.strptime(self.end_date_var.get(), "%Y-%m-%d").date()
+            if end_date < start_date:
+                messagebox.showerror("错误", "结束日期不能早于开始日期")
+                return
+        except ValueError:
+            messagebox.showerror("错误", "日期格式不正确")
             return
 
-        # 预计算列索引
+        all_rows = self._get_all_rows_from_source()
         col_index_map = {name: idx for idx, name in enumerate(headers)}
 
-        # 过滤：逐条件精确匹配（与 Combobox 值一致）
         filtered_rows = []
         for row in all_rows:
             match = True
+            # DT、产品筛选
             for col_name, expected in criteria.items():
                 idx = col_index_map[col_name]
-                cell_value = str(row[idx])
-                if cell_value != expected:
+                if str(row[idx]) != expected:
                     match = False
                     break
-            if match:
-                filtered_rows.append(row)
+            if not match:
+                continue
+
+            # 日期筛选：订单到
+            order_to_idx = col_index_map["订单到"]
+            order_to_str = row[order_to_idx]
+            if order_to_str:
+                try:
+                    order_to_date = datetime.datetime.strptime(order_to_str.split(" ")[0], "%Y/%m/%d").date()
+                    if not (start_date <= order_to_date <= end_date):
+                        continue
+                except ValueError:
+                    continue
+            else:
+                continue
+            filtered_rows.append(row)
 
         self.sheet.set_sheet_data(filtered_rows)
-        # 注意：这里不自动缩小可选项，保持下拉还是“全量”可选（如需联动缩小可选项，可改掉 _update_filter_options 的实现）
 
     def _clear_filter(self):
-        # 重置筛选条件
         for k, var in self.filter_vars.items():
             var.set("全部")
             combo_attr = f"{k}_combo"
             if hasattr(self, combo_attr):
                 getattr(self, combo_attr).current(0)
 
-        # 直接用全量数据覆盖，而不是先清空再逐条插入
-        all_rows = []
-        for order in self.order_data_manager.forecast_order_dict.values():
-            all_rows.append(self._order_to_row(order))  # 用统一的转换逻辑
-        self.sheet.set_sheet_data(all_rows)
+        today = datetime.date.today()
+        start_default = today + datetime.timedelta(days=1)
+        end_default = start_default + datetime.timedelta(days=2)
+        self.start_date_var.set(start_default.strftime("%Y-%m-%d"))
+        self.end_date_var.set(end_default.strftime("%Y-%m-%d"))
 
-        # 更新下拉选项
+        self.sheet.set_sheet_data(self._get_all_rows_from_source())
         self._update_filter_options()
 
     def _hide_columns(self):
