@@ -41,6 +41,17 @@ class OrderPopupUI:
 
         self._create_working_sheet()
 
+        btn_hide_column = tk.Button(button_container, text="隐藏列",
+                                    command=self._hide_columns,
+                                    bg="#FFA07A", fg="black", relief="raised", font=("Arial", 10))
+        btn_hide_column.pack(side='left', padx=5, pady=5)
+
+        btn_show_column = tk.Button(button_container, text="显示列",
+                                    command=self._show_columns,
+                                    bg="#90EE90", fg="black", relief="raised", font=("Arial", 10))
+        btn_show_column.pack(side='left', padx=5, pady=5)
+        self.hidden_column_indices = []
+
     # region 创建工作表
     def _create_working_sheet(self):
         columns = ["订单", "类型", "DT", "产品", "ShipTo", "客户简称", "订单从", "订单到",
@@ -63,6 +74,56 @@ class OrderPopupUI:
     # endregion
 
     # region 事件处理
+
+    def _hide_columns(self):
+        headers = self.sheet.headers()
+        hidden_col_names = [headers[i] for i in self.hidden_column_indices]
+        selected = self._ask_multiple_columns([v for v in headers if v not in hidden_col_names], "选择要隐藏的列")
+        if selected:
+            indices = [headers.index(name) for name in selected]
+            self.sheet.hide_columns(indices)
+            self.hidden_column_indices.extend(indices)
+
+    def _show_columns(self):
+        headers = self.sheet.headers()
+        if not self.hidden_column_indices:
+            messagebox.showinfo(title="提示", message="没有隐藏的列")
+            return
+        hidden_names = [headers[i] for i in self.hidden_column_indices]
+        selected = self._ask_multiple_columns(hidden_names, "选择要显示的列")
+        if selected:
+            indices = [headers.index(name) for name in selected]
+            self.sheet.show_columns(indices)
+            self.hidden_column_indices = [i for i in self.hidden_column_indices if i not in indices]
+
+    def _ask_multiple_columns(self, options, title):
+        popup = tk.Toplevel(self.window)
+        popup.title(title)
+        popup.geometry("300x600")
+        popup.transient(self.window)
+        popup.grab_set()
+
+        selected_vars = []
+        for opt in options:
+            var = tk.BooleanVar()
+            chk = tk.Checkbutton(popup, text=opt, variable=var)
+            chk.pack(anchor='w')
+            selected_vars.append((opt, var))
+
+        result = []
+
+        def confirm():
+            for name, var in selected_vars:
+                if var.get():
+                    result.append(name)
+            popup.destroy()
+
+        btn = tk.Button(popup, text="确认", command=confirm)
+        btn.pack(pady=10)
+
+        popup.wait_window()
+        return result
+
     def _on_cell_edit(self, event):
         row, column, value = event["row"], event["column"], event["value"]
         col_index = int(column)
@@ -153,21 +214,18 @@ class OrderPopupUI:
         self.sheet.delete_row(row_index)
 
     def add_order_display_in_working_sheet(self, order: do.Order):
-        data = [
-            order.order_id,
-            order.order_type,
-            order.corporate_idn,
-            order.product,
-            order.shipto,
-            order.cust_name,
-            order.from_time.strftime("%Y/%m/%d %H:%M"),
-            order.to_time.strftime("%Y/%m/%d %H:%M"),
-            round(order.drop_kg / 1000, 1),
-            order.comments,
-            order.target_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.target_date, datetime.datetime) and pd.notnull(order.target_date) else "",
-            order.risk_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.risk_date, datetime.datetime) and pd.notnull(order.risk_date) else "",
-            order.run_out_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.run_out_date, datetime.datetime) and pd.notnull(order.run_out_date) else "",
-        ]
+        # 需要根据当前的header顺序去自动调节
+        headers = self.sheet.headers()
+
+        data = []
+        for header in headers:
+            value = getattr(order, constant.ORDER_ATTR_MAP.get(header, ""), "")
+            if isinstance(value, datetime.datetime):
+                value = value.strftime("%Y/%m/%d %H:%M")
+            data.append(
+                value
+            )
+
         self.sheet.insert_row(data)
     # endregion
 
