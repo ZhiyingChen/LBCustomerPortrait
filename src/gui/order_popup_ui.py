@@ -41,6 +41,7 @@ class OrderPopupUI:
 
         self._create_working_sheet()
 
+    # region 创建工作表
     def _create_working_sheet(self):
         columns = ["订单", "类型", "DT", "产品", "ShipTo", "客户简称", "订单从", "订单到",
                    "吨", "备注", "目标充装", "最佳充装", "断气"]
@@ -51,16 +52,17 @@ class OrderPopupUI:
         self.sheet.enable_bindings((
             "single_select", "row_select", "column_select", "drag_select",
             "column_drag_and_drop", "row_drag_and_drop",
-            "arrowkeys", "right_click_popup_menu", "rc_select",
-            "rc_insert_row", "rc_delete_row", "rc_insert_column", "rc_delete_column",
-            "copy", "cut", "paste", "delete", "undo", "edit_cell"))
+            "right_click_popup_menu", "rc_select",  "copy", "edit_cell"))
         self.sheet.pack(fill='both', expand=True)
 
         self.sheet.extra_bindings("end_edit_cell", func=self._on_cell_edit)
+        self.sheet.popup_menu_add_command("删除选中的行", func=self._delete_selected_row)
 
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
             self.add_order_display_in_working_sheet(order=fo)
+    # endregion
 
+    # region 事件处理
     def _on_cell_edit(self, event):
         row, column, value = event["row"], event["column"], event["value"]
         col_index = int(column)
@@ -113,24 +115,42 @@ class OrderPopupUI:
             order_id = self.sheet.get_cell_data(row_index, 0)
             self.delete_order(order_id, row_index)
 
-    def delete_order(self, order_id, row_index):
-        self.order_data_manager.delete_forecast_order_from_fo_list(order_id=order_id)
-        del self.order_data_manager.forecast_order_dict[order_id]
-        self.sheet.delete_row(row_index)
-
     def copy_all_to_clipboard(self):
-        data = [self.sheet.headers]
+        headers = self.sheet.headers()
+        col_num = len(headers)
+        data = [headers]
         for row_index in range(self.sheet.get_total_rows()):
-            row = [self.sheet.get_cell_data(row_index, col_index) for col_index in range(len(self.sheet.headers))]
+            row = [self.sheet.get_cell_data(row_index, col_index) for col_index in range(col_num)]
             data.append(row)
         text = "\n".join(["\t".join(map(str, row)) for row in data])
         self.window.clipboard_clear()
         self.window.clipboard_append(text)
         messagebox.showinfo(title="提示", message="已复制到剪贴板！")
 
+    def _delete_selected_row(self, event=None):
+        selected_row = self.sheet.get_selected_rows()
+        if not selected_row:
+            return
+        order_col = self.sheet.headers().index("订单")
+        selected_order_lt = [
+            (self.sheet.get_cell_data(row_index, order_col), row_index)
+            for row_index in selected_row
+        ]
+        confirm = messagebox.askyesno(title="确认删除", message="确认删除选中行订单吗？", parent=self.window)
+        if confirm:
+            for order_id, row_index in selected_order_lt:
+                self.delete_order(order_id, row_index)
+
     def _on_close(self):
         self.closed = True
         self.window.destroy()
+    # endregion
+
+    # region 订单相关操作
+    def delete_order(self, order_id, row_index):
+        self.order_data_manager.delete_forecast_order_from_fo_list(order_id=order_id)
+        del self.order_data_manager.forecast_order_dict[order_id]
+        self.sheet.delete_row(row_index)
 
     def add_order_display_in_working_sheet(self, order: do.Order):
         data = [
@@ -149,4 +169,5 @@ class OrderPopupUI:
             order.run_out_date.strftime("%Y/%m/%d %H:%M") if isinstance(order.run_out_date, datetime.datetime) and pd.notnull(order.run_out_date) else "",
         ]
         self.sheet.insert_row(data)
+    # endregion
 
