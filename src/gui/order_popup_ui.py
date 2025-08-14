@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import messagebox
 import pandas as pd
 import datetime
@@ -20,37 +21,74 @@ class OrderPopupUI:
         self.window.geometry("1200x600")
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        top_frame = tk.Frame(self.window)
-        top_frame.pack(side='top', fill='x', padx=10, pady=5)
-
-        button_container = tk.Frame(top_frame)
-        button_container.pack(side='right', fill='x')
-
-        btn_clear_so = tk.Button(button_container, text="一键清除订单",
-                                 command=self._clear_all,
-                                 bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10))
-        btn_clear_so.pack(side='left', padx=5, pady=5)
-
-        btn_copy_table = tk.Button(button_container, text="复制表格",
-                                   command=self.copy_all_to_clipboard,
-                                   bg="#009A49", fg="white", relief="raised", font=("Arial", 10))
-        btn_copy_table.pack(side='left', padx=5, pady=5)
-
-        self.main_frame = tk.Frame(self.window)
-        self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        self._decorate_top_frame()
 
         self._create_working_sheet()
 
-        btn_hide_column = tk.Button(button_container, text="隐藏列",
+    def _decorate_top_frame(self):
+        top_frame = tk.Frame(self.window)
+        top_frame.pack(side='top', fill='x', padx=10, pady=5)
+
+        # ========== 1. 筛选模块 ==========
+        filter_frame = tk.LabelFrame(top_frame, text="筛选")
+        filter_frame.pack(side='left', padx=10)
+
+        self.filter_vars = {
+            "DT": tk.StringVar(value="全部"),
+            "产品": tk.StringVar(value="全部"),
+            "类型": tk.StringVar(value="全部")
+        }
+
+        for idx, label_text in enumerate(["DT", "产品", "类型"]):
+            tk.Label(filter_frame, text=label_text).grid(row=0, column=idx * 2, padx=5)
+            combo = ttk.Combobox(filter_frame, textvariable=self.filter_vars[label_text],
+                                 state="readonly", width=10)
+            combo['values'] = ["全部"]
+            combo.grid(row=0, column=idx * 2 + 1, padx=5)
+            setattr(self, f"{label_text}_combo", combo)
+
+        btn_apply_filter = tk.Button(filter_frame, text="应用筛选",
+                                     command=self._apply_dropdown_filter,
+                                     bg="#FFD700", fg="black", relief="raised", font=("Arial", 10))
+        btn_apply_filter.grid(row=0, column=6, padx=10)
+
+        btn_clear_filter = tk.Button(filter_frame, text="清除筛选",
+                                     command=self._clear_filter,
+                                     bg="#D3D3D3", fg="black", relief="raised", font=("Arial", 10))
+        btn_clear_filter.grid(row=0, column=7, padx=5)
+
+        # ========== 2. 隐藏模块 ==========
+        hide_frame = tk.LabelFrame(top_frame, text="列操作")
+        hide_frame.pack(side='left', padx=10)
+
+        btn_hide_column = tk.Button(hide_frame, text="隐藏列",
                                     command=self._hide_columns,
                                     bg="#FFA07A", fg="black", relief="raised", font=("Arial", 10))
         btn_hide_column.pack(side='left', padx=5, pady=5)
 
-        btn_show_column = tk.Button(button_container, text="显示列",
+        btn_show_column = tk.Button(hide_frame, text="显示列",
                                     command=self._show_columns,
                                     bg="#90EE90", fg="black", relief="raised", font=("Arial", 10))
         btn_show_column.pack(side='left', padx=5, pady=5)
         self.hidden_column_indices = []
+
+        # ========== 3. 功能模块 ==========
+        func_frame = tk.LabelFrame(top_frame, text="功能")
+        func_frame.pack(side='right', padx=10)
+
+        btn_clear_so = tk.Button(func_frame, text="一键清除订单",
+                                 command=self._clear_all,
+                                 bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10))
+        btn_clear_so.pack(side='left', padx=5, pady=5)
+
+        btn_copy_table = tk.Button(func_frame, text="复制表格",
+                                   command=self.copy_all_to_clipboard,
+                                   bg="#009A49", fg="white", relief="raised", font=("Arial", 10))
+        btn_copy_table.pack(side='left', padx=5, pady=5)
+
+        # 主工作区
+        self.main_frame = tk.Frame(self.window)
+        self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
     # region 创建工作表
     def _create_working_sheet(self):
@@ -71,9 +109,139 @@ class OrderPopupUI:
 
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
             self.add_order_display_in_working_sheet(order=fo)
+
+        self._update_filter_options()
+
+    def _update_filter_options(self):
+        """
+        用当前 sheet 数据生成筛选选项。
+        同时兼容两种情形：
+        1) 新：ttk.Combobox，属性名为 {col_name}_combo
+        2) 旧：OptionMenu，属性名为 {col_name}_dropdown（便于逐步迁移）
+        """
+        headers = self.sheet.headers()
+        for col_name in ["DT", "产品", "类型"]:
+            if col_name not in headers:
+                continue
+
+            col_index = headers.index(col_name)
+
+            # 收集去重后的值
+            values = set()
+            for row_index in range(self.sheet.get_total_rows()):
+                val = self.sheet.get_cell_data(row_index, col_index)
+                values.add(str(val))
+
+            options = ["全部"] + sorted(values)
+
+            # 记录之前用户选中，尽量保留
+            prev_selected = self.filter_vars[col_name].get()
+
+            combo_attr = f"{col_name}_combo"
+            dropdown_attr = f"{col_name}_dropdown"
+
+            if hasattr(self, combo_attr):  # 新：Combobox
+                combo = getattr(self, combo_attr)
+                combo['values'] = options
+                # 恢复或回退到"全部"
+                if prev_selected in options:
+                    self.filter_vars[col_name].set(prev_selected)
+                    # 如果是 readonly，显示就跟着变量走；如果想强制定位可以 combo.set(prev_selected)
+                else:
+                    self.filter_vars[col_name].set("全部")
+                    combo.current(0)
+
+            elif hasattr(self, dropdown_attr):  # 旧：OptionMenu（过渡兼容，尽快移除）
+                menu = getattr(self, dropdown_attr)["menu"]
+                menu.delete(0, "end")
+                for opt in options:
+                    menu.add_command(label=opt, command=lambda v=opt, k=col_name: self.filter_vars[k].set(v))
+                # 同样恢复或回退
+                if prev_selected in options:
+                    self.filter_vars[col_name].set(prev_selected)
+                else:
+                    self.filter_vars[col_name].set("全部")
+            else:
+                # 既没有 combo 也没有 dropdown；不抛错，以免影响运行
+                pass
+
     # endregion
 
     # region 事件处理
+
+    def _order_to_row(self, order: do.Order):
+        headers = self.sheet.headers()
+        row = []
+        for header in headers:
+            attr = constant.ORDER_ATTR_MAP.get(header, "")
+            value = getattr(order, attr, "")
+            if isinstance(value, datetime.datetime) and not pd.isnull(value):
+                value = value.strftime("%Y/%m/%d %H:%M")
+            # 注意：这里不改“吨”的单位，保持与你 add_order_display_in_working_sheet 一致
+            row.append(value)
+        return row
+
+    def _get_all_rows_from_source(self):
+        # 每次都从数据源构建，不依赖当前 sheet 中的可见数据
+        rows = []
+        for order in self.order_data_manager.forecast_order_dict.values():
+            rows.append(self._order_to_row(order))
+        return rows
+
+    def _apply_dropdown_filter(self):
+        headers = self.sheet.headers()
+        # 收集筛选条件（排除“全部”）
+        criteria = {}
+        for col_name in ["DT", "产品", "类型"]:
+            selected = self.filter_vars[col_name].get()
+            if selected != "全部":
+                criteria[col_name] = selected
+
+        # 从“全量数据”获取所有行
+        all_rows = self._get_all_rows_from_source()
+
+        if not criteria:
+            # 没有任何条件，直接显示全部
+            self.sheet.set_sheet_data(all_rows)
+            # 更新下拉选项（基于全量）
+            self._update_filter_options()
+            return
+
+        # 预计算列索引
+        col_index_map = {name: idx for idx, name in enumerate(headers)}
+
+        # 过滤：逐条件精确匹配（与 Combobox 值一致）
+        filtered_rows = []
+        for row in all_rows:
+            match = True
+            for col_name, expected in criteria.items():
+                idx = col_index_map[col_name]
+                cell_value = str(row[idx])
+                if cell_value != expected:
+                    match = False
+                    break
+            if match:
+                filtered_rows.append(row)
+
+        self.sheet.set_sheet_data(filtered_rows)
+        # 注意：这里不自动缩小可选项，保持下拉还是“全量”可选（如需联动缩小可选项，可改掉 _update_filter_options 的实现）
+
+    def _clear_filter(self):
+        # 重置筛选条件
+        for k, var in self.filter_vars.items():
+            var.set("全部")
+            combo_attr = f"{k}_combo"
+            if hasattr(self, combo_attr):
+                getattr(self, combo_attr).current(0)
+
+        # 直接用全量数据覆盖，而不是先清空再逐条插入
+        all_rows = []
+        for order in self.order_data_manager.forecast_order_dict.values():
+            all_rows.append(self._order_to_row(order))  # 用统一的转换逻辑
+        self.sheet.set_sheet_data(all_rows)
+
+        # 更新下拉选项
+        self._update_filter_options()
 
     def _hide_columns(self):
         headers = self.sheet.headers()
@@ -214,18 +382,7 @@ class OrderPopupUI:
         self.sheet.delete_row(row_index)
 
     def add_order_display_in_working_sheet(self, order: do.Order):
-        # 需要根据当前的header顺序去自动调节
-        headers = self.sheet.headers()
-
-        data = []
-        for header in headers:
-            value = getattr(order, constant.ORDER_ATTR_MAP.get(header, ""), "")
-            if isinstance(value, datetime.datetime):
-                value = value.strftime("%Y/%m/%d %H:%M")
-            data.append(
-                value
-            )
-
+        data = self._order_to_row(order=order)
         self.sheet.insert_row(data)
     # endregion
 
