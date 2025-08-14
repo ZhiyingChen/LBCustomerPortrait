@@ -32,3 +32,18 @@ class CallLogHeader:
     cust_name = "CustName"
     apex_id = "ApexID"
     timestamp = "Timestamp"
+
+class FOTableHeader:
+    order_id = "订单"
+    order_type = "类型"
+    corporate_id = "DT"
+    product = "产品"
+    shipto = "ShipTo"
+    cust_name = "客户简称"
+    order_from = "订单从"
+    order_to = "订单到"
+    ton = "吨"
+    comment = "备注"
+    target_date = "目标充装"
+    risk_date = "最佳充装"
+    run_out_date = "断气"

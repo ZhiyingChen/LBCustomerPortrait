@@ -9,6 +9,7 @@ from .lb_order_data_manager import LBOrderDataManager
 from .lb_data_manager import LBDataManager
 from .. import domain_object as do
 from ..utils import enums, constant
+from ..utils.field import FOTableHeader as foh
 
 
 class OrderPopupUI:
@@ -46,11 +47,11 @@ class OrderPopupUI:
         self.end_date_picker.grid(row=0, column=3, padx=5)
 
         self.filter_vars = {
-            "DT": tk.StringVar(value="全部"),
-            "产品": tk.StringVar(value="全部"),
+            foh.corporate_id: tk.StringVar(value="全部"),
+            foh.product: tk.StringVar(value="全部"),
         }
 
-        for idx, label_text in enumerate(["DT", "产品"]):
+        for idx, label_text in enumerate([foh.corporate_id, foh.product]):
             tk.Label(filter_frame, text=label_text).grid(row=1, column=idx * 2, padx=5)
             combo = ttk.Combobox(filter_frame, textvariable=self.filter_vars[label_text],
                                  state="readonly", width=10)
@@ -111,8 +112,8 @@ class OrderPopupUI:
 
     # region 创建工作表
     def _create_working_sheet(self):
-        columns = ["订单", "类型", "DT", "产品", "ShipTo", "客户简称", "订单从", "订单到",
-                   "吨", "备注", "目标充装", "最佳充装", "断气"]
+        columns = [foh.order_id, foh.order_type, foh.corporate_id, foh.product, foh.shipto, foh.cust_name, foh.order_from, foh.order_to,
+                   foh.ton, foh.comment, foh.target_date, foh.risk_date, foh.run_out_date]
         self.sheet = Sheet(self.main_frame,
                            headers=columns,
                            show_x_scrollbar=True,
@@ -140,7 +141,7 @@ class OrderPopupUI:
         2) 旧：OptionMenu，属性名为 {col_name}_dropdown（便于逐步迁移）
         """
         headers = self.sheet.headers()
-        for col_name in ["DT", "产品"]:
+        for col_name in [foh.corporate_id, foh.product]:
             if col_name not in headers:
                 continue
 
@@ -195,7 +196,7 @@ class OrderPopupUI:
         for header in headers:
             attr = constant.ORDER_ATTR_MAP.get(header, "")
             value = getattr(order, attr, "")
-            if header == "吨":
+            if header == foh.ton:
                 value = round(value / 1000, 1)
             if isinstance(value, datetime.datetime) and not pd.isnull(value):
                 value = value.strftime("%Y/%m/%d %H:%M")
@@ -214,7 +215,7 @@ class OrderPopupUI:
     def _apply_dropdown_filter(self):
         headers = self.sheet.headers()
         criteria = {}
-        for col_name in ["DT", "产品"]:
+        for col_name in [foh.corporate_id, foh.product]:
             selected = self.filter_vars[col_name].get()
             if selected != "全部":
                 criteria[col_name] = selected
@@ -245,7 +246,7 @@ class OrderPopupUI:
                 continue
 
             # 日期筛选：订单到
-            order_to_idx = col_index_map["订单到"]
+            order_to_idx = col_index_map[foh.order_to]
             order_to_str = row[order_to_idx]
             if order_to_str:
                 try:
@@ -298,9 +299,15 @@ class OrderPopupUI:
             self.hidden_column_indices = [i for i in self.hidden_column_indices if i not in indices]
 
     def _ask_multiple_columns(self, options, title):
+
+        # 把popup放到中间位置
+        self.window.update_idletasks()
+        x = self.window.winfo_x() + (self.window.winfo_width() - 300) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - 500) // 3
+
         popup = tk.Toplevel(self.window)
         popup.title(title)
-        popup.geometry("300x600")
+        popup.geometry("300x500+{}+{}".format(x, y))
         popup.transient(self.window)
         popup.grab_set()
 
@@ -336,24 +343,24 @@ class OrderPopupUI:
             return
 
         try:
-            if col_name in ["订单从", "订单到"]:
+            if col_name in [foh.order_from, foh.order_to]:
                 new_value = pd.to_datetime(value)
                 if pd.isnull(new_value) or not isinstance(new_value, datetime.datetime):
                     raise ValueError("时间格式不正确")
-                if (col_name == "订单从" and new_value >= order.to_time) or \
-                        (col_name == "订单到" and new_value <= order.from_time):
+                if (col_name == foh.order_from and new_value >= order.to_time) or \
+                        (col_name == foh.order_to and new_value <= order.from_time):
                     raise ValueError("时间范围不正确")
                 setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
                 value = new_value.strftime("%Y/%m/%d %H:%M")
 
-            elif col_name == "吨":
+            elif col_name == foh.ton:
                 new_value = float(value)
                 max_drop_kg = self.data_manager.get_max_payload_value_by_ship2(order.shipto) / 1000
                 if not (0 < new_value <= max_drop_kg):
                     raise ValueError("吨应该大于0且小于等于最大配送量")
                 setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value * 1000)
 
-            elif col_name == "备注":
+            elif col_name == foh.comment:
                 setattr(order, constant.ORDER_ATTR_MAP[col_name], value)
 
             else:
@@ -401,9 +408,15 @@ class OrderPopupUI:
         """
         弹出一个选择框，返回 '表格' 或 '计划表'，取消返回 None
         """
+        # 把popup放到中间位置
+        self.window.update_idletasks()
+        x = self.window.winfo_x() + (self.window.winfo_width() - 300) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - 150) // 2
+
         popup = tk.Toplevel(self.window)
         popup.title("选择复制格式")
-        popup.geometry("300x150")
+        popup.geometry("300x150+{}+{}".format(x, y))
+
         popup.transient(self.window)
         popup.grab_set()
 
@@ -428,7 +441,7 @@ class OrderPopupUI:
         selected_row = self.sheet.get_selected_rows()
         if not selected_row:
             return
-        order_col = self.sheet.headers().index("订单")
+        order_col = self.sheet.headers().index(foh.order_id)
         selected_order_lt = [
             (self.sheet.get_cell_data(row_index, order_col), row_index)
             for row_index in selected_row
@@ -452,11 +465,11 @@ class OrderPopupUI:
 
         order_simple_lt = []
         for row_index in rows:
-            cust_name_col = headers.index("客户简称")
-            from_time_col = headers.index("订单从")
-            to_time_col = headers.index("订单到")
-            drop_ton_col = headers.index("吨")
-            comment_col = headers.index("备注")
+            cust_name_col = headers.index(foh.cust_name)
+            from_time_col = headers.index(foh.order_from)
+            to_time_col = headers.index(foh.order_to)
+            drop_ton_col = headers.index(foh.ton)
+            comment_col = headers.index(foh.comment)
 
             cust_name = self.sheet.get_cell_data(row_index, cust_name_col)
             from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col))

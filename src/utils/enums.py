@@ -1,7 +1,7 @@
 
 class OrderType:
-    FO = "FO"
-    OO = "OO"
+    FO = "F"
+    OO = "O"
 
 class EditType:
     Create = "Create"
