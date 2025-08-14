@@ -180,7 +180,8 @@ class OrderPopupUI:
                 value = round(value / 1000, 1)
             if isinstance(value, datetime.datetime) and not pd.isnull(value):
                 value = value.strftime("%Y/%m/%d %H:%M")
-            # 注意：这里不改“吨”的单位，保持与你 add_order_display_in_working_sheet 一致
+            elif pd.isnull(value):
+                value = ""
             row.append(value)
         return row
 
@@ -334,7 +335,7 @@ class OrderPopupUI:
 
         except Exception as e:
             original_value = getattr(order, constant.ORDER_ATTR_MAP.get(col_name, ""), value)
-            if isinstance(original_value, datetime.datetime):
+            if isinstance(original_value, datetime.datetime) and not pd.isnull(original_value):
                 original_value = original_value.strftime("%Y/%m/%d %H:%M")
             self.sheet.set_cell_data(row, column, original_value)
             messagebox.showerror(title="错误", message=str(e), parent=self.window)
