@@ -238,7 +238,7 @@ class LBForecastUI:
         self.root.update()
 
 
-    def show_list_cust(self, event):
+    def show_list_cust(self, event=None):
         '''当点击 terminal 的时候显示客户名单'''
         self.listbox_customer.delete(0, tk.END)
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
@@ -314,8 +314,8 @@ class LBForecastUI:
                 self.shipto_dict[x].primary_terminal,
                 # 3. Product Class
                 self.shipto_dict[x].product_class,
-                # 4. 首字母
-                x[0]
+                # 4. 名称本身
+                x
             )
         )
 
@@ -1080,10 +1080,6 @@ class LBForecastUI:
         self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
         self.detail_labels['max_payload_label'].config(text=f'{current_primary_dt} {current_max_payload}')
 
-
-
-
-
         self.update_production_table(shipto_id=str(shipto))
         self.update_contact_table(shipto_id=str(shipto))
         self.update_comment_table(shipto_id=str(shipto))
@@ -1093,75 +1089,9 @@ class LBForecastUI:
         self.update_dtd_table(shipto_id=str(shipto), risk_time=Risk_time)
         self.update_near_customer_table(shipto_id=str(shipto))
         self.max_display_var.set("5")
-        self.update_trip_info_v2(shipto_id=str(shipto), cust_name=cust_name)
+        self.update_trip_info(shipto_id=str(shipto), cust_name=cust_name)
 
-    def update_trip_info(self, shipto_id: str, cust_name: str):
-        self.delivery_record_table.clear()
-
-        if cust_name in self.delivery_shipto_dict:
-            latest_trip_dict = self.data_manager.generate_view_trip_dict_by_shipto(
-                shipto=shipto_id
-            )
-        else:
-            latest_trip_dict = dict()
-
-        # odbc segment 表中的 trip
-        odbc_trip_dict = self.data_manager.generate_odbc_trip_dict_by_shipto(
-            shipto=shipto_id,
-            latest_trip_list=list(latest_trip_dict.keys())
-        )
-
-        # 合并 trip 信息
-        trip_dict = {**latest_trip_dict, **odbc_trip_dict}
-
-
-        # 构建记录列表
-        record_lt = []
-        for trip_id, trip_obj in trip_dict.items():
-            segment = trip_obj.find_segment_by_shipto(shipto_id)
-            if segment is None or segment.arrival_time is None:
-                continue  # 跳过无效数据
-            record = {
-                "arrival_time": segment.arrival_time,
-                "arrival_str": segment.arrival_time.strftime("%m-%d %H"),  # 送货时间
-                "drop_ton": round(segment.drop_kg / 1000, 1),  # 卸货量（T）
-                "interval": None,  # 间隔时间（待补）
-                "trip_id": trip_id,  # 行程号
-                "status": segment.segment_status,  # segment状态
-                "route": trip_obj.display_trip_route  # 行程详情
-            }
-            record_lt.append(record)
-
-        # 按送货时间倒序排序
-        record_lt.sort(key=lambda x: x["arrival_time"], reverse=True)
-
-        # 计算间隔时间（按日期差异，单位：天）
-        for i in range(0, len(record_lt) - 1):
-            date1 = record_lt[i]["arrival_time"].date()
-            date2 = record_lt[i + 1]["arrival_time"].date()
-            delta_days = (date1 - date2).days
-            record_lt[i]["interval"] = delta_days
-
-        # 最后一条记录没有“下一次”，可以设为 None 或 0
-        if record_lt:
-            record_lt[-1]["interval"] = None
-
-        # 转换为最终展示格式
-        final_records = [
-            [
-                r["arrival_str"],
-                r["drop_ton"],
-                r['interval'] if r["interval"] is not None else '',
-                r["trip_id"],
-                r["status"],
-                r["route"]
-            ]
-            for r in record_lt
-        ]
-
-        self.delivery_record_table.insert_rows(final_records)
-
-    def update_trip_info_v2(self, shipto_id: str, cust_name: str, need_trip_num: str='5'):
+    def update_trip_info(self, shipto_id: str, cust_name: str, need_trip_num: str='5'):
         self.delivery_record_table.clear()
 
 
@@ -1828,7 +1758,7 @@ class LBForecastUI:
             data_refresh.refresh_lb_hourly_data()
             self.delivery_shipto_dict = self.data_manager.generate_trip_shipto_dict()
             self.supplement_delivery_shipto_latest_called()
-            self.show_list_cust(None)
+            self.show_list_cust()
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='最新液位时间:\n{}'.format(refresh_time_text))
             if show_message:

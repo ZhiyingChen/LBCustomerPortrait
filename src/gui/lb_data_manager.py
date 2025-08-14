@@ -423,27 +423,34 @@ class LBDataManager:
             trip_shipto_dict.update({trip_shipto.location: trip_shipto})
         return trip_shipto_dict
 
-    def get_closed_trip_by_shipto(self, shipto: str, trip_list: List[str],
-        need_trip_num: int = 5
-    ):
+    def get_closed_trip_by_shipto(self, shipto: str, trip_list: List[str], need_trip_num: int = 5):
         table_name = 'DropRecordSummary'
 
-        df_drop_record = pd.read_sql(
-            '''SELECT arrival_time, arrival_str, drop_ton, interval, trip_id, status, route 
-                FROM {} WHERE LocNum = '{}' AND trip_id NOT IN () ORDER BY arrival_time DESC 
-                '''.format(
-                table_name,
-                shipto,
-                ','.format(trip_list)
-            ),
-            self.conn
-        )
+        # 构建 SQL 查询语句
+        if trip_list:
+            # 非空时构建 NOT IN 子句
+            trip_ids_str = 'AND trip_id NOT IN (' + ','.join(["'{}'".format(trip_id) for trip_id in trip_list]) + ')'
+        else:
+            trip_ids_str = ''
+
+        sql = '''
+            SELECT arrival_time, arrival_str, drop_ton, interval, trip_id, status, route 
+            FROM {table} 
+            WHERE LocNum = '{shipto}' {trip_ids}
+            ORDER BY arrival_time DESC
+        '''.format(table=table_name, shipto=shipto, trip_ids=trip_ids_str)
+
+        # 执行查询
+        df_drop_record = pd.read_sql(sql, self.conn)
+
+        # 转换时间格式
         df_drop_record['arrival_time'] = pd.to_datetime(df_drop_record['arrival_time'], format='mixed')
-        if isinstance(need_trip_num, int):
+
+        # 限制返回条数
+        if isinstance(need_trip_num, int) and need_trip_num > 0:
             df_drop_record = df_drop_record.head(need_trip_num - len(trip_list))
 
         return df_drop_record
-
 
     def generate_view_trip_dict_by_shipto(
             self,
