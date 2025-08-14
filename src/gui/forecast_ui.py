@@ -238,7 +238,7 @@ class LBForecastUI:
         self.root.update()
 
 
-    def show_list_cust(self, event):
+    def show_list_cust(self, event=None):
         '''当点击 terminal 的时候显示客户名单'''
         self.listbox_customer.delete(0, tk.END)
         if self.listbox_subregion.curselection() is None or len(self.listbox_subregion.curselection()) == 0:
@@ -314,8 +314,8 @@ class LBForecastUI:
                 self.shipto_dict[x].primary_terminal,
                 # 3. Product Class
                 self.shipto_dict[x].product_class,
-                # 4. 首字母
-                x[0]
+                # 4. 名称本身
+                x
             )
         )
 
@@ -1080,10 +1080,6 @@ class LBForecastUI:
         self.detail_labels['__ 最大装载量 (T)'].config(text=f'{current_primary_dt} 最大装载量 (T)')
         self.detail_labels['max_payload_label'].config(text=f'{current_primary_dt} {current_max_payload}')
 
-
-
-
-
         self.update_production_table(shipto_id=str(shipto))
         self.update_contact_table(shipto_id=str(shipto))
         self.update_comment_table(shipto_id=str(shipto))
@@ -1762,7 +1758,7 @@ class LBForecastUI:
             data_refresh.refresh_lb_hourly_data()
             self.delivery_shipto_dict = self.data_manager.generate_trip_shipto_dict()
             self.supplement_delivery_shipto_latest_called()
-            self.show_list_cust(None)
+            self.show_list_cust()
             refresh_time_text = self.data_manager.get_last_refresh_time()
             self.refresh_time_label.config(text='最新液位时间:\n{}'.format(refresh_time_text))
             if show_message:
