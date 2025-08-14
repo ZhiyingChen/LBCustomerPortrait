@@ -367,11 +367,20 @@ class OrderPopupUI:
 
     def _on_cell_edit(self, event):
         row, column, value = event["row"], event["column"], event["value"]
-        col_index = int(column)
-        col_name = self.sheet.headers()[col_index]
 
-        order_id = self.sheet.get_cell_data(row, 0)
-        order = self.order_data_manager.forecast_order_dict.get(order_id)
+        col_name = self.sheet.headers()[column]
+
+        order_id_col = self.sheet.headers().index(foh.order_id)
+        order_type_col = self.sheet.headers().index(foh.order_type)
+
+        order_id = self.sheet.get_cell_data(row, order_id_col)
+        order_type = self.sheet.get_cell_data(row, order_type_col)
+
+        if order_type == enums.OrderType.FO:
+            order = self.order_data_manager.forecast_order_dict.get(order_id)
+        else:
+            order = self.order_data_manager.order_order_dict.get(order_id)
+
         if not order:
             return
 
@@ -399,7 +408,7 @@ class OrderPopupUI:
             else:
                 raise ValueError(f"{col_name}列不支持编辑")
 
-            self.order_data_manager.update_forecast_order_in_fo_list(order)
+            self.order_data_manager.update_order_in_list(order)
             self.sheet.set_cell_data(row, column, value)
 
         except Exception as e:
@@ -414,8 +423,13 @@ class OrderPopupUI:
         if not confirm:
             return
         for row_index in reversed(range(self.sheet.get_total_rows())):
-            order_id = self.sheet.get_cell_data(row_index, 0)
-            self.delete_order(order_id, row_index)
+            order_id_col = self.sheet.headers().index(foh.order_id)
+            order_type_col = self.sheet.headers().index(foh.order_type)
+
+            order_id = self.sheet.get_cell_data(row_index, order_id_col)
+            order_type = self.sheet.get_cell_data(row_index, order_type_col)
+
+            self.delete_order(order_id, order_type, row_index)
 
     def copy_all_to_clipboard(self):
         total_rows = self.sheet.get_total_rows()
@@ -474,15 +488,16 @@ class OrderPopupUI:
         selected_row = self.sheet.get_selected_rows()
         if not selected_row:
             return
-        order_col = self.sheet.headers().index(foh.order_id)
+        order_id_col = self.sheet.headers().index(foh.order_id)
+        order_type_col = self.sheet.headers().index(foh.order_type)
         selected_order_lt = [
-            (self.sheet.get_cell_data(row_index, order_col), row_index)
+            (self.sheet.get_cell_data(row_index, order_id_col), self.sheet.get_cell_data(row_index, order_type_col), row_index)
             for row_index in selected_row
         ]
         confirm = messagebox.askyesno(title="确认删除", message="确认删除选中行订单吗？", parent=self.window)
         if confirm:
-            for order_id, row_index in selected_order_lt:
-                self.delete_order(order_id, row_index)
+            for order_id, order_type, row_index in selected_order_lt:
+                self.delete_order(order_id, order_type, row_index)
 
     def _copy_selected_rows_by_plan_table(self, event=None):
         selected_rows = self.sheet.get_selected_rows()
@@ -548,9 +563,12 @@ class OrderPopupUI:
     # endregion
 
     # region 订单相关操作
-    def delete_order(self, order_id, row_index):
-        self.order_data_manager.delete_forecast_order_from_fo_list(order_id=order_id)
-        del self.order_data_manager.forecast_order_dict[order_id]
+    def delete_order(self, order_id, order_type, row_index):
+        if order_type == enums.OrderType.FO:
+            del self.order_data_manager.forecast_order_dict[order_id]
+        elif order_type == enums.OrderType.OO:
+            del self.order_data_manager.order_order_dict[order_id]
+        self.order_data_manager.delete_order_from_list(order_id=order_id, order_type=order_type)
         self.sheet.delete_row(row_index)
 
     def add_order_display_in_working_sheet(self, order: do.Order):

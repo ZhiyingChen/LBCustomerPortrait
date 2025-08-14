@@ -18,6 +18,7 @@ class LBOrderDataManager:
         self.cur = self.conn.cursor()
 
         self.forecast_order_dict: Dict[str, do.Order] = dict()
+        self.order_order_dict: Dict[str, do.Order] = dict()
 
         self._initialize()
 
@@ -355,8 +356,13 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order added to FOList: {}'.format(order.shipto))
 
-    def update_forecast_order_in_fo_list(self, order: do.Order):
+    def update_order_in_list(self, order: do.Order):
         oh = fd.OrderListHeader
+        if order.order_type == enums.OrderType.FO:
+            table_name = fd.FO_LIST_TABLE
+        else:
+            table_name = fd.OO_LIST_TABLE
+
         fo_sql_line = '''
                    UPDATE {} SET 
                    {} = ?, -- from_time
@@ -367,7 +373,7 @@ class LBOrderDataManager:
                    {} = ? -- timestamp
                    WHERE {} = ?
                 '''.format(
-            fd.FO_LIST_TABLE,
+            table_name,
                     oh.from_time,
                     oh.to_time,
                     oh.drop_kg,
@@ -391,27 +397,6 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order modified in FOList: {}'.format(order.shipto))
 
-    def update_so_number_in_fo_list(self, order_id: str, so_number: str):
-        oh = fd.OrderListHeader
-        fo_sql_line = '''
-                           UPDATE {} SET 
-                           {} = ? -- so_number
-                           WHERE {} = ?
-                        '''.format(
-            fd.FO_LIST_TABLE,
-            oh.so_number,
-            oh.order_id
-        )
-        self.cur.execute(
-            fo_sql_line,
-            (
-                so_number,
-                order_id
-            )
-        )
-        self.conn.commit()
-        logging.info('update so number {} of oder {} in FOList'.format(so_number, order_id))
-
 
     def add_forecast_order(
             self, order: do.Order
@@ -422,22 +407,28 @@ class LBOrderDataManager:
         self.insert_order_in_fo_list(order=order)
 
 
-    def delete_forecast_order_from_fo_list(
+    def delete_order_from_list(
             self,
-            order_id: str
+            order_id: str,
+            order_type
     ):
         # 从数据库中删除记录
         oh = fd.OrderListHeader
+
+        if order_type == enums.OrderType.FO:
+            table_name = fd.FO_LIST_TABLE
+        else:
+            table_name = fd.OO_LIST_TABLE
         delete_sql_line = '''
-                   DELETE FROM {} WHERE {} = ?;
-               '''.format(fd.FO_LIST_TABLE, oh.order_id)
+                     DELETE FROM {} WHERE {} = ?;
+                 '''.format(table_name, oh.order_id)
         self.cur.execute(
             delete_sql_line,
             (order_id,)
         )
 
         self.conn.commit()
-        logging.info('Forecast order deleted from FOList: {}'.format(order_id))
+        logging.info('Order order deleted from OOList: {}'.format(order_id))
 
     def remove_all_forecast_orders(self):
         '''
