@@ -81,7 +81,7 @@ class OrderPopupUI:
                                  bg='#ADD8E6', fg="black", relief="raised", font=("Arial", 10))
         btn_clear_so.pack(side='left', padx=5, pady=5)
 
-        btn_copy_table = tk.Button(func_frame, text="复制表格",
+        btn_copy_table = tk.Button(func_frame, text="复制当前表格",
                                    command=self.copy_all_to_clipboard,
                                    bg="#009A49", fg="white", relief="raised", font=("Arial", 10))
         btn_copy_table.pack(side='left', padx=5, pady=5)
@@ -106,6 +106,7 @@ class OrderPopupUI:
 
         self.sheet.extra_bindings("end_edit_cell", func=self._on_cell_edit)
         self.sheet.popup_menu_add_command("删除选中的行", func=self._delete_selected_row)
+        self.sheet.popup_menu_add_command("复制选中行的计划表形式", func=self._copy_selected_rows_by_plan_table)
 
         for shipto, fo in self.order_data_manager.forecast_order_dict.items():
             self.add_order_display_in_working_sheet(order=fo)
@@ -175,6 +176,8 @@ class OrderPopupUI:
         for header in headers:
             attr = constant.ORDER_ATTR_MAP.get(header, "")
             value = getattr(order, attr, "")
+            if header == "吨":
+                value = round(value / 1000, 1)
             if isinstance(value, datetime.datetime) and not pd.isnull(value):
                 value = value.strftime("%Y/%m/%d %H:%M")
             # 注意：这里不改“吨”的单位，保持与你 add_order_display_in_working_sheet 一致
@@ -345,16 +348,51 @@ class OrderPopupUI:
             self.delete_order(order_id, row_index)
 
     def copy_all_to_clipboard(self):
-        headers = self.sheet.headers()
-        col_num = len(headers)
-        data = [headers]
-        for row_index in range(self.sheet.get_total_rows()):
-            row = [self.sheet.get_cell_data(row_index, col_index) for col_index in range(col_num)]
-            data.append(row)
-        text = "\n".join(["\t".join(map(str, row)) for row in data])
-        self.window.clipboard_clear()
-        self.window.clipboard_append(text)
-        messagebox.showinfo(title="提示", message="已复制到剪贴板！")
+        total_rows = self.sheet.get_total_rows()
+        if total_rows == 0:
+            messagebox.showinfo(title="提示", message="没有行可复制！")
+            return
+
+        rows = [i for i in range(total_rows)]
+
+        # 弹窗选择复制格式
+        choice = self._ask_copy_format()
+        if choice is None:
+            return  # 用户取消
+
+        if choice == "表格":
+            self.copy_order_detail_text(rows=rows)
+            messagebox.showinfo(title="提示", message="表格形式已复制到剪贴板！")
+        elif choice == "计划表":
+            self.copy_order_simple_text(rows=rows)
+            messagebox.showinfo(title="提示", message="计划表形式已复制到剪贴板！")
+
+    def _ask_copy_format(self):
+        """
+        弹出一个选择框，返回 '表格' 或 '计划表'，取消返回 None
+        """
+        popup = tk.Toplevel(self.window)
+        popup.title("选择复制格式")
+        popup.geometry("300x150")
+        popup.transient(self.window)
+        popup.grab_set()
+
+        tk.Label(popup, text="请选择复制的格式：", font=("Arial", 12)).pack(pady=20)
+
+        choice_var = tk.StringVar(value="")
+
+        def select(choice):
+            choice_var.set(choice)
+            popup.destroy()
+
+        btn_frame = tk.Frame(popup)
+        btn_frame.pack(pady=10)
+
+        tk.Button(btn_frame, text="表格形式", width=10, command=lambda: select("表格")).pack(side="left", padx=10)
+        tk.Button(btn_frame, text="计划表形式", width=10, command=lambda: select("计划表")).pack(side="left", padx=10)
+
+        popup.wait_window()
+        return choice_var.get() if choice_var.get() else None
 
     def _delete_selected_row(self, event=None):
         selected_row = self.sheet.get_selected_rows()
@@ -369,6 +407,64 @@ class OrderPopupUI:
         if confirm:
             for order_id, row_index in selected_order_lt:
                 self.delete_order(order_id, row_index)
+
+    def _copy_selected_rows_by_plan_table(self, event=None):
+        selected_rows = self.sheet.get_selected_rows()
+        if not selected_rows:
+            messagebox.showinfo(title="提示", message="没有选中的行可复制！")
+            return
+
+        self.copy_order_simple_text(rows=selected_rows)
+
+
+    def copy_order_simple_text(self, rows):
+        headers = self.sheet.headers()
+
+        order_simple_lt = []
+        for row_index in rows:
+            cust_name_col = headers.index("客户简称")
+            from_time_col = headers.index("订单从")
+            to_time_col = headers.index("订单到")
+            drop_ton_col = headers.index("吨")
+            comment_col = headers.index("备注")
+
+            cust_name = self.sheet.get_cell_data(row_index, cust_name_col)
+            from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col))
+            to_time = pd.to_datetime(self.sheet.get_cell_data(row_index, to_time_col))
+            drop_ton = self.sheet.get_cell_data(row_index, drop_ton_col)
+            comment = self.sheet.get_cell_data(row_index, comment_col)
+
+            if comment:
+                comment = '，{}'.format(comment)
+
+            simple_order_string = '{}({}号{}点-{}号{}点，{}吨{})'.format(
+                cust_name,
+                from_time.strftime('%d'),
+                from_time.strftime('%H'),
+                to_time.strftime('%d'),
+                to_time.strftime('%H'),
+                drop_ton,
+                comment
+            )
+
+            order_simple_lt.append(simple_order_string)
+
+        text = "\n".join(order_simple_lt)
+        self.window.clipboard_clear()
+        self.window.clipboard_append(text)
+        messagebox.showinfo(title="提示", message="选中行的计划表形式已复制到剪贴板！")
+
+    def copy_order_detail_text(self, rows):
+        headers = self.sheet.headers()
+        col_num = len(headers)
+        data = [headers]
+        for row_index in rows:
+            row = [self.sheet.get_cell_data(row_index, col_index) for col_index in range(col_num)]
+            data.append(row)
+        text = "\n".join(["\t".join(map(str, row)) for row in data])
+        self.window.clipboard_clear()
+        self.window.clipboard_append(text)
+        messagebox.showinfo(title="提示", message="整张表格已复制到剪贴板！")
 
     def _on_close(self):
         self.closed = True
