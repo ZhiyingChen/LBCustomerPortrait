@@ -139,7 +139,7 @@ class ConfirmOrderPopupUI:
         # 如果界面是打开的，在FO订单界面展示出来
         try:
             if self.order_popup_ui is not None:
-                self.order_popup_ui.add_order_display_in_working_tree(order=forecast_order)
+                self.order_popup_ui.add_order_display_in_working_sheet(order=forecast_order)
         except Exception as e:
             print(e)
 
