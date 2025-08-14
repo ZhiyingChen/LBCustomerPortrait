@@ -26,8 +26,9 @@ class LBOrderDataManager:
     def _initialize(self):
         self.check_call_log_table()
         self.update_previous_call_log_to_shared_folder()
-        self.check_forecast_order_table()
-        self.generate_forecast_order_dict()
+        for table_name in [fd.FO_LIST_TABLE, fd.OO_LIST_TABLE]:
+            self.check_order_table(table_name=table_name)
+            self.generate_order_dict(table_name=table_name)
 
     def check_call_log_table(self):
         '''
@@ -143,10 +144,10 @@ class LBOrderDataManager:
 
 
 
-    def create_new_fo_list(self):
+    def create_new_order_list(self, table_name=fd.FO_LIST_TABLE):
         oh = fd.OrderListHeader
 
-        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(fd.FO_LIST_TABLE))
+        self.cur.execute('''DROP TABLE IF EXISTS {};'''.format(table_name))
         self.cur.execute(
             """
                 CREATE TABLE {} (
@@ -169,7 +170,7 @@ class LBOrderDataManager:
                     {} TEXT NOT NULL -- timestamp
                 );
             """.format(
-                fd.FO_LIST_TABLE,
+                table_name,
                 oh.order_id,
                 oh.shipto,
                 oh.cust_name,
@@ -192,54 +193,54 @@ class LBOrderDataManager:
         self.conn.commit()
 
 
-    def check_forecast_order_table(self):
+    def check_order_table(self, table_name=fd.FO_LIST_TABLE):
         '''
           检查OrderTrip.sqlite中是否存有 FOList 和 FORecordList 这两张表，如果没有则新建空表
         '''
-        oh = fd.OrderListHeader
-
         # 检查FOList表是否存在
         self.cur.execute(
             """
                 SELECT name FROM sqlite_master 
                 WHERE type='table' AND name='{}';
-            """.format(fd.FO_LIST_TABLE)
+            """.format(table_name)
         )
 
         if not self.cur.fetchone():
-            logging.info('FOList table not found, creating...')
+            logging.info('{} table not found, creating...'.format(table_name))
             # 如果表不存在，则创建表
-            self.create_new_fo_list()
+            self.create_new_order_list(table_name=table_name)
 
 
-    def get_forecast_order_result_list(self):
+    def get_order_result_list(self, table_name=fd.FO_LIST_TABLE):
         '''
         从数据库中读取预测订单数据，生成预测订单结果列表
         '''
         oh = fd.OrderListHeader
-        sql_line = '''SELECT * FROM {}'''.format(fd.FO_LIST_TABLE)
-        forecast_order_df = pd.read_sql(
+        sql_line = '''SELECT * FROM {}'''.format(table_name)
+        order_df = pd.read_sql(
             sql_line,
             self.conn
         )
-        forecast_order_df[oh.from_time] = pd.to_datetime(forecast_order_df[oh.from_time])
-        forecast_order_df[oh.to_time] = pd.to_datetime(forecast_order_df[oh.to_time])
-        forecast_order_df[oh.target_date] = pd.to_datetime(forecast_order_df[oh.target_date])
-        forecast_order_df[oh.risk_date] = pd.to_datetime(forecast_order_df[oh.risk_date])
-        forecast_order_df[oh.run_out_date] = pd.to_datetime(forecast_order_df[oh.run_out_date])
-        forecast_order_df[oh.comment] = forecast_order_df[oh.comment].fillna('')
-        forecast_order_df[oh.po_number] = forecast_order_df[oh.po_number].fillna('')
-        return forecast_order_df
+        order_df[oh.from_time] = pd.to_datetime(order_df[oh.from_time])
+        order_df[oh.to_time] = pd.to_datetime(order_df[oh.to_time])
+        order_df[oh.target_date] = pd.to_datetime(order_df[oh.target_date])
+        order_df[oh.risk_date] = pd.to_datetime(order_df[oh.risk_date])
+        order_df[oh.run_out_date] = pd.to_datetime(order_df[oh.run_out_date])
+        order_df[oh.comment] = order_df[oh.comment].fillna('')
+        order_df[oh.po_number] = order_df[oh.po_number].fillna('')
 
-    def generate_forecast_order_dict(self):
+        return order_df
+
+    def generate_order_dict(self, table_name=fd.FO_LIST_TABLE):
         '''
         从数据库中读取预测订单数据，生成预测订单字典
         '''
         oh = fd.OrderListHeader
-        forecast_order_df = self.get_forecast_order_result_list()
+        order_df = self.get_order_result_list(table_name=table_name)
 
-        for index, row in forecast_order_df.iterrows():
-            forecast_order = do.Order(
+        order_dict = {}
+        for index, row in order_df.iterrows():
+            order = do.Order(
                 order_id=row[oh.order_id],
                 shipto=row[oh.shipto],
                 cust_name=row[oh.cust_name],
@@ -257,8 +258,16 @@ class LBOrderDataManager:
                 so_number=row[oh.so_number],
                 is_in_trip_draft=int(row[oh.in_trip_draft])
             )
-            self.forecast_order_dict[forecast_order.order_id] = forecast_order
-        logging.info('Forecast order dict generated: {}'.format(len(self.forecast_order_dict)))
+            order_dict[order.order_id] = order
+        logging.info('{} order dict generated: {}'.format(table_name, len(order_dict)))
+
+        if table_name == fd.FO_LIST_TABLE:
+            self.forecast_order_dict = order_dict
+        else:
+            self.order_order_dict = order_dict
+
+
+
 
     # endregion
 
@@ -435,7 +444,7 @@ class LBOrderDataManager:
           3. 清空FOList和RecordList
           4. 清空缓存中的所有FO订单信息
         '''
-        self.create_new_fo_list()
+        self.create_new_order_list()
         self.forecast_order_dict.clear()
 
     def get_last_modified_time(self):
