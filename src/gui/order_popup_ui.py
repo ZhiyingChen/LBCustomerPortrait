@@ -299,35 +299,68 @@ class OrderPopupUI:
             self.hidden_column_indices = [i for i in self.hidden_column_indices if i not in indices]
 
     def _ask_multiple_columns(self, options, title):
-
-        # 把popup放到中间位置
+        # 弹窗居中
         self.window.update_idletasks()
-        x = self.window.winfo_x() + (self.window.winfo_width() - 300) // 2
-        y = self.window.winfo_y() + (self.window.winfo_height() - 500) // 3
+        width, height = 320, 500
+        x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - height) // 3
 
         popup = tk.Toplevel(self.window)
         popup.title(title)
-        popup.geometry("300x500+{}+{}".format(x, y))
+        popup.geometry(f"{width}x{height}+{x}+{y}")
         popup.transient(self.window)
         popup.grab_set()
 
+        # 标题
+        tk.Label(popup, text="请选择列：", font=("Arial", 12, "bold")).pack(pady=10)
+
+        # 滚动区域
+        frame_container = tk.Frame(popup)
+        frame_container.pack(fill="both", expand=True, padx=10)
+
+        canvas = tk.Canvas(frame_container, borderwidth=0)
+        scrollbar = tk.Scrollbar(frame_container, orient="vertical", command=canvas.yview)
+        scroll_frame = tk.Frame(canvas)
+
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # 复选框
         selected_vars = []
         for opt in options:
             var = tk.BooleanVar()
-            chk = tk.Checkbutton(popup, text=opt, variable=var)
-            chk.pack(anchor='w')
+            chk = ttk.Checkbutton(scroll_frame, text=opt, variable=var)
+            chk.pack(anchor="w", pady=2)
             selected_vars.append((opt, var))
 
-        result = []
+        # 按钮区域
+        btn_frame = tk.Frame(popup)
+        btn_frame.pack(pady=10)
+
+        def select_all():
+            for _, var in selected_vars:
+                var.set(True)
+
+        def deselect_all():
+            for _, var in selected_vars:
+                var.set(False)
 
         def confirm():
-            for name, var in selected_vars:
-                if var.get():
-                    result.append(name)
+            result[:] = [name for name, var in selected_vars if var.get()]
             popup.destroy()
 
-        btn = tk.Button(popup, text="确认", command=confirm)
-        btn.pack(pady=10)
+        result = []
+        ttk.Button(btn_frame, text="全选", command=select_all).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="全不选", command=deselect_all).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="确认", command=confirm).pack(side="left", padx=5)
 
         popup.wait_window()
         return result
