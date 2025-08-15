@@ -4,9 +4,7 @@ import logging
 import datetime
 import sqlite3
 import time
-
-from streamlit import table
-
+from ..utils import decorator
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
@@ -250,7 +248,7 @@ class LBOrderDataManager:
                 drop_kg=row[oh.drop_kg],
                 comments=row[oh.comment],
                 po_number=row[oh.po_number],
-                order_type=enums.OrderType.FO,
+                order_type=enums.OrderType.FO if table_name == fd.FO_LIST_TABLE else enums.OrderType.OO,
                 target_date=row[oh.target_date],
                 risk_date=row[oh.risk_date],
                 run_out_date=row[oh.run_out_date],
@@ -440,5 +438,158 @@ class LBOrderDataManager:
 
         self.conn.commit()
         logging.info('Order order deleted from OOList: {}'.format(order_id))
+
+    # endregion
+
+    # region OO List 加载及特定操作区域
+    @decorator.record_time_decorator('刷新 OO List')
+    def refresh_oo_list(self):
+        self.refresh_oo_list_sqlite()
+        self.generate_order_dict(table_name=fd.OO_LIST_TABLE)
+
+    def refresh_oo_list_sqlite(self):
+        sh = fd.OrderListHeader
+        view_demand_df =self.get_view_demand_df()
+        forecast_df = self.get_latest_forecast_df()
+        special_note_df = self.get_special_note_df()
+
+        # 合并三个表
+        oo_list_df = pd.merge(
+            view_demand_df,
+            forecast_df,
+            left_on=sh.shipto, right_on=sh.shipto,
+            how='left'
+        )
+
+        oo_list_df = pd.merge(
+            oo_list_df,
+            special_note_df,
+            left_on=sh.shipto, right_on=sh.shipto,
+            how='left'
+        )
+
+        oo_list_df.to_sql(
+            fd.OO_LIST_TABLE,
+            self.conn,
+            if_exists='replace',
+            index=False
+        )
+        self.conn.commit()
+        logging.info('OO List refreshed: {}'.format(len(oo_list_df)))
+
+
+    @staticmethod
+    def get_view_demand_df():
+        sh = fd.OrderListHeader
+
+        view_demand_df = pd.read_excel(
+            r'\\shangnt\lbshell\PUAPI\PU_program\automation\view_demand.xlsx',
+            dtype={
+                'LocNum': str
+            }
+        )
+        # 筛选： a. 读取 “FO” 是 O的
+        # 	b. Trip 是空的（暂未安排行程）
+        # 	c. Name 里面选带 LB 的
+        #    d. OrderN 非空
+        view_demand_df = view_demand_df[
+            (view_demand_df['FO'] == 'O') &
+            (view_demand_df['Trip'].isnull()) &
+            (view_demand_df['Name'].str.contains('LB')) &
+            (view_demand_df['OrderN'].notnull())
+        ]
+
+        view_demand_df = view_demand_df.rename(
+            columns={
+                'OrderN': sh.order_id,
+                'LocNum': sh.shipto,
+                'Location': sh.cust_name,
+                'PrimaryTerminal': sh.corporate_idn,
+                'Prod': sh.product,
+                'OrderFromDatetime': sh.from_time,
+                'OrderToDatetime': sh.to_time,
+                'AmtNum': sh.drop_kg,
+                'PONum': sh.po_number
+            }
+        )
+        kept_columns = [
+            sh.order_id,
+            sh.shipto,
+            sh.cust_name,
+            sh.corporate_idn,
+            sh.product,
+            sh.from_time,
+            sh.to_time,
+            sh.drop_kg,
+            sh.po_number
+        ]
+        view_demand_df = view_demand_df[kept_columns]
+        view_demand_df[sh.from_time] = pd.to_datetime(view_demand_df[sh.from_time])
+        view_demand_df[sh.to_time] = pd.to_datetime(view_demand_df[sh.to_time])
+        view_demand_df[sh.in_trip_draft] = 0
+        view_demand_df[sh.so_number] = view_demand_df[sh.order_id].apply(
+            lambda x: x.split(',')[0] if x.startswith('SO') else '')
+        view_demand_df[sh.apex_id] = func.get_user_name()
+        view_demand_df[sh.timestamp] = pd.to_datetime(datetime.datetime.now())
+
+        # 保留每个列名的第一列
+        view_demand_df = view_demand_df.loc[:, ~view_demand_df.columns.duplicated(keep='first')]
+
+        view_demand_df = view_demand_df.reset_index(drop=True)
+        logging.info('View demand df generated: {}'.format(len(view_demand_df)))
+        return view_demand_df
+
+    @staticmethod
+    def get_latest_forecast_df():
+        sh = fd.OrderListHeader
+        conn = func.connect_sqlite(db_name='./AutoSchedule.sqlite')
+        sql_line = '''
+            SELECT LocNum, max(TargetRefillDate) AS TargetRefillDate, TargetRiskDate, TargetRunoutDate
+            FROM forecastReading
+            WHERE Next_hr IS NOT NULL AND LocNum = '11289820'
+            GROUP BY LocNum
+        '''
+        forecast_df = pd.read_sql(
+            sql_line,
+            conn
+        )
+        conn.close()
+
+        forecast_df['TargetRefillDate'] = pd.to_datetime(forecast_df['TargetRefillDate'])
+        forecast_df['TargetRiskDate'] = pd.to_datetime(forecast_df['TargetRiskDate'])
+        forecast_df['TargetRunoutDate'] = pd.to_datetime(forecast_df['TargetRunoutDate'])
+        forecast_df = forecast_df.rename(
+            columns={
+                'LocNum': sh.shipto,
+                'TargetRefillDate': sh.target_date,
+                'TargetRiskDate': sh.risk_date,
+                'TargetRunoutDate': sh.run_out_date
+            })
+        forecast_df[sh.shipto] = forecast_df[sh.shipto].astype(str)
+        logging.info('Forecast df generated: {}'.format(len(forecast_df)))
+        return forecast_df
+
+    @staticmethod
+    def get_special_note_df():
+        sh = fd.OrderListHeader
+        conn = func.connect_sqlite(db_name='./AutoSchedule.sqlite')
+        sql_line = '''
+            SELECT DISTINCT LocNum, Summary
+            FROM SpecialNote
+        '''
+        special_note_df = pd.read_sql(
+            sql_line,
+            conn
+        )
+        conn.close()
+        special_note_df = special_note_df.rename(
+            columns={
+                'LocNum': sh.shipto,
+                'Summary': sh.comment
+                })
+
+        return special_note_df
+
+
 
     # endregion

@@ -5,6 +5,7 @@ import pandas as pd
 import datetime
 from tksheet import Sheet
 from tkcalendar import DateEntry
+from typing import List, Dict
 from .lb_order_data_manager import LBOrderDataManager
 from .lb_data_manager import LBDataManager
 from .. import domain_object as do
@@ -107,6 +108,11 @@ class OrderPopupUI:
                                    bg="#009A49", fg="white", relief="raised", font=("Arial", 10))
         btn_copy_table.pack(side='left', padx=5, pady=5)
 
+        btn_refresh_oo = tk.Button(func_frame, text="刷新O类型订单数据",
+                                    command=self.refresh_oo_order,
+                                    bg="#FFC0CB", fg="black", relief="raised", font=("Arial", 10))
+        btn_refresh_oo.pack(side='left', padx=5, pady=5)
+
         # 主工作区
         self.main_frame = tk.Frame(self.window)
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
@@ -131,8 +137,8 @@ class OrderPopupUI:
         self.sheet.popup_menu_add_command("删除选中的行", func=self._delete_selected_row)
         self.sheet.popup_menu_add_command("复制选中行的计划表形式", func=self._copy_selected_rows_by_plan_table)
 
-        for shipto, fo in self.order_data_manager.forecast_order_dict.items():
-            self.add_order_display_in_working_sheet(order=fo)
+        all_orders = list(self.order_data_manager.forecast_order_dict.values()) + list(self.order_data_manager.order_order_dict.values())
+        self.add_order_display_in_working_sheet(order_lt=all_orders)
 
         self._update_filter_options()
 
@@ -193,26 +199,31 @@ class OrderPopupUI:
 
     # region 事件处理
 
-    def _order_to_row(self, order: do.Order):
+    def _order_to_row(self, order_lt: List[do.Order]):
         headers = self.sheet.headers()
-        row = []
-        for header in headers:
-            attr = constant.ORDER_ATTR_MAP.get(header, "")
-            value = getattr(order, attr, "")
-            if header == foh.ton:
-                value = round(value / 1000, 1)
-            if isinstance(value, datetime.datetime) and not pd.isnull(value):
-                value = value.strftime("%Y/%m/%d %H:%M")
-            elif pd.isnull(value):
-                value = ""
-            row.append(value)
-        return row
+        rows = []
+        for order in order_lt:
+            row = []
+            for header in headers:
+                attr = constant.ORDER_ATTR_MAP.get(header, "")
+                value = getattr(order, attr, "")
+                if header == foh.ton:
+                    value = round(value / 1000, 1)
+                if isinstance(value, datetime.datetime) and not pd.isnull(value):
+                    value = value.strftime("%Y/%m/%d %H:%M")
+                elif pd.isnull(value):
+                    value = ""
+                row.append(value)
+            rows.append(row)
+        return rows
 
     def _get_all_rows_from_source(self):
         # 每次都从数据源构建，不依赖当前 sheet 中的可见数据
         rows = []
-        for order in self.order_data_manager.forecast_order_dict.values():
-            rows.append(self._order_to_row(order))
+        forecast_rows = self._order_to_row(order_lt=list(self.order_data_manager.forecast_order_dict.values()))
+        order_rows = self._order_to_row(order_lt=list(self.order_data_manager.order_order_dict.values()))
+        rows.extend(forecast_rows)
+        rows.extend(order_rows)
         return rows
 
     def _apply_dropdown_filter(self):
@@ -567,15 +578,38 @@ class OrderPopupUI:
 
     # region 订单相关操作
     def delete_order(self, order_id, order_type, row_index):
+        self.sheet.delete_row(row_index)
+
         if order_type == enums.OrderType.FO:
             del self.order_data_manager.forecast_order_dict[order_id]
         elif order_type == enums.OrderType.OO:
             del self.order_data_manager.order_order_dict[order_id]
         self.order_data_manager.delete_order_from_list(order_id=order_id, order_type=order_type)
-        self.sheet.delete_row(row_index)
 
-    def add_order_display_in_working_sheet(self, order: do.Order):
-        data = self._order_to_row(order=order)
-        self.sheet.insert_row(data)
+
+    def add_order_display_in_working_sheet(self, order_lt:List[do.Order]):
+        data = self._order_to_row(order_lt=order_lt)
+        self.sheet.insert_rows(data)
+
+    def refresh_oo_order(self):
+        try:
+            self.order_data_manager.refresh_oo_list()
+
+            # 把sheet里面order_type=OO的行删除
+            headers = self.sheet.headers()
+            for row_index in reversed(range(self.sheet.get_total_rows())):
+                order_type_col = headers.index(foh.order_type)
+                order_type = self.sheet.get_cell_data(row_index, order_type_col)
+
+                if order_type != enums.OrderType.OO:
+                    continue
+                self.sheet.delete_row(row_index)
+
+            # 把新的OO订单插入sheet
+            self.add_order_display_in_working_sheet(order_lt=list(self.order_data_manager.order_order_dict.values()))
+            messagebox.showinfo(title="提示", message="OO订单刷新成功！", parent=self.window)
+        except Exception as e:
+            messagebox.showerror(title="错误", message='刷新OO数据失败：' + str(e), parent=self.window)
+
     # endregion
 
