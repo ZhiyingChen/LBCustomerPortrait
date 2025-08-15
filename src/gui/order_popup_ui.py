@@ -15,16 +15,10 @@ from ..utils.field import FOTableHeader as foh
 
 
 class OrderPopupUI:
-    # 如不需要排序功能，把这个置为 False
-    ENABLE_SORT = True
-
     def __init__(self, root, order_data_manager: LBOrderDataManager, data_manager: LBDataManager):
         self.closed = False
         self.order_data_manager = order_data_manager
         self.data_manager = data_manager
-
-        # 撤销删除栈：[(order_obj, order_type)]
-        self._undo_stack: List[Tuple[do.Order, str]] = []
 
         self.window = tk.Toplevel(root)
         self.window.title("订单和行程界面")
@@ -93,21 +87,12 @@ class OrderPopupUI:
         # 3) 功能模块
         func_frame = tk.LabelFrame(top_frame, text="功能")
         func_frame.pack(side='right', padx=10)
-        tk.Button(func_frame, text="一键清除订单", command=self._clear_all,
+        tk.Button(func_frame, text="一键清除\n所有订单", command=self._clear_all,
                   bg='#ADD8E6', relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
-        tk.Button(func_frame, text="复制当前表格", command=self.copy_all_to_clipboard,
+        tk.Button(func_frame, text="复制\n当前表格", command=self.copy_all_to_clipboard,
                   bg="#009A49", fg="white", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
-        tk.Button(func_frame, text="刷新O类型订单数据", command=self.refresh_oo_order,
+        tk.Button(func_frame, text="刷新O类型\n订单数据", command=self.refresh_oo_order,
                   bg="#FFC0CB", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
-
-        # 撤销删除
-        tk.Button(func_frame, text="撤销删除", command=self._undo_last_delete,
-                  bg="#F0E68C", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
-
-        # 清除排序（当开启排序功能时）
-        if self.ENABLE_SORT:
-            tk.Button(func_frame, text="清除排序", command=self._clear_sort,
-                      bg="#EEE8AA", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
 
         # 主工作区
         self.main_frame = tk.Frame(self.window)
@@ -138,11 +123,6 @@ class OrderPopupUI:
         self.sheet.extra_bindings("end_edit_cell", func=self._on_cell_edit)
         self.sheet.popup_menu_add_command("删除选中的行", func=self._delete_selected_row)
         self.sheet.popup_menu_add_command("复制选中行的计划表形式", func=self._copy_selected_rows_by_plan_table)
-
-        # 排序：支持表头点击/Shift/Ctrl 多列排序 + 箭头
-        self.sort_keys: List[Tuple[int, bool]] = []  # [(col_index, ascending)]
-        if self.ENABLE_SORT:
-            self.sheet.extra_bindings("header_left_click", func=self._on_header_click)
 
         # 初始渲染（一次性填充，避免 insert_rows 造成空白行）
         all_rows = self._get_all_rows_from_source()
@@ -198,10 +178,6 @@ class OrderPopupUI:
     def _render_rows(self, rows: List[List]):
         """统一渲染入口：设置数据 -> 应用现有排序 -> 刷新箭头表头"""
         self.sheet.set_sheet_data(rows)
-        if self.ENABLE_SORT and self.sort_keys:
-            self._apply_sort()
-        if self.ENABLE_SORT:
-            self._refresh_headers_with_arrows()
 
     # -------------------------
     # 筛选（基于全量数据）
@@ -490,13 +466,6 @@ class OrderPopupUI:
             self._update_filter_options()
 
     def delete_order(self, order_id, order_type, row_index):
-        # 在删除前取出 order 对象，用于撤销
-        deleted_order_obj: Optional[do.Order] = None
-        if order_type == enums.OrderType.FO:
-            deleted_order_obj = self.order_data_manager.forecast_order_dict.get(order_id)
-        elif order_type == enums.OrderType.OO:
-            deleted_order_obj = self.order_data_manager.order_order_dict.get(order_id)
-
         # 删除 UI 行
         self.sheet.delete_row(row_index)
 
@@ -508,34 +477,6 @@ class OrderPopupUI:
 
         # 同步更新列表
         self.order_data_manager.delete_order_from_list(order_id=order_id, order_type=order_type)
-
-        # 入栈以便撤销
-        if deleted_order_obj is not None:
-            self._undo_stack.append((deleted_order_obj, order_type))
-
-    def _undo_last_delete(self):
-        if not self._undo_stack:
-            messagebox.showinfo(title="提示", message="没有可撤销的删除记录。", parent=self.window)
-            return
-
-        order_obj, order_type = self._undo_stack.pop()
-
-        # 复原到数据字典
-        if order_type == enums.OrderType.FO:
-            self.order_data_manager.forecast_order_dict[getattr(order_obj, "order_id")] = order_obj
-        elif order_type == enums.OrderType.OO:
-            self.order_data_manager.order_order_dict[getattr(order_obj, "order_id")] = order_obj
-
-        # 用 update_order_in_list 刷新数据列表（若你的 DataManager 有更合适的“插入”方法可替换）
-        try:
-            self.order_data_manager.update_order_in_list(order_obj)
-        except Exception:
-            pass
-
-        # 重新渲染（保持现有排序/箭头状态）
-        self._render_rows(self._get_all_rows_from_source())
-        self._update_filter_options()
-        messagebox.showinfo(title="提示", message="已撤销最近一次删除。", parent=self.window)
 
     # -------------------------
     # 复制
@@ -642,133 +583,6 @@ class OrderPopupUI:
         text = "\n".join(["\t".join(map(str, row)) for row in data])
         self.window.clipboard_clear()
         self.window.clipboard_append(text)
-
-    # -------------------------
-    # 排序（表头点击 + 箭头）
-    # -------------------------
-    def _on_header_click(self, event):
-        """支持：
-            - 单击：仅按该列排序（切换升/降）
-            - Shift+单击：追加该列（多列排序；对该列切换升/降）
-            - Ctrl+单击：重置，仅该列排序（切换升/降）
-        """
-        if not self.ENABLE_SORT:
-            return
-
-        col_index = int(event["column"])
-        # 尽量从 tk 原生事件里解析修饰键
-        raw_ev = event.get("event")
-        state = getattr(raw_ev, "state", 0)
-
-        SHIFT_MASK = 0x0001
-        CTRL_MASK = 0x0004
-
-        shift = bool(state & SHIFT_MASK)
-        ctrl = bool(state & CTRL_MASK)
-
-        # 当前列是否已在排序键中
-        existing = None
-        for i, (cidx, asc) in enumerate(self.sort_keys):
-            if cidx == col_index:
-                existing = (i, asc)
-                break
-
-        if ctrl:
-            # 重置为仅该列；已存在则翻转方向
-            if existing is None:
-                self.sort_keys = [(col_index, True)]
-            else:
-                self.sort_keys = [(col_index, not existing[1])]
-        elif shift:
-            # 追加/调整该列，同时保留已有其它列
-            if existing is None:
-                self.sort_keys.append((col_index, True))
-            else:
-                i, asc = existing
-                self.sort_keys[i] = (col_index, not asc)
-        else:
-            # 仅该列；已存在则切换方向
-            if existing is None:
-                self.sort_keys = [(col_index, True)]
-            else:
-                self.sort_keys = [(col_index, not existing[1])]
-
-        self._apply_sort()
-        self._refresh_headers_with_arrows()
-
-    def _apply_sort(self):
-        """对当前可见数据按 self.sort_keys 进行多列稳定排序。"""
-        if not self.sort_keys:
-            self._refresh_headers_with_arrows()
-            return
-
-        data = self.sheet.get_sheet_data()
-
-        def key_for_col(idx):
-            def _key(row):
-                v = row[idx]
-                # 空值排在最后
-                if v is None or (isinstance(v, str) and v.strip() == ""):
-                    return (1, "")
-                # 数字
-                try:
-                    return (0, float(v))
-                except (ValueError, TypeError):
-                    pass
-                # 日期（YYYY/MM/DD HH:MM）
-                if isinstance(v, str) and re.match(r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}$", v.strip()):
-                    try:
-                        return (0, dt.datetime.strptime(v.strip(), "%Y/%m/%d %H:%M"))
-                    except Exception:
-                        pass
-                # 字符串
-                return (0, str(v).lower())
-            return _key
-
-        # 逆序稳定排序：从低优先级到高优先级
-        for col_index, ascending in reversed(self.sort_keys):
-            data.sort(key=key_for_col(col_index), reverse=not ascending)
-
-        self.sheet.set_sheet_data(data)
-
-    def _refresh_headers_with_arrows(self):
-        """基于 self.base_headers 和 self.sort_keys 渲染表头箭头与序号。"""
-        headers = self.base_headers[:]
-        ind_map = {}
-        for order, (cidx, asc) in enumerate(self.sort_keys, start=1):
-            ind_map[cidx] = (order, "↑" if asc else "↓")
-
-        display_headers = []
-        for idx, name in enumerate(headers):
-            if idx in ind_map:
-                order, arrow = ind_map[idx]
-                display_headers.append(f"{name} {arrow}{order}")
-            else:
-                display_headers.append(name)
-
-        # 兼容不同 tksheet 版本的 headers 设置方式
-        try:
-            self.sheet.headers(display_headers)
-        except TypeError:
-            try:
-                self.sheet.headers(newheaders=display_headers)
-            except Exception:
-                # 部分版本可能需要逐项设置，这里按需扩展：
-                # for i, v in enumerate(display_headers):
-                #     self.sheet.set_header_data(i, v)
-                pass
-
-    def _clear_sort(self):
-        if not self.ENABLE_SORT:
-            return
-        self.sort_keys.clear()
-        try:
-            self.sheet.headers(self.base_headers[:])
-        except TypeError:
-            try:
-                self.sheet.headers(newheaders=self.base_headers[:])
-            except Exception:
-                pass
 
     # -------------------------
     # 刷新 OO 订单
