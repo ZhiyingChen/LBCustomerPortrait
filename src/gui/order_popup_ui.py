@@ -179,6 +179,7 @@ class OrderPopupUI:
         """统一渲染入口：设置数据 -> 应用现有排序 -> 刷新箭头表头"""
         self.sheet.set_sheet_data(rows)
 
+
     # -------------------------
     # 筛选（基于全量数据）
     # -------------------------
@@ -583,6 +584,26 @@ class OrderPopupUI:
         text = "\n".join(["\t".join(map(str, row)) for row in data])
         self.window.clipboard_clear()
         self.window.clipboard_append(text)
+
+    # -------------------------
+    # 新增 FO 订单
+    # -------------------------
+    def add_order_to_ui(self, order: do.Order):
+        """将新创建的 FO 订单追加到当前表格中"""
+        try:
+            # 获取当前表格数据
+            current_rows = self.sheet.get_sheet_data()
+            # 将新订单转换为行格式
+            new_rows = self._order_to_rows(order_lt=[order])
+            # 合并数据
+            current_rows.extend(new_rows)
+            # 渲染合并后的数据
+            self._render_rows(current_rows)
+            # 更新筛选下拉框
+            self._update_filter_options()
+        except Exception as e:
+            messagebox.showerror(title="错误", message=f"添加订单失败：{e}", parent=self.window)
+
 
     # -------------------------
     # 刷新 OO 订单
