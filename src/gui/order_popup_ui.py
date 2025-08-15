@@ -205,52 +205,30 @@ class OrderPopupUI:
                     self.filter_vars[col_name].set("全部")
                     combo.current(0)
 
-    def _apply_dropdown_filter(self):
-        # 1) 解析日期区间
+    def _apply_dropdown_filter(self) -> None:
+        """根据日期和下拉条件筛选订单"""
         try:
             start_date = dt.datetime.strptime(self.start_date_var.get(), "%Y-%m-%d").date()
             end_date = dt.datetime.strptime(self.end_date_var.get(), "%Y-%m-%d").date()
             if end_date < start_date:
-                messagebox.showerror("错误", "结束日期不能早于开始日期")
-                return
+                raise ValueError("结束日期不能早于开始日期")
         except ValueError:
-            messagebox.showerror("错误", "日期格式不正确")
+            messagebox.showerror("错误", "日期格式不正确", parent=self.window)
             return
 
-        # 2) 解析下拉条件
-        criteria = {}
-        for col_name in [foh.corporate_id, foh.product]:
-            selected = self.filter_vars[col_name].get()
-            if selected != "全部":
-                criteria[col_name] = selected
+        # 下拉条件
+        criteria = {k: v.get() for k, v in self.filter_vars.items() if v.get() != "全部"}
 
-        # 3) 从全量数据开始过滤
-        all_rows = self._get_all_rows_from_source()
-
-        order_to_idx = self._idx(foh.order_to)
-        filtered_rows = []
-        for row in all_rows:
-            # 2.1 DT/产品精确匹配
-            matched = True
-            for k, v in criteria.items():
-                if self._safe_to_str(row[self._idx(k)]) != v:
-                    matched = False
-                    break
-            if not matched:
+        # 过滤逻辑
+        filtered = []
+        for row in self._get_all_rows_from_source():
+            if any(self._safe_to_str(row[self._idx(k)]) != val for k, val in criteria.items()):
                 continue
+            dt_obj = self._parse_display_dt(self._safe_to_str(row[self._idx(foh.order_to)]))
+            if dt_obj and start_date <= dt_obj.date() <= end_date:
+                filtered.append(row)
 
-            # 2.2 日期过滤（订单到 的“日期部分”在 [start_date, end_date]）
-            date_str = self._safe_to_str(row[order_to_idx])
-            dt_obj = self._parse_display_dt(date_str)
-            if not dt_obj:
-                continue
-            if not (start_date <= dt_obj.date() <= end_date):
-                continue
-
-            filtered_rows.append(row)
-
-        # 4) 渲染
-        self._render_rows(filtered_rows)
+        self._render_rows(filtered)
 
     def _clear_filter(self):
         # 下拉重置
