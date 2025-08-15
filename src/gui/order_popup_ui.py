@@ -379,15 +379,15 @@ class OrderPopupUI:
         order_id = self.sheet.get_cell_data(row, order_id_col)
         order_type = self.sheet.get_cell_data(row, order_type_col)
 
-        if order_type == enums.OrderType.FO:
-            order = self.order_data_manager.forecast_order_dict.get(order_id)
-        else:
-            order = self.order_data_manager.order_order_dict.get(order_id)
 
-        if not order:
-            return
 
         try:
+            if order_type == enums.OrderType.OO:
+                order = self.order_data_manager.order_order_dict.get(order_id)
+                raise ValueError("OO 订单不允许修改任何属性！")
+
+            order = self.order_data_manager.forecast_order_dict.get(order_id)
+
             if col_name in [foh.order_from, foh.order_to]:
                 new_value = pd.to_datetime(value)
                 if pd.isnull(new_value) or not isinstance(new_value, dt.datetime):
