@@ -144,56 +144,30 @@ class OrderPopupUI:
 
     def _update_filter_options(self):
         """
-        用当前 sheet 数据生成筛选选项。
-        同时兼容两种情形：
-        1) 新：ttk.Combobox，属性名为 {col_name}_combo
-        2) 旧：OptionMenu，属性名为 {col_name}_dropdown（便于逐步迁移）
+        基于全量订单数据更新筛选下拉选项，而不是当前表格。
         """
         headers = self.sheet.headers()
+        all_rows = self._get_all_rows_from_source()  # 全量数据
+
         for col_name in [foh.corporate_id, foh.product]:
             if col_name not in headers:
                 continue
 
             col_index = headers.index(col_name)
-
-            # 收集去重后的值
-            values = set()
-            for row_index in range(self.sheet.get_total_rows()):
-                val = self.sheet.get_cell_data(row_index, col_index)
-                values.add(str(val))
-
+            values = {str(row[col_index]) for row in all_rows if row[col_index]}  # 去重且排除空值
             options = ["全部"] + sorted(values)
 
-            # 记录之前用户选中，尽量保留
             prev_selected = self.filter_vars[col_name].get()
-
             combo_attr = f"{col_name}_combo"
-            dropdown_attr = f"{col_name}_dropdown"
 
-            if hasattr(self, combo_attr):  # 新：Combobox
+            if hasattr(self, combo_attr):
                 combo = getattr(self, combo_attr)
                 combo['values'] = options
-                # 恢复或回退到"全部"
                 if prev_selected in options:
                     self.filter_vars[col_name].set(prev_selected)
-                    # 如果是 readonly，显示就跟着变量走；如果想强制定位可以 combo.set(prev_selected)
                 else:
                     self.filter_vars[col_name].set("全部")
                     combo.current(0)
-
-            elif hasattr(self, dropdown_attr):  # 旧：OptionMenu（过渡兼容，尽快移除）
-                menu = getattr(self, dropdown_attr)["menu"]
-                menu.delete(0, "end")
-                for opt in options:
-                    menu.add_command(label=opt, command=lambda v=opt, k=col_name: self.filter_vars[k].set(v))
-                # 同样恢复或回退
-                if prev_selected in options:
-                    self.filter_vars[col_name].set(prev_selected)
-                else:
-                    self.filter_vars[col_name].set("全部")
-            else:
-                # 既没有 combo 也没有 dropdown；不抛错，以免影响运行
-                pass
 
     # endregion
 
@@ -444,6 +418,7 @@ class OrderPopupUI:
             order_type = self.sheet.get_cell_data(row_index, order_type_col)
 
             self.delete_order(order_id, order_type, row_index)
+        self._update_filter_options()
 
     def copy_all_to_clipboard(self):
         total_rows = self.sheet.get_total_rows()
@@ -504,14 +479,15 @@ class OrderPopupUI:
             return
         order_id_col = self.sheet.headers().index(foh.order_id)
         order_type_col = self.sheet.headers().index(foh.order_type)
-        selected_order_lt = [
+        selected_order_lt = sorted([
             (self.sheet.get_cell_data(row_index, order_id_col), self.sheet.get_cell_data(row_index, order_type_col), row_index)
             for row_index in selected_row
-        ]
+        ], key=lambda x: x[2], reverse=True)
         confirm = messagebox.askyesno(title="确认删除", message="确认删除选中行订单吗？", parent=self.window)
         if confirm:
             for order_id, order_type, row_index in selected_order_lt:
                 self.delete_order(order_id, order_type, row_index)
+            self._update_filter_options()
 
     def _copy_selected_rows_by_plan_table(self, event=None):
         selected_rows = self.sheet.get_selected_rows()
@@ -607,6 +583,7 @@ class OrderPopupUI:
 
             # 把新的OO订单插入sheet
             self.add_order_display_in_working_sheet(order_lt=list(self.order_data_manager.order_order_dict.values()))
+            self._update_filter_options()
             messagebox.showinfo(title="提示", message="OO订单刷新成功！", parent=self.window)
         except Exception as e:
             messagebox.showerror(title="错误", message='刷新OO数据失败：' + str(e), parent=self.window)
