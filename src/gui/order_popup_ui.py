@@ -370,58 +370,70 @@ class OrderPopupUI:
     # 单元格编辑
     # -------------------------
     def _on_cell_edit(self, event):
-        row, column, value = event["row"], event["column"], event["value"]
-        col_name = self.base_headers[column]  # 用 base_headers 对齐真实列名
+        row, col, new_val = event["row"], event["column"], event["value"]
+        col_name = self.base_headers[col]
+        order_id = self.sheet.get_cell_data(row, self._idx(foh.order_id))
+        order_type = self.sheet.get_cell_data(row, self._idx(foh.order_type))
 
-        order_id_col = self._idx(foh.order_id)
-        order_type_col = self._idx(foh.order_type)
+        # 禁止修改 OO 订单
+        if order_type == enums.OrderType.OO:
+            messagebox.showerror("错误", "OO 订单不允许修改任何属性！", parent=self.window)
+            self._restore_cell(row, col, order_id, order_type, col_name)
+            return
 
-        order_id = self.sheet.get_cell_data(row, order_id_col)
-        order_type = self.sheet.get_cell_data(row, order_type_col)
-
-
+        order = self.order_data_manager.forecast_order_dict.get(order_id)
+        if not order:
+            messagebox.showerror("错误", "未找到对应订单！", parent=self.window)
+            return
 
         try:
-            if order_type == enums.OrderType.OO:
-                order = self.order_data_manager.order_order_dict.get(order_id)
-                raise ValueError("OO 订单不允许修改任何属性！")
-
-            order = self.order_data_manager.forecast_order_dict.get(order_id)
-
+            attr = constant.ORDER_ATTR_MAP.get(col_name)
             if col_name in [foh.order_from, foh.order_to]:
-                new_value = pd.to_datetime(value)
-                if pd.isnull(new_value) or not isinstance(new_value, dt.datetime):
+                new_dt = pd.to_datetime(new_val)
+                if pd.isnull(new_dt):
                     raise ValueError("时间格式不正确")
-                if (col_name == foh.order_from and new_value >= order.to_time) or \
-                   (col_name == foh.order_to and new_value <= order.from_time):
-                    raise ValueError("时间范围不正确")
-                setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value)
-                value = new_value.strftime("%Y/%m/%d %H:%M")
+                if col_name == foh.order_from and new_dt >= order.to_time:
+                    raise ValueError("开始时间不能晚于结束时间")
+                if col_name == foh.order_to and new_dt <= order.from_time:
+                    raise ValueError("结束时间不能早于开始时间")
+                setattr(order, attr, new_dt)
+                new_val = new_dt.strftime("%Y/%m/%d %H:%M")
 
             elif col_name == foh.ton:
-                new_value = float(value)
-                max_drop_kg = self.data_manager.get_max_payload_value_by_ship2(order.shipto) / 1000
-                if not (0 < new_value <= max_drop_kg):
-                    raise ValueError("吨应该大于0且小于等于最大配送量")
-                setattr(order, constant.ORDER_ATTR_MAP[col_name], new_value * 1000)
+                ton = float(new_val)
+                max_ton = self.data_manager.get_max_payload_value_by_ship2(order.shipto) / 1000
+                if not (0 < ton <= max_ton):
+                    raise ValueError(f"吨应在 0 和 {max_ton} 之间")
+                setattr(order, attr, ton * 1000)
 
             elif col_name == foh.comment:
-                setattr(order, constant.ORDER_ATTR_MAP[col_name], value)
+                setattr(order, attr, new_val)
 
             else:
-                raise ValueError(f"{col_name}列不支持编辑")
+                raise ValueError(f"{col_name} 列不支持编辑")
 
-            # 同步数据列表
+            # 更新数据和 UI
             self.order_data_manager.update_order_in_list(order)
-            # 更新 UI
-            self.sheet.set_cell_data(row, column, value)
+            self.sheet.set_cell_data(row, col, new_val)
 
         except Exception as e:
-            original_value = getattr(order, constant.ORDER_ATTR_MAP.get(col_name, ""), value)
-            if isinstance(original_value, dt.datetime) and not pd.isnull(original_value):
-                original_value = original_value.strftime("%Y/%m/%d %H:%M")
-            self.sheet.set_cell_data(row, column, original_value)
-            messagebox.showerror(title="错误", message=str(e), parent=self.window)
+            self._restore_cell(row, col, order_id, order_type, col_name)
+            messagebox.showerror("错误", str(e), parent=self.window)
+
+    def _restore_cell(self, row, col, order_id, order_type, col_name):
+        """恢复单元格原始值"""
+        if order_type == enums.OrderType.OO:
+            order = self.order_data_manager.order_order_dict.get(order_id)
+        else:
+            order = self.order_data_manager.forecast_order_dict.get(order_id)
+        if not order:
+            return
+        original = getattr(order, constant.ORDER_ATTR_MAP.get(col_name, ""), "")
+        if isinstance(original, dt.datetime) and not pd.isnull(original):
+            original = original.strftime("%Y/%m/%d %H:%M")
+        if col_name == foh.ton:
+            original = round(original / 1000, 1)
+        self.sheet.set_cell_data(row, col, original)
 
     # -------------------------
     # 删除/撤销删除/清空
