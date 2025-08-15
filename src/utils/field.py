@@ -47,3 +47,5 @@ class FOTableHeader:
     target_date = "目标充装"
     risk_date = "最佳充装"
     run_out_date = "断气"
+    is_in_trip_draft = "行程草稿？"
+    po_number = "PO号"

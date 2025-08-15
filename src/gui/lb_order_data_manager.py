@@ -4,6 +4,9 @@ import logging
 import datetime
 import sqlite3
 import time
+
+from streamlit import table
+
 from ..utils import functions as func
 from .. import domain_object as do
 from ..utils import field as fd
@@ -142,8 +145,6 @@ class LBOrderDataManager:
         else:
             print("Failed to update shared database after {} retries.".format(max_retries))
 
-
-
     def create_new_order_list(self, table_name=fd.FO_LIST_TABLE):
         oh = fd.OrderListHeader
 
@@ -192,7 +193,6 @@ class LBOrderDataManager:
         )
         self.conn.commit()
 
-
     def check_order_table(self, table_name=fd.FO_LIST_TABLE):
         '''
           检查OrderTrip.sqlite中是否存有 FOList 和 FORecordList 这两张表，如果没有则新建空表
@@ -209,7 +209,6 @@ class LBOrderDataManager:
             logging.info('{} table not found, creating...'.format(table_name))
             # 如果表不存在，则创建表
             self.create_new_order_list(table_name=table_name)
-
 
     def get_order_result_list(self, table_name=fd.FO_LIST_TABLE):
         '''
@@ -267,8 +266,6 @@ class LBOrderDataManager:
             self.order_order_dict = order_dict
 
 
-
-
     # endregion
 
     # region calllog 操作区域
@@ -316,7 +313,11 @@ class LBOrderDataManager:
 
     # region 订单数据操作区域
 
-    def insert_order_in_fo_list(self, order: do.Order):
+    def insert_order_in_list(self, order: do.Order):
+        if order.order_type == enums.OrderType.FO:
+            table_name = fd.FO_LIST_TABLE
+        else:
+            table_name = fd.OO_LIST_TABLE
         fo_sql_line = '''
                    INSERT INTO {} VALUES 
                    (
@@ -338,7 +339,7 @@ class LBOrderDataManager:
                        ?, -- apex_id
                        ? -- timestamp
                    )
-               '''.format(fd.FO_LIST_TABLE)
+               '''.format(table_name)
         self.cur.execute(
             fo_sql_line,
             (
@@ -363,7 +364,7 @@ class LBOrderDataManager:
         )
 
         self.conn.commit()
-        logging.info('Order added to FOList: {}'.format(order.shipto))
+        logging.info('Order added to {}: {}'.format(table_name, order.shipto))
 
     def update_order_in_list(self, order: do.Order):
         oh = fd.OrderListHeader
@@ -406,15 +407,16 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order modified in FOList: {}'.format(order.shipto))
 
-
-    def add_forecast_order(
+    def add_order(
             self, order: do.Order
     ):
-        # 缓存中增加一个FO订单
-        self.forecast_order_dict.update({order.order_id: order})
-
-        self.insert_order_in_fo_list(order=order)
-
+        if order.order_type == enums.OrderType.FO:
+            # 缓存中增加一个FO订单
+            self.forecast_order_dict.update({order.order_id: order})
+        else:
+            # 缓存中增加一个OO订单
+            self.order_order_dict.update({order.order_id: order})
+        self.insert_order_in_list(order=order)
 
     def delete_order_from_list(
             self,
@@ -439,22 +441,4 @@ class LBOrderDataManager:
         self.conn.commit()
         logging.info('Order order deleted from OOList: {}'.format(order_id))
 
-    def remove_all_forecast_orders(self):
-        '''
-          3. 清空FOList和RecordList
-          4. 清空缓存中的所有FO订单信息
-        '''
-        self.create_new_order_list()
-        self.forecast_order_dict.clear()
-
-    def get_last_modified_time(self):
-        try:
-            last_modified_time = (
-                self.cur.execute("SELECT max(TimeStamp) FROM FORecordList").fetchone())[0]
-        except Exception as e:
-            logging.error(f"查询上次修改时间失败：{e}")
-            last_modified_time = ""
-        if last_modified_time is None:
-            last_modified_time = ""
-        return last_modified_time
     # endregion

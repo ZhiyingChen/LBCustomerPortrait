@@ -27,6 +27,7 @@ class OrderPopupUI:
 
         self._create_working_sheet()
 
+    # region 创建操作区域
     def _decorate_top_frame(self):
         top_frame = tk.Frame(self.window)
         top_frame.pack(side='top', fill='x', padx=10, pady=5)
@@ -109,6 +110,8 @@ class OrderPopupUI:
         # 主工作区
         self.main_frame = tk.Frame(self.window)
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+    # endregion
 
     # region 创建工作表
     def _create_working_sheet(self):

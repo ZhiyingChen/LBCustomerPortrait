@@ -134,7 +134,7 @@ class ConfirmOrderPopupUI:
             risk_date=self.risk_date,
             run_out_date=self.run_out_date,
         )
-        self.order_data_manager.add_forecast_order(forecast_order)
+        self.order_data_manager.add_order(forecast_order)
 
         # 如果界面是打开的，在FO订单界面展示出来
         try:
