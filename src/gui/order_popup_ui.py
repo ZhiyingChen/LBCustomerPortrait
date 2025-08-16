@@ -101,20 +101,30 @@ class OrderPopupUI:
     # -------------------------
     # 创建工作表
     # -------------------------
+    # -------------------------
+    # 创建工作表（修改：左右并排）
+    # -------------------------
     def _create_working_sheet(self):
+        # === 容器：左右两栏 ===
+        self.left_frame = tk.Frame(self.main_frame)
+        self.left_frame.pack(side="left", fill="both", expand=True)
+        self.right_frame = tk.Frame(self.main_frame, width=650)  # 右侧宽度可按需
+        self.right_frame.pack(side="left", fill="both", expand=False)
+
+        # === 左：原 sheet（保持不变） ===
         self.base_headers = [
             foh.order_id, foh.order_type, foh.corporate_id, foh.product,
             foh.shipto, foh.cust_name, foh.order_from, foh.order_to,
             foh.ton, foh.comment, foh.target_date, foh.risk_date, foh.run_out_date
         ]
-        self.sheet = Sheet(self.main_frame,
+        # 左：原 sheet（保持功能不变，但关闭内部纵向滚动条）
+        self.sheet = Sheet(self.left_frame,
                            headers=self.base_headers[:],
                            show_x_scrollbar=True,
-                           show_y_scrollbar=True)
+                           show_y_scrollbar=False)  # 关闭内部纵向滚动条
+
         self.sheet.enable_bindings((
             "single_select", "row_select", "column_select", "drag_select",
-            # 为避免表头箭头映射混乱，建议禁用列拖拽；如需开启，需要同步更新 base_headers
-            # "column_drag_and_drop",
             "row_drag_and_drop",
             "right_click_popup_menu", "rc_select", "copy", "edit_cell"
         ))
@@ -128,8 +138,254 @@ class OrderPopupUI:
         all_rows = self._get_all_rows_from_source()
         self._render_rows(all_rows)
 
+        # === 右：甘特图 sheet（新增） ===
+        self._init_gantt_sheet()
+
         # 基于全量数据更新下拉候选
         self._update_filter_options()
+
+        # === 同步绑定（新增） ===
+        self._bind_cross_sheet_sync()
+
+    # -------------------------
+    # 甘特图：初始化（新增）
+    # -------------------------
+    def _init_gantt_sheet(self) -> None:
+        """创建右侧的甘特图 sheet（只读），并填充与左侧相同的行数"""
+        # 甘特时间起点：明天 00:00，范围 48 小时
+        today = dt.date.today()
+        start = dt.datetime.combine(today + dt.timedelta(days=1), dt.time(0, 0))
+        self.gantt_start_dt: dt.datetime = start
+        self.gantt_hours: List[dt.datetime] = [start + dt.timedelta(hours=i) for i in range(48)]
+        headers = [h.strftime("%m-%d %H") for h in self.gantt_hours]
+
+        # ---- 容器：右侧包含 甘特sheet + 外置竖向滚动条（在最右侧） ----
+        self.gantt_container = tk.Frame(self.right_frame)
+        self.gantt_container.pack(fill="both", expand=True)
+
+        # 右侧甘特 sheet：关闭纵向滚动条，保留横向滚动条
+        self.gantt_sheet = Sheet(
+            self.gantt_container,
+            headers=headers,
+            show_x_scrollbar=True,
+            show_y_scrollbar=False,  # 关闭内部纵向滚动条
+        )
+        self.gantt_sheet.enable_bindings(("single_select", "row_select", "drag_select"))
+        self.gantt_sheet.set_options(edit_cell_enabled=False)
+        self.gantt_sheet.pack(side="left", fill="both", expand=True)
+
+        # === 外置纵向滚动条：放在最右端 ===
+        self._vbar = tk.Scrollbar(self.gantt_container, orient="vertical",
+                                  command=self._on_shared_vscroll)
+        self._vbar.pack(side="right", fill="y")
+
+        # 以左侧当前行数，填充空白行（文本先为空，随后渲染颜色与小时数字）
+        row_count = self.sheet.get_total_rows()
+        self.gantt_sheet.set_sheet_data([[""] * len(headers) for _ in range(row_count)])
+
+        # 初次渲染 + 同步滚动条位置
+        self._render_gantt_rows_from_left()
+        self._update_shared_vbar()
+
+    # -------------------------
+    # 甘特图：根据左侧行重绘（新增）
+    # -------------------------
+    def _render_gantt_rows_from_left(self) -> None:
+        """读取左侧 sheet 当前行顺序+数据，生成右侧甘特行内容与涂色"""
+        rows = self.sheet.get_sheet_data()
+        # 调整右侧行数与左侧一致
+        left_n = len(rows)
+        right_n = self.gantt_sheet.get_total_rows()
+        if right_n < left_n:
+            self.gantt_sheet.insert_rows(left_n - right_n)
+        elif right_n > left_n:
+            for r in range(right_n - 1, left_n - 1, -1):
+                self.gantt_sheet.delete_row(r)
+
+        # 逐行绘制
+        for r_idx, row in enumerate(rows):
+            self._render_one_gantt_row(r_idx, row)
+
+        self.gantt_sheet.redraw()
+
+    def _render_one_gantt_row(self, r_idx: int, row: List) -> None:
+        """将一行订单数据渲染到甘特图：底色 & 小时数字"""
+
+        # —— 提取字段（按你的列头映射）
+        def parse_dt_cell(col_name: str) -> Optional[dt.datetime]:
+            s = self._safe_to_str(row[self._idx(col_name)])
+            if not s:
+                return None
+            # 左表存储格式已保证是 "YYYY/MM/DD HH:MM"
+            try:
+                return dt.datetime.strptime(s, "%Y/%m/%d %H:%M")
+            except Exception:
+                # 若用户刚编辑，tksheet 可能临时是 pd.to_datetime 的字符串形式
+                try:
+                    return pd.to_datetime(s).to_pydatetime()
+                except Exception:
+                    return None
+
+        from_dt = parse_dt_cell(foh.order_from)
+        to_dt = parse_dt_cell(foh.order_to)
+        target_dt = parse_dt_cell(foh.target_date)  # 目标充装
+        best_dt = parse_dt_cell(foh.risk_date)  # 最佳充装
+        outage_dt = parse_dt_cell(foh.run_out_date)  # 断气
+
+        # —— 预清空该行（文字、颜色）
+        col_n = len(self.gantt_hours)
+        self.gantt_sheet.set_row_data(r_idx, [""] * col_n, redraw=False)
+        # 清色：覆盖涂白
+        for c in range(col_n):
+            self.gantt_sheet.highlight_cells(row=r_idx, column=c, bg="#FFFFFF", fg="#000000", redraw=False)
+
+        # —— 工具：换算“包含该小时”的列索引
+        def hour_idx(dt_val: Optional[dt.datetime]) -> Optional[int]:
+            if not dt_val:
+                return None
+            delta = dt_val - self.gantt_start_dt
+            h = int(delta.total_seconds() // 3600)
+            if 0 <= h < col_n:
+                return h
+            return None
+
+        from_h = hour_idx(from_dt)
+        to_h = hour_idx(to_dt)
+        target_h = hour_idx(target_dt)
+        best_h = hour_idx(best_dt)
+        outage_h = hour_idx(outage_dt)
+
+        # —— 颜色逻辑
+        GREEN = "#90EE90"  # 亮绿
+        YELLOW = "#FFD966"  # 浅黄
+        RED = "#FFA6A6"  # 浅红
+        WHITE = "#FFFFFF"
+
+        def paint(seg_from: int, seg_to: int, color: str):
+            """闭区间 [seg_from, seg_to] 上色（做边界裁剪）"""
+            if seg_from is None or seg_to is None:
+                return
+            a, b = max(0, seg_from), min(col_n - 1, seg_to)
+            if a > b:
+                return
+            for c in range(a, b + 1):
+                self.gantt_sheet.highlight_cells(row=r_idx, column=c, bg=color, fg="#000000", redraw=False)
+
+        all_three = (target_h is not None and best_h is not None and outage_h is not None)
+
+        if all_three:
+            # 逻辑1
+            # 绿：[target(含), best(前1)]
+            paint(target_h, best_h - 1, GREEN)
+            # 黄：[best(含), outage(前1)]
+            paint(best_h, outage_h - 1, YELLOW)
+            # 红：[outage(含), 末尾]
+            paint(outage_h, col_n - 1, RED)
+        else:
+            # 逻辑2
+            if from_h is not None:
+                # 绿：[from(含), to(前1)] —— 注：避免重叠冲突
+                end_g = (to_h - 1) if (to_h is not None) else (col_n - 1)
+                paint(from_h, end_g, GREEN)
+            if to_h is not None:
+                # 红：[to(含), 末尾]
+                paint(to_h, col_n - 1, RED)
+
+        # —— 标注小时数字（只在 from/to 的那一列）
+        def put_hour(h_idx: Optional[int], dt_val: Optional[dt.datetime]):
+            if h_idx is not None and dt_val is not None:
+                txt = dt_val.strftime("%H")
+                self.gantt_sheet.set_cell_data(r_idx, h_idx, txt, redraw=False)
+
+        put_hour(from_h, from_dt)
+        put_hour(to_h, to_dt)
+
+    def _on_shared_vscroll(self, *args):
+        """外置竖向滚动条驱动两个 Sheet 同步滚动"""
+        try:
+            if args and args[0] == "moveto":
+                frac = float(args[1])
+                self.sheet.yview_moveto(frac)
+                self.gantt_sheet.yview_moveto(frac)
+            elif args and args[0] == "scroll":
+                n = int(args[1]);
+                what = args[2]  # "units" 或 "pages"
+                self.sheet.yview_scroll(n, what)
+                self.gantt_sheet.yview_scroll(n, what)
+        finally:
+            self._update_shared_vbar()
+
+    def _y_scroll_units(self, n: int):
+        """按单位行滚动（上下键/滚轮）"""
+        self.sheet.yview_scroll(n, "units")
+        self.gantt_sheet.yview_scroll(n, "units")
+        self._update_shared_vbar()
+
+    def _y_scroll_pages(self, n: int):
+        """按页滚动（PageUp/PageDown）"""
+        self.sheet.yview_scroll(n, "pages")
+        self.gantt_sheet.yview_scroll(n, "pages")
+        self._update_shared_vbar()
+
+    def _update_shared_vbar(self):
+        """以右侧甘特为准，回写外置滚动条的位置区间"""
+        try:
+            first, last = self.gantt_sheet.yview()  # 期望返回 (first, last) 浮点数
+            self._vbar.set(first, last)
+        except Exception:
+            # 某些版本若不支持取 yview 范围，忽略即可
+            pass
+
+    # -------------------------
+    # 跨表同步（新增）
+    # -------------------------
+    def _bind_cross_sheet_sync(self) -> None:
+        """绑定左->右的选择同步，以及共享纵向滚动条的滚动同步"""
+
+        # —— 行选择同步（左驱右）
+        def on_row_select(_=None):
+            rows = self.sheet.get_selected_rows()
+            self.gantt_sheet.deselect("all")
+            for r in rows:
+                self.gantt_sheet.select_row(r, redraw=False)
+            self.gantt_sheet.redraw()
+
+        self.sheet.extra_bindings("row_select", func=on_row_select)
+
+        # —— 纵向滚动同步：鼠标滚轮（Win/mac） & Linux（Button-4/5）
+        def _on_mouse_wheel(event, source="left"):
+            # Windows / macOS：event.delta 是 120 的倍数；向上为正
+            # 换算为单位滚动步长：+/-1
+            delta = 1 if getattr(event, "delta", 0) < 0 else -1
+            self._y_scroll_units(delta)  # 同步两表 + 回写滚动条
+            return "break"
+
+        self.sheet.bind("<MouseWheel>", _on_mouse_wheel)
+        self.gantt_sheet.bind("<MouseWheel>", _on_mouse_wheel)
+
+        # Linux
+        self.sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
+        self.sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
+        self.gantt_sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
+        self.gantt_sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
+
+        # —— 键盘纵向滚动（上下/翻页）
+        self.sheet.bind("<Up>", lambda e: self._y_scroll_units(-1))
+        self.sheet.bind("<Down>", lambda e: self._y_scroll_units(+1))
+        self.sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))  # PageUp
+        self.sheet.bind("<Next>", lambda e: self._y_scroll_pages(+1))  # PageDown
+
+        self.gantt_sheet.bind("<Up>", lambda e: self._y_scroll_units(-1))
+        self.gantt_sheet.bind("<Down>", lambda e: self._y_scroll_units(+1))
+        self.gantt_sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))
+        self.gantt_sheet.bind("<Next>", lambda e: self._y_scroll_pages(+1))
+
+        # —— 行拖拽后，右侧重绘（保持不变）
+        self.sheet.extra_bindings("row_drag_and_drop", func=lambda e: (
+            self._render_gantt_rows_from_left(), self._update_shared_vbar()
+        ))
+
+        # —— 编辑后，单行甘特重绘（保持不变，确保调用了 _update_shared_vbar）
 
     # -------------------------
     # 工具与渲染
@@ -178,7 +434,9 @@ class OrderPopupUI:
     def _render_rows(self, rows: List[List]):
         """统一渲染入口：设置数据 -> 应用现有排序 -> 刷新箭头表头"""
         self.sheet.set_sheet_data(rows)
-
+        # === 新增：右侧甘特图按左侧当前数据重绘 ===
+        if hasattr(self, "gantt_sheet"):
+            self._render_gantt_rows_from_left()
 
     # -------------------------
     # 筛选（基于全量数据）
@@ -394,6 +652,12 @@ class OrderPopupUI:
             self.order_data_manager.update_order_in_list(order)
             self.sheet.set_cell_data(row, col, new_val)
 
+            # === 新增：只重绘该行甘特 ===
+            if hasattr(self, "gantt_sheet"):
+                row_data = self.sheet.get_row_data(row)
+                self._render_one_gantt_row(row, row_data)
+                self.gantt_sheet.redraw()
+
         except Exception as e:
             self._restore_cell(row, col, order_id, order_type, col_name)
             messagebox.showerror("错误", str(e), parent=self.window)
@@ -468,6 +732,14 @@ class OrderPopupUI:
 
         # 同步更新列表
         self.order_data_manager.delete_order_from_list(order_id=order_id, order_type=order_type)
+
+        # 同步删除甘特行
+        if hasattr(self, "gantt_sheet"):
+            try:
+                self.gantt_sheet.delete_row(row_index)
+            except Exception:
+                # 回退到全表重绘，保证一致性
+                self._render_gantt_rows_from_left()
 
     # -------------------------
     # 复制
@@ -591,6 +863,11 @@ class OrderPopupUI:
             self._render_rows(current_rows)
             # 更新筛选下拉框
             self._update_filter_options()
+
+            # 同步甘特
+            if hasattr(self, "gantt_sheet"):
+                self._render_gantt_rows_from_left()
+
         except Exception as e:
             messagebox.showerror(title="错误", message=f"添加订单失败：{e}", parent=self.window)
 
