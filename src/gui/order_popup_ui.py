@@ -492,13 +492,13 @@ class OrderPopupUI:
                 foh.product: 40,
                 foh.shipto: 70,
                 foh.cust_name: 140,
-                foh.order_from: 120,
-                foh.order_to: 120,
+                foh.order_from: 110,
+                foh.order_to: 110,
                 foh.ton: 40,
                 foh.comment: 120,
-                foh.target_date: 120,
-                foh.risk_date: 120,
-                foh.run_out_date: 120,
+                foh.target_date: 110,
+                foh.risk_date: 110,
+                foh.run_out_date: 110,
             }
             default_width = 80
 
