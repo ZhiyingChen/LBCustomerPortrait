@@ -252,6 +252,7 @@ class OrderPopupUI:
 
         from_h = hour_idx(from_dt)
         to_h = hour_idx(to_dt)
+
         target_h = hour_idx(target_dt)
         best_h = hour_idx(best_dt)
         outage_h = hour_idx(outage_dt)
@@ -284,13 +285,16 @@ class OrderPopupUI:
             paint(outage_h, col_n - 1, RED)
         else:
             # 逻辑2
-            if from_h is not None:
-                # 绿：[from(含), to(前1)] —— 注：避免重叠冲突
-                end_g = (to_h - 1) if (to_h is not None) else (col_n - 1)
-                paint(from_h, end_g, GREEN)
-            if to_h is not None:
+            if to_dt < self.gantt_start_dt:
                 # 红：[to(含), 末尾]
-                paint(to_h, col_n - 1, RED)
+                paint(0, col_n - 1, RED)
+            if from_h is not None:
+                # 绿：[from(含), to] —— 注：避免重叠冲突
+                end_g = to_h if (to_h is not None) else (col_n - 1)
+                paint(from_h, end_g, GREEN)
+            if to_h is not None and to_h + 1 < col_n -1:
+                # 红：[to+1, 末尾]
+                paint(min(to_h + 1, col_n - 1), col_n - 1, RED)
 
         # —— 标注小时数字（只在 from/to 的那一列）
         def put_hour(h_idx: Optional[int], dt_val: Optional[dt.datetime]):
