@@ -106,7 +106,7 @@ class OrderPopupUI:
         self.left_frame = tk.Frame(self.main_frame)
         self.left_frame.pack(side="left", fill="both", expand=True)
         self.right_frame = tk.Frame(self.main_frame, width=1050)  # 右侧宽度可按需
-        self.right_frame.pack(side="left", fill="both", expand=False)
+        self.right_frame.pack(side="left", fill="both", expand=True)
 
         # === 左：原 sheet（保持不变） ===
         self.base_headers = [
@@ -139,6 +139,7 @@ class OrderPopupUI:
         self._init_gantt_sheet()
 
         # 窗口大小变化时自动调整列宽
+        self.window.bind("<Configure>", lambda e: self._adjust_frame_widths())
         self.window.bind("<Configure>", lambda e: self._auto_adjust_column_widths())
 
         # 基于全量数据更新下拉候选
@@ -473,6 +474,12 @@ class OrderPopupUI:
         # === 新增：右侧甘特图按左侧当前数据重绘 ===
         if hasattr(self, "gantt_sheet"):
             self._render_gantt_rows_from_left()
+
+    def _adjust_frame_widths(self):
+        total_width = self.window.winfo_width()
+        half_width = total_width // 2
+        self.left_frame.config(width=half_width)
+        self.right_frame.config(width=half_width)
 
     def _auto_adjust_column_widths(self):
         """根据窗口宽度自动调整左右两表列宽"""
