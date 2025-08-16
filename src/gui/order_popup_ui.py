@@ -67,8 +67,8 @@ class OrderPopupUI:
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=2)
-        self.start_date_var.set(start_default.strftime("%Y-%m-%d"))
-        self.end_date_var.set(end_default.strftime("%Y-%m-%d"))
+        self.start_date_var.set(start_default.strftime("%y-%m-%d"))
+        self.end_date_var.set(end_default.strftime("%y-%m-%d"))
 
         tk.Button(filter_frame, text="应用筛选", command=self._apply_dropdown_filter,
                   bg="#FFD700", relief="raised", font=("Arial", 10)).grid(row=0, column=6, padx=10)
@@ -219,7 +219,7 @@ class OrderPopupUI:
                 return None
             # 左表存储格式已保证是 "YYYY/MM/DD HH:MM"
             try:
-                return dt.datetime.strptime(s, "%Y/%m/%d %H:%M")
+                return dt.datetime.strptime(s, "%y/%m/%d %H:%M")
             except Exception:
                 # 若用户刚编辑，tksheet 可能临时是 pd.to_datetime 的字符串形式
                 try:
@@ -439,7 +439,7 @@ class OrderPopupUI:
         if not s:
             return None
         try:
-            return dt.datetime.strptime(s.strip(), "%Y/%m/%d %H:%M")
+            return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
         except Exception:
             return None
 
@@ -456,7 +456,7 @@ class OrderPopupUI:
                     except Exception:
                         pass
                 if isinstance(value, dt.datetime) and not pd.isnull(value):
-                    value = value.strftime("%Y/%m/%d %H:%M")
+                    value = value.strftime("%y/%m/%d %H:%M")
                 elif not isinstance(value, str) and pd.isnull(value):
                     value = ""
                 row.append(value)
@@ -548,8 +548,8 @@ class OrderPopupUI:
     def _apply_dropdown_filter(self) -> None:
         """根据日期和下拉条件筛选订单"""
         try:
-            start_date = dt.datetime.strptime(self.start_date_var.get(), "%Y-%m-%d").date()
-            end_date = dt.datetime.strptime(self.end_date_var.get(), "%Y-%m-%d").date()
+            start_date = dt.datetime.strptime(self.start_date_var.get(), "%y-%m-%d").date()
+            end_date = dt.datetime.strptime(self.end_date_var.get(), "%y-%m-%d").date()
             if end_date < start_date:
                 raise ValueError("结束日期不能早于开始日期")
         except ValueError:
@@ -582,8 +582,8 @@ class OrderPopupUI:
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=2)
-        self.start_date_var.set(start_default.strftime("%Y-%m-%d"))
-        self.end_date_var.set(end_default.strftime("%Y-%m-%d"))
+        self.start_date_var.set(start_default.strftime("%y-%m-%d"))
+        self.end_date_var.set(end_default.strftime("%y-%m-%d"))
 
         # 渲染全量
         self._render_rows(self._get_all_rows_from_source())
@@ -718,7 +718,7 @@ class OrderPopupUI:
                 if col_name == foh.order_to and new_dt <= order.from_time:
                     raise ValueError("结束时间不能早于开始时间")
                 setattr(order, attr, new_dt)
-                new_val = new_dt.strftime("%Y/%m/%d %H:%M")
+                new_val = new_dt.strftime("%y/%m/%d %H:%M")
 
             elif col_name == foh.ton:
                 ton = float(new_val)
@@ -757,7 +757,7 @@ class OrderPopupUI:
             return
         original = getattr(order, constant.ORDER_ATTR_MAP.get(col_name, ""), "")
         if isinstance(original, dt.datetime) and not pd.isnull(original):
-            original = original.strftime("%Y/%m/%d %H:%M")
+            original = original.strftime("%y/%m/%d %H:%M")
         if col_name == foh.ton:
             original = round(original / 1000, 1)
         self.sheet.set_cell_data(row, col, original)
