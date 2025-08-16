@@ -99,16 +99,13 @@ class OrderPopupUI:
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
     # -------------------------
-    # 创建工作表
-    # -------------------------
-    # -------------------------
     # 创建工作表（修改：左右并排）
     # -------------------------
     def _create_working_sheet(self):
         # === 容器：左右两栏 ===
         self.left_frame = tk.Frame(self.main_frame)
         self.left_frame.pack(side="left", fill="both", expand=True)
-        self.right_frame = tk.Frame(self.main_frame, width=650)  # 右侧宽度可按需
+        self.right_frame = tk.Frame(self.main_frame, width=1050)  # 右侧宽度可按需
         self.right_frame.pack(side="left", fill="both", expand=False)
 
         # === 左：原 sheet（保持不变） ===
@@ -141,6 +138,9 @@ class OrderPopupUI:
         # === 右：甘特图 sheet（新增） ===
         self._init_gantt_sheet()
 
+        # 窗口大小变化时自动调整列宽
+        self.window.bind("<Configure>", lambda e: self._auto_adjust_column_widths())
+
         # 基于全量数据更新下拉候选
         self._update_filter_options()
 
@@ -157,7 +157,7 @@ class OrderPopupUI:
         start = dt.datetime.combine(today + dt.timedelta(days=1), dt.time(0, 0))
         self.gantt_start_dt: dt.datetime = start
         self.gantt_hours: List[dt.datetime] = [start + dt.timedelta(hours=i) for i in range(48)]
-        headers = [h.strftime("%m-%d %H") for h in self.gantt_hours]
+        headers = [h.strftime("%d %H") for h in self.gantt_hours]
 
         # ---- 容器：右侧包含 甘特sheet + 外置竖向滚动条（在最右侧） ----
         self.gantt_container = tk.Frame(self.right_frame)
@@ -473,6 +473,40 @@ class OrderPopupUI:
         # === 新增：右侧甘特图按左侧当前数据重绘 ===
         if hasattr(self, "gantt_sheet"):
             self._render_gantt_rows_from_left()
+
+    def _auto_adjust_column_widths(self):
+        """根据窗口宽度自动调整左右两表列宽"""
+        try:
+            total_width = self.window.winfo_width()
+            if total_width <= 0:
+                return
+            # 特殊列：类型、DT、产品、吨 -> 小宽度（两个中文字符 ≈ 40px）
+            col_width_dict = {
+                foh.order_id: 100,
+                foh.order_type: 30,
+                foh.corporate_id: 40,
+                foh.product: 40,
+                foh.shipto: 70,
+                foh.cust_name: 140,
+                foh.order_from : 120,
+                foh.order_to : 120,
+                foh.ton: 40,
+                foh.comment: 120,
+                foh.target_date: 120,
+                foh.risk_date: 120,
+                foh.run_out_date: 120,
+            }
+
+            for idx, col_name in enumerate(self.base_headers):
+                self.sheet.column_width(column=idx, width=col_width_dict[col_name])
+
+            # 右侧甘特图列宽（固定宽度，两个中文字符 ≈ 40px）
+            gantt_col_width = 40
+            for c in range(len(self.gantt_hours)):
+                self.gantt_sheet.column_width(column=c, width=gantt_col_width)
+
+        except Exception as e:
+            print("调整列宽失败：", e)
 
     # -------------------------
     # 筛选（基于全量数据）
