@@ -475,6 +475,7 @@ class OrderPopupUI:
     def _render_rows(self, rows: List[List]):
         """统一渲染入口：设置数据 -> 应用现有排序 -> 刷新箭头表头"""
         self.sheet.set_sheet_data(rows)
+        self._auto_adjust_column_widths()
         # === 新增：右侧甘特图按左侧当前数据重绘 ===
         if hasattr(self, "gantt_sheet"):
             self._render_gantt_rows_from_left()
@@ -515,10 +516,11 @@ class OrderPopupUI:
                 width = col_width_dict.get(col_name, default_width)
                 self.sheet.column_width(column=idx, width=width)
 
-            # 甘特图列宽固定
-            gantt_col_width = 40
-            for c in range(len(self.gantt_hours)):
-                self.gantt_sheet.column_width(column=c, width=gantt_col_width)
+            if hasattr(self, "gantt_sheet"):
+                # 甘特图列宽固定
+                gantt_col_width = 40
+                for c in range(len(self.gantt_hours)):
+                    self.gantt_sheet.column_width(column=c, width=gantt_col_width)
 
         except Exception as e:
             print("调整列宽失败：", e)
@@ -592,6 +594,7 @@ class OrderPopupUI:
         # 渲染全量
         self._render_rows(self._get_all_rows_from_source())
         self._update_filter_options()
+
 
     # -------------------------
     # 列隐藏/显示
