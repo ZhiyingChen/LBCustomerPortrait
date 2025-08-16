@@ -303,29 +303,68 @@ class OrderPopupUI:
     def _on_shared_vscroll(self, *args):
         """外置竖向滚动条驱动两个 Sheet 同步滚动"""
         try:
-            if args and args[0] == "moveto":
+            if not args:
+                return
+            op = args[0]
+            if op == "moveto":
+                # args: ("moveto", fraction)
                 frac = float(args[1])
                 self.sheet.yview_moveto(frac)
                 self.gantt_sheet.yview_moveto(frac)
-            elif args and args[0] == "scroll":
-                n = int(args[1]);
-                what = args[2]  # "units" 或 "pages"
-                self.sheet.yview_scroll(n, what)
-                self.gantt_sheet.yview_scroll(n, what)
+            elif op == "scroll":
+                # args: ("scroll", number, what), 例如 ("scroll", 1, "units") / ("scroll", -1, "pages")
+                n = int(args[1])
+                what = args[2]
+                # 用“计算 fraction + moveto”的方式滚动
+                self._scroll_by(self.sheet, n, what)
+                self._scroll_by(self.gantt_sheet, n, what)
         finally:
             self._update_shared_vbar()
 
     def _y_scroll_units(self, n: int):
-        """按单位行滚动（上下键/滚轮）"""
-        self.sheet.yview_scroll(n, "units")
-        self.gantt_sheet.yview_scroll(n, "units")
+        """按单位行滚动（上下键/滚轮），n 正负分别代表下/上"""
+        self._scroll_by(self.sheet, n, "units")
+        self._scroll_by(self.gantt_sheet, n, "units")
         self._update_shared_vbar()
 
     def _y_scroll_pages(self, n: int):
-        """按页滚动（PageUp/PageDown）"""
-        self.sheet.yview_scroll(n, "pages")
-        self.gantt_sheet.yview_scroll(n, "pages")
+        """按页滚动（PageUp/PageDown），n 正负分别代表下/上"""
+        self._scroll_by(self.sheet, n, "pages")
+        self._scroll_by(self.gantt_sheet, n, "pages")
         self._update_shared_vbar()
+
+    def _scroll_by(self, sh, n: int, what: str = "units"):
+        """
+        用 yview() -> (first,last) + total_rows 来估算新的滚动位置，再 yview_moveto
+        - sh: tksheet.Sheet
+        - n: 正负方向
+        - what: "units" | "pages"
+        """
+        try:
+            first, last = sh.yview()  # 0~1
+        except Exception:
+            # 某些版本可能返回异常，兜底为顶部
+            first, last = 0.0, 0.0
+
+        total = getattr(sh, "get_total_rows", lambda: 0)()
+        if total <= 0:
+            sh.yview_moveto(0.0)
+            return
+
+        # 估算可视行数（至少为 1）
+        visible_rows = max(1, int(round((last - first) * total))) if (last - first) > 0 else max(1, int(total * 0.1))
+        # 当前 top 行
+        top_row = int(round(first * total))
+
+        if what == "units":
+            top_row += n
+        else:  # "pages"
+            top_row += n * visible_rows
+
+        # 边界裁剪：保证最后一页也能满屏（top_row + visible_rows <= total）
+        top_row = max(0, min(top_row, max(0, total - visible_rows)))
+        new_frac = 0.0 if total == 0 else top_row / float(total)
+        sh.yview_moveto(new_frac)
 
     def _update_shared_vbar(self):
         """以右侧甘特为准，回写外置滚动条的位置区间"""
@@ -352,24 +391,23 @@ class OrderPopupUI:
 
         self.sheet.extra_bindings("row_select", func=on_row_select)
 
-        # —— 纵向滚动同步：鼠标滚轮（Win/mac） & Linux（Button-4/5）
-        def _on_mouse_wheel(event, source="left"):
-            # Windows / macOS：event.delta 是 120 的倍数；向上为正
-            # 换算为单位滚动步长：+/-1
-            delta = 1 if getattr(event, "delta", 0) < 0 else -1
-            self._y_scroll_units(delta)  # 同步两表 + 回写滚动条
+        # —— 鼠标滚轮（Windows/macOS）
+        def _on_mouse_wheel(event):
+            # event.delta > 0 表示向上；按行滚动一步
+            step = -1 if getattr(event, "delta", 0) > 0 else 1
+            self._y_scroll_units(step)
             return "break"
 
         self.sheet.bind("<MouseWheel>", _on_mouse_wheel)
         self.gantt_sheet.bind("<MouseWheel>", _on_mouse_wheel)
 
-        # Linux
+        # —— 鼠标滚轮（Linux）
         self.sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
         self.sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
         self.gantt_sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
         self.gantt_sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
 
-        # —— 键盘纵向滚动（上下/翻页）
+        # —— 键盘纵向滚动
         self.sheet.bind("<Up>", lambda e: self._y_scroll_units(-1))
         self.sheet.bind("<Down>", lambda e: self._y_scroll_units(+1))
         self.sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))  # PageUp
@@ -380,12 +418,10 @@ class OrderPopupUI:
         self.gantt_sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))
         self.gantt_sheet.bind("<Next>", lambda e: self._y_scroll_pages(+1))
 
-        # —— 行拖拽后，右侧重绘（保持不变）
+        # —— 行拖拽后重绘右侧并刷新滚动条区间
         self.sheet.extra_bindings("row_drag_and_drop", func=lambda e: (
             self._render_gantt_rows_from_left(), self._update_shared_vbar()
         ))
-
-        # —— 编辑后，单行甘特重绘（保持不变，确保调用了 _update_shared_vbar）
 
     # -------------------------
     # 工具与渲染
