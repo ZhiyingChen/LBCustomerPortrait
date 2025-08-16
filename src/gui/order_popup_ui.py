@@ -481,13 +481,10 @@ class OrderPopupUI:
         self.left_frame.config(width=half_width)
         self.right_frame.config(width=half_width)
 
-    def _auto_adjust_column_widths(self):
-        """根据窗口宽度自动调整左右两表列宽"""
+    def _auto_adjust_column_widths(self, event=None):
+        """根据当前可见列名调整宽度，而不是按索引"""
         try:
-            total_width = self.window.winfo_width()
-            if total_width <= 0:
-                return
-            # 特殊列：类型、DT、产品、吨 -> 小宽度（两个中文字符 ≈ 40px）
+            # 定义列宽规则
             col_width_dict = {
                 foh.order_id: 100,
                 foh.order_type: 30,
@@ -495,25 +492,33 @@ class OrderPopupUI:
                 foh.product: 40,
                 foh.shipto: 70,
                 foh.cust_name: 140,
-                foh.order_from : 120,
-                foh.order_to : 120,
+                foh.order_from: 120,
+                foh.order_to: 120,
                 foh.ton: 40,
                 foh.comment: 120,
                 foh.target_date: 120,
                 foh.risk_date: 120,
                 foh.run_out_date: 120,
             }
+            default_width = 80
 
-            for idx, col_name in enumerate(self.base_headers):
-                self.sheet.column_width(column=idx, width=col_width_dict[col_name])
+            # 获取当前显示的表头（去掉排序箭头）
+            hidden_headers = [self.base_headers[i] for i in self.hidden_column_indices]
+            headers_display = [h for h in self.base_headers if h not in hidden_headers]
 
-            # 右侧甘特图列宽（固定宽度，两个中文字符 ≈ 40px）
+            # 按当前显示顺序设置宽度
+            for idx, col_name in enumerate(headers_display):
+                width = col_width_dict.get(col_name, default_width)
+                self.sheet.column_width(column=idx, width=width)
+
+            # 甘特图列宽固定
             gantt_col_width = 40
             for c in range(len(self.gantt_hours)):
                 self.gantt_sheet.column_width(column=c, width=gantt_col_width)
 
         except Exception as e:
             print("调整列宽失败：", e)
+
 
     # -------------------------
     # 筛选（基于全量数据）
@@ -588,17 +593,18 @@ class OrderPopupUI:
     # 列隐藏/显示
     # -------------------------
     def _hide_columns(self):
-        headers_display = self.sheet.headers()  # 显示用（可能包含箭头）
-        # 通过 base_headers 来给用户选择，避免箭头影响
+        headers_display = self.sheet.headers()
         available_names = [h for i, h in enumerate(self.base_headers) if i not in self.hidden_column_indices]
         selected = self._ask_multiple_columns(available_names, "选择要隐藏的列")
         if selected:
             indices = [self._idx(name) for name in selected]
             self.sheet.hide_columns(indices)
-            # 维护唯一性
             for idx in indices:
                 if idx not in self.hidden_column_indices:
                     self.hidden_column_indices.append(idx)
+
+            # ✅ 补一次宽度调整与重绘
+            self.sheet.redraw()
 
     def _show_columns(self):
         if not self.hidden_column_indices:
@@ -609,8 +615,10 @@ class OrderPopupUI:
         if selected:
             indices = [self._idx(name) for name in selected]
             self.sheet.show_columns(indices)
-            # 从隐藏集合中移除
             self.hidden_column_indices = [i for i in self.hidden_column_indices if i not in indices]
+
+            # ✅ 补一次宽度调整与重绘
+            self.sheet.redraw()
 
     def _ask_multiple_columns(self, options, title):
         # 弹窗居中
