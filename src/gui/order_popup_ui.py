@@ -223,7 +223,7 @@ class OrderPopupUI:
             except Exception:
                 # 若用户刚编辑，tksheet 可能临时是 pd.to_datetime 的字符串形式
                 try:
-                    return pd.to_datetime(s).to_pydatetime()
+                    return pd.to_datetime(s, format="%y/%m/%d %H:%M").to_pydatetime()
                 except Exception:
                     return None
 
@@ -273,16 +273,27 @@ class OrderPopupUI:
             for c in range(a, b + 1):
                 self.gantt_sheet.highlight_cells(row=r_idx, column=c, bg=color, fg="#000000", redraw=False)
 
-        all_three = (target_h is not None and best_h is not None and outage_h is not None)
+        all_three = (target_dt is not None and best_dt is not None and outage_dt is not None)
 
         if all_three:
             # 逻辑1
-            # 绿：[target(含), best(前1)]
-            paint(target_h, best_h - 1, GREEN)
-            # 黄：[best(含), outage(前1)]
-            paint(best_h, outage_h - 1, YELLOW)
-            # 红：[outage(含), 末尾]
-            paint(outage_h, col_n - 1, RED)
+            if outage_dt < self.gantt_start_dt:
+                # 红：[to(含), outage(前1)]
+                paint(0, col_n - 1, RED)
+            else:
+                if target_h is not None:
+                    # 绿：[target(含), best(前1)]
+                    if best_h is None:
+                        best_h = col_n
+                    paint(target_h, best_h - 1, GREEN)
+                if best_h is not None:
+                    # 黄：[best(含), outage(前1)]
+                    if outage_h is None:
+                        outage_h = col_n
+                    paint(best_h, outage_h - 1, YELLOW)
+                if outage_h is not None:
+                    # 红：[outage(含), 末尾]
+                    paint(outage_h, col_n - 1, RED)
         else:
             # 逻辑2
             if to_dt < self.gantt_start_dt:
@@ -717,7 +728,7 @@ class OrderPopupUI:
         try:
             attr = constant.ORDER_ATTR_MAP.get(col_name)
             if col_name in [foh.order_from, foh.order_to]:
-                new_dt = pd.to_datetime(new_val)
+                new_dt = pd.to_datetime(new_val, format="%y/%m/%d %H:%M")
                 if pd.isnull(new_dt):
                     raise ValueError("时间格式不正确")
                 if col_name == foh.order_from and new_dt >= order.to_time:
@@ -903,8 +914,8 @@ class OrderPopupUI:
         order_simple_lt = []
         for row_index in rows:
             cust_name = self.sheet.get_cell_data(row_index, cust_name_col)
-            from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col))
-            to_time = pd.to_datetime(self.sheet.get_cell_data(row_index, to_time_col))
+            from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col), format="%y/%m/%d %H:%M")
+            to_time = pd.to_datetime(self.sheet.get_cell_data(row_index, to_time_col), format="%y/%m/%d %H:%M")
             drop_ton = self.sheet.get_cell_data(row_index, drop_ton_col)
             comment = self.sheet.get_cell_data(row_index, comment_col) or ""
 
