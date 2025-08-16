@@ -1764,7 +1764,8 @@ class LBForecastUI:
             if show_message:
                 messagebox.showinfo(title='success', message='数据刷新成功!')
         except Exception as e:
-            messagebox.showinfo(title='failure', message='数据刷新失败！\n 请重新手动刷新！\n{}'.format(e))
+            if show_message:
+                messagebox.showinfo(title='failure', message='数据刷新失败！\n 请重新手动刷新！\n{}'.format(e))
 
 
     # endregion
