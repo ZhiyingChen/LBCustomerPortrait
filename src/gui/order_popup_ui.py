@@ -920,11 +920,11 @@ class OrderPopupUI:
             comment = self.sheet.get_cell_data(row_index, comment_col) or ""
 
             comment_suffix = f"，{comment}" if comment else ""
-            simple_order_string = "{}({}号{}点-{}号{}点，{}吨{})".format(
+            simple_order_string = "{}({}号{}点-{}{}点，{}吨{})".format(
                 cust_name,
                 from_time.strftime('%d'),
                 from_time.strftime('%H'),
-                to_time.strftime('%d'),
+                '{}号'.format(to_time.strftime('%d')) if from_time.date() != to_time.date() else '',
                 to_time.strftime('%H'),
                 drop_ton,
                 comment_suffix
