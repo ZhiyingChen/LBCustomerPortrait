@@ -13,6 +13,10 @@ from .. import domain_object as do
 from ..utils import enums, constant
 from ..utils.field import FOTableHeader as foh
 
+# --- 常量：统一日期/时间格式 ---
+DATE_FMT_UI = "%Y-%m-%d"          # DateEntry / 筛选区
+DATETIME_FMT_CELL = "%Y/%m/%d %H:%M"  # 表格与甘特使用
+
 
 class OrderPopupUI:
     def __init__(self, root, order_data_manager: LBOrderDataManager, data_manager: LBDataManager):
@@ -67,8 +71,10 @@ class OrderPopupUI:
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=2)
-        self.start_date_var.set(start_default.strftime("%y-%m-%d"))
-        self.end_date_var.set(end_default.strftime("%y-%m-%d"))
+
+        # ✅ 修改后（四位年）
+        self.start_date_var.set(start_default.strftime(DATE_FMT_UI))
+        self.end_date_var.set(end_default.strftime(DATE_FMT_UI))
 
         tk.Button(filter_frame, text="应用筛选", command=self._apply_dropdown_filter,
                   bg="#FFD700", relief="raised", font=("Arial", 10)).grid(row=0, column=6, padx=10)
@@ -227,11 +233,11 @@ class OrderPopupUI:
                 return None
             # 左表存储格式已保证是 "YYYY/MM/DD HH:MM"
             try:
-                return dt.datetime.strptime(s, "%y/%m/%d %H:%M")
+                return dt.datetime.strptime(s, DATETIME_FMT_CELL)
             except Exception:
                 # 若用户刚编辑，tksheet 可能临时是 pd.to_datetime 的字符串形式
                 try:
-                    return pd.to_datetime(s, format="%y/%m/%d %H:%M").to_pydatetime()
+                    return pd.to_datetime(s, format=DATETIME_FMT_CELL).to_pydatetime()
                 except Exception:
                     return None
 
@@ -609,7 +615,7 @@ class OrderPopupUI:
         if not s:
             return None
         try:
-            return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
+            return dt.datetime.strptime(s.strip(), DATETIME_FMT_CELL)
         except Exception:
             return None
 
@@ -626,7 +632,7 @@ class OrderPopupUI:
                     except Exception:
                         pass
                 if isinstance(value, dt.datetime) and not pd.isnull(value):
-                    value = value.strftime("%y/%m/%d %H:%M")
+                    value = value.strftime(DATETIME_FMT_CELL)
                 elif not isinstance(value, str) and pd.isnull(value):
                     value = ""
                 row.append(value)
@@ -795,8 +801,9 @@ class OrderPopupUI:
     def _apply_dropdown_filter(self) -> None:
         """根据日期和下拉条件筛选订单"""
         try:
-            start_date = dt.datetime.strptime(self.start_date_var.get(), "%y-%m-%d").date()
-            end_date = dt.datetime.strptime(self.end_date_var.get(), "%y-%m-%d").date()
+            # ✅ 修改后（四位年）
+            start_date = dt.datetime.strptime(self.start_date_var.get(), DATE_FMT_UI).date()
+            end_date = dt.datetime.strptime(self.end_date_var.get(), DATE_FMT_UI).date()
             if end_date < start_date:
                 raise ValueError("结束日期不能早于开始日期")
         except ValueError:
@@ -830,8 +837,8 @@ class OrderPopupUI:
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=2)
-        self.start_date_var.set(start_default.strftime("%y-%m-%d"))
-        self.end_date_var.set(end_default.strftime("%y-%m-%d"))
+        self.start_date_var.set(start_default.strftime(DATE_FMT_UI))
+        self.end_date_var.set(end_default.strftime(DATE_FMT_UI))
 
         # 渲染全量
         self._render_rows(self._get_all_rows_from_source(), keep_sort=True)
@@ -966,7 +973,7 @@ class OrderPopupUI:
         try:
             attr = constant.ORDER_ATTR_MAP.get(col_name)
             if col_name in [foh.order_from, foh.order_to]:
-                new_dt = pd.to_datetime(new_val, format="%y/%m/%d %H:%M")
+                new_dt = pd.to_datetime(new_val, format=DATETIME_FMT_CELL)
                 if pd.isnull(new_dt):
                     raise ValueError("时间格式不正确")
                 if col_name == foh.order_from and new_dt >= order.to_time:
@@ -974,7 +981,7 @@ class OrderPopupUI:
                 if col_name == foh.order_to and new_dt <= order.from_time:
                     raise ValueError("结束时间不能早于开始时间")
                 setattr(order, attr, new_dt)
-                new_val = new_dt.strftime("%y/%m/%d %H:%M")
+                new_val = new_dt.strftime(DATETIME_FMT_CELL)
 
             elif col_name == foh.ton:
                 ton = float(new_val)
@@ -1013,7 +1020,7 @@ class OrderPopupUI:
             return
         original = getattr(order, constant.ORDER_ATTR_MAP.get(col_name, ""), "")
         if isinstance(original, dt.datetime) and not pd.isnull(original):
-            original = original.strftime("%y/%m/%d %H:%M")
+            original = original.strftime(DATETIME_FMT_CELL)
         if col_name == foh.ton:
             original = round(original / 1000, 1)
         self.sheet.set_cell_data(row, col, original)
@@ -1150,8 +1157,8 @@ class OrderPopupUI:
         order_simple_lt = []
         for row_index in rows:
             cust_name = self.sheet.get_cell_data(row_index, cust_name_col)
-            from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col), format="%y/%m/%d %H:%M")
-            to_time = pd.to_datetime(self.sheet.get_cell_data(row_index, to_time_col), format="%y/%m/%d %H:%M")
+            from_time = pd.to_datetime(self.sheet.get_cell_data(row_index, from_time_col), format=DATETIME_FMT_CELL)
+            to_time = pd.to_datetime(self.sheet.get_cell_data(row_index, to_time_col), format=DATETIME_FMT_CELL)
             drop_ton = self.sheet.get_cell_data(row_index, drop_ton_col)
             comment = self.sheet.get_cell_data(row_index, comment_col) or ""
 
@@ -1374,7 +1381,7 @@ class OrderPopupUI:
             if not s:
                 return None
             try:
-                return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
+                return dt.datetime.strptime(s.strip(), DATETIME_FMT_CELL)
             except Exception:
                 return None
 
@@ -1446,7 +1453,7 @@ class OrderPopupUI:
                 if not s:
                     return None
                 try:
-                    return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
+                    return dt.datetime.strptime(s.strip(), DATETIME_FMT_CELL)
                 except Exception:
                     return None
 
