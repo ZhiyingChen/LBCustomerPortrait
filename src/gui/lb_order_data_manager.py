@@ -467,6 +467,14 @@ class LBOrderDataManager:
             left_on=sh.shipto, right_on=sh.shipto,
             how='left'
         )
+        oo_list_df[sh.comment] = oo_list_df.apply(
+            lambda x: '&'.join([str(x[sh.special_instruction]), str(x[sh.comment])]) if pd.notna(
+                x[sh.special_instruction]) and pd.notna(x[sh.comment]) else
+            str(x[sh.special_instruction]) if pd.notna(x[sh.special_instruction]) else
+            str(x[sh.comment]) if pd.notna(x[sh.comment]) else
+            '',
+            axis=1
+        )
 
         oo_list_df.to_sql(
             fd.OO_LIST_TABLE,
@@ -521,9 +529,11 @@ class LBOrderDataManager:
             sh.from_time,
             sh.to_time,
             sh.drop_kg,
-            sh.po_number
+            sh.po_number,
+            sh.special_instruction
         ]
         view_demand_df = view_demand_df[kept_columns]
+
         view_demand_df[sh.from_time] = pd.to_datetime(view_demand_df[sh.from_time])
         view_demand_df[sh.to_time] = pd.to_datetime(view_demand_df[sh.to_time])
         view_demand_df[sh.in_trip_draft] = 0

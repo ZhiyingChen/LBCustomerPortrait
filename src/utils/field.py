@@ -26,6 +26,7 @@ class OrderListHeader:
     so_number = "SONumber"
     apex_id = "ApexID"
     in_trip_draft = 'InTripDraft'
+    special_instruction = 'SpecialInstr'
 
 class CallLogHeader:
     shipto = "ShipTo"
