@@ -277,28 +277,34 @@ class OrderPopupUI:
 
         if all_three:
             # 逻辑1
+
+            # 前处理：找出最晚的时间
             if outage_dt < self.gantt_start_dt:
-                # 红：[to(含), outage(前1)]
-                paint(0, col_n - 1, RED)
-            else:
-                if target_h is not None:
-                    # 绿：[target(含), best(前1)]
-                    if best_h is None:
-                        best_h = col_n
-                    paint(target_h, best_h - 1, GREEN)
-                if best_h is not None:
-                    # 黄：[best(含), outage(前1)]
-                    if outage_h is None:
-                        outage_h = col_n
-                    paint(best_h, outage_h - 1, YELLOW)
-                if outage_h is not None:
-                    # 红：[outage(含), 末尾]
-                    paint(outage_h, col_n - 1, RED)
+                outage_h = 0
+            elif best_dt < self.gantt_start_dt:
+                best_h = 0
+            elif target_dt < self.gantt_start_dt:
+                target_h = 0
+
+            if target_h is not None:
+                # 绿：[target(含), best(前1)]
+                if best_h is None:
+                    best_h = col_n
+                paint(target_h, best_h - 1, GREEN)
+
+            if best_h is not None:
+                # 黄：[best(含), outage(前1)]
+                if outage_h is None:
+                    outage_h = col_n
+                paint(best_h, outage_h - 1, YELLOW)
+            if outage_h is not None:
+                # 红：[outage(含), 末尾]
+                paint(outage_h, col_n - 1, RED)
         else:
             # 逻辑2
             if to_dt < self.gantt_start_dt:
-                # 红：[to(含), 末尾]
-                paint(0, col_n - 1, RED)
+                to_dt = - 1
+
             if from_h is not None:
                 # 绿：[from(含), to] —— 注：避免重叠冲突
                 end_g = to_h if (to_h is not None) else (col_n - 1)
