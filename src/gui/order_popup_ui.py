@@ -87,6 +87,10 @@ class OrderPopupUI:
         # 3) 功能模块
         func_frame = tk.LabelFrame(top_frame, text="功能")
         func_frame.pack(side='right', padx=10)
+        # ✅ 新增：排序对话框按钮
+        tk.Button(func_frame, text="排\n序", command=self._open_sort_dialog,
+                  bg="#EEE8AA", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
+
         tk.Button(func_frame, text="一键清除\n所有订单", command=self._clear_all,
                   bg='#ADD8E6', relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
         tk.Button(func_frame, text="复制\n当前表格", command=self.copy_all_to_clipboard,
@@ -1120,6 +1124,271 @@ class OrderPopupUI:
         except Exception as e:
             messagebox.showerror(title="错误", message=f"添加订单失败：{e}", parent=self.window)
 
+    def _open_sort_dialog(self):
+        """打开“多列排序”对话框：选择列、顺序，并可添加多层级排序。"""
+        # 如果没有行，给出提示
+        if self.sheet.get_total_rows() == 0:
+            messagebox.showinfo(title="提示", message="当前没有数据可排序。", parent=self.window)
+            return
+
+        # 弹窗居中
+        self.window.update_idletasks()
+        width, height = 500, 420
+        x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - height) // 3
+
+        dlg = tk.Toplevel(self.window)
+        dlg.title("多列排序")
+        dlg.geometry(f"{width}x{height}+{x}+{y}")
+        dlg.transient(self.window)
+        dlg.grab_set()
+
+        # 候选列：使用你的 base_headers（也可只用“当前可见”列）
+        # 若你只想让“可见列”可选，可以用：
+        # headers_display = [h for i,h in enumerate(self.base_headers) if i not in self.hidden_column_indices]
+        headers_all = self.base_headers[:]
+
+        # 当前条件列表（每个元素：{'col': 列名, 'dir': 'asc'|'desc'})
+        levels: List[dict] = []
+
+        # 上方：选择一个条件（列 + 方向）
+        pick_frame = tk.LabelFrame(dlg, text="新增排序条件")
+        pick_frame.pack(fill="x", padx=10, pady=10)
+
+        tk.Label(pick_frame, text="列名：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        col_var = tk.StringVar(value=headers_all[0])
+        col_cb = ttk.Combobox(pick_frame, textvariable=col_var, state="readonly", width=18, values=headers_all)
+        col_cb.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(pick_frame, text="顺序：").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        dir_var = tk.StringVar(value="升序")
+        dir_cb = ttk.Combobox(pick_frame, textvariable=dir_var, state="readonly", width=8, values=["升序", "降序"])
+        dir_cb.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+
+        def add_level():
+            c = col_var.get()
+            d = "asc" if dir_var.get() == "升序" else "desc"
+            if not c:
+                return
+            levels.append({"col": c, "dir": d})
+            refresh_list()
+
+        tk.Button(pick_frame, text="添加", command=add_level, width=10).grid(row=0, column=4, padx=8, pady=5)
+
+        # 中部：已选的排序层级（Listbox + 操作按钮）
+        list_frame = tk.LabelFrame(dlg, text="排序优先级（上->下）")
+        list_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+        lb = tk.Listbox(list_frame, height=10)
+        lb.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
+
+        sb = tk.Scrollbar(list_frame, orient="vertical", command=lb.yview)
+        sb.pack(side="left", fill="y", padx=(0, 10), pady=10)
+        lb.config(yscrollcommand=sb.set)
+
+        btns_frame = tk.Frame(list_frame)
+        btns_frame.pack(side="left", fill="y", padx=10, pady=10)
+
+        def refresh_list():
+            lb.delete(0, tk.END)
+            for i, it in enumerate(levels, start=1):
+                zh_dir = "升序" if it["dir"] == "asc" else "降序"
+                lb.insert(tk.END, f"{i}. {it['col']}（{zh_dir}）")
+
+        def get_sel_index() -> Optional[int]:
+            sel = lb.curselection()
+            return sel[0] if sel else None
+
+        def move_up():
+            i = get_sel_index()
+            if i is None or i <= 0:
+                return
+            levels[i - 1], levels[i] = levels[i], levels[i - 1]
+            refresh_list()
+            lb.selection_set(i - 1)
+
+        def move_down():
+            i = get_sel_index()
+            if i is None or i >= len(levels) - 1:
+                return
+            levels[i + 1], levels[i] = levels[i], levels[i + 1]
+            refresh_list()
+            lb.selection_set(i + 1)
+
+        def remove_sel():
+            i = get_sel_index()
+            if i is None:
+                return
+            levels.pop(i)
+            refresh_list()
+
+        def clear_all():
+            levels.clear()
+            refresh_list()
+
+        tk.Button(btns_frame, text="上移", width=8, command=move_up).pack(pady=4)
+        tk.Button(btns_frame, text="下移", width=8, command=move_down).pack(pady=4)
+        tk.Button(btns_frame, text="删除", width=8, command=remove_sel).pack(pady=4)
+        tk.Button(btns_frame, text="清空", width=8, command=clear_all).pack(pady=4)
+
+        # 底部：确认/取消
+        action_frame = tk.Frame(dlg)
+        action_frame.pack(fill="x", padx=10, pady=10)
+
+        def on_ok():
+            if not levels:
+                messagebox.showinfo("提示", "请至少添加一个排序条件。", parent=dlg)
+                return
+            # 转换为 (col_index, 'asc'/'desc')
+            sort_specs: List[Tuple[int, str]] = []
+            for it in levels:
+                try:
+                    sort_specs.append((self._idx(it["col"]), it["dir"]))
+                except ValueError:
+                    messagebox.showerror("错误", f"未知列：{it['col']}", parent=dlg)
+                    return
+            dlg.destroy()
+            self._apply_multi_sort(sort_specs)
+
+        def on_cancel():
+            dlg.destroy()
+
+        ttk.Button(action_frame, text="确定", command=on_ok).pack(side="right", padx=5)
+        ttk.Button(action_frame, text="取消", command=on_cancel).pack(side="right", padx=5)
+
+    def _apply_multi_sort(self, sort_specs: List[Tuple[int, str]]):
+        """
+        多列排序：sort_specs 形如 [(col_idx, 'asc'|'desc'), ...]，优先级按列表顺序。
+        使用稳定排序，从“次优先级”到“最高优先级”依次排序。
+        """
+        total = self.sheet.get_total_rows()
+        if total <= 0:
+            return
+
+        # 保存选中行（通过订单号恢复）
+        try:
+            oid_col = self._idx(foh.order_id)
+        except Exception:
+            oid_col = None
+        selected_ids = set()
+        if oid_col is not None:
+            try:
+                for r in self.sheet.get_selected_rows():
+                    selected_ids.add(self.sheet.get_cell_data(r, oid_col))
+            except Exception:
+                pass
+        # 读取当前 UI 顺序（逐行，最稳）
+        rows = [self.sheet.get_row_data(i) for i in range(total)]
+
+        # 按类型定义 key（升序方向）；降序使用 reverse=True
+        time_cols = {foh.order_from, foh.order_to, foh.target_date, foh.risk_date, foh.run_out_date}
+        num_cols = {foh.ton}
+
+        def parse_dt_cell(s: str) -> Optional[dt.datetime]:
+            if not s:
+                return None
+            try:
+                return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
+            except Exception:
+                return None
+
+        def key_for(col_idx: int):
+            col_name = self.base_headers[col_idx]
+            if col_name in time_cols:
+                def _k(row):
+                    v = row[col_idx]
+                    dv = parse_dt_cell(str(v))
+                    # (是否为空, 实际值) —— 空值永远靠后
+                    return (dv is None, dv or dt.datetime.min)
+
+                return _k
+            elif col_name in num_cols:
+                def _k(row):
+                    v = row[col_idx]
+                    try:
+                        return (False, float(v))
+                    except Exception:
+                        return (True, float("inf"))
+
+                return _k
+            else:
+                def _k(row):
+                    v = row[col_idx]
+                    s = "" if v is None else str(v)
+                    return (False, s.casefold())
+
+                return _k
+
+        # 稳定排序：从“最后一个条件”到“第一个条件”依次 sort
+        for col_idx, direction in reversed(sort_specs):
+            rows.sort(key=key_for(col_idx), reverse=(direction == "desc"))
+
+        # 渲染
+        self._render_rows(rows)
+
+        # 恢复隐藏列（如需要）
+        if getattr(self, "hidden_column_indices", None):
+            try:
+                self.sheet.hide_columns(self.hidden_column_indices)
+                self.sheet.redraw()
+            except Exception:
+                pass
+        # 恢复选中
+        if oid_col is not None and selected_ids:
+            try:
+                self.sheet.deselect("all")
+                for i, row in enumerate(rows):
+                    if row[oid_col] in selected_ids:
+                        self.sheet.select_row(i, redraw=False)
+                self.sheet.redraw()
+            except Exception:
+                pass
+        # 可选：保存当前排序规格（便于刷新/过滤后重用）
+        self._current_sort_specs = sort_specs
+
+    def _reapply_saved_sort_if_any(self):
+        specs = getattr(self, "_current_sort_specs", None)
+        if specs:
+            # 避免再次 _render_rows 引起的递归，这里直接重排当前数据再 set
+            rows = [self.sheet.get_row_data(i) for i in range(self.sheet.get_total_rows())]
+
+            time_cols = {foh.order_from, foh.order_to, foh.target_date, foh.risk_date, foh.run_out_date}
+            num_cols = {foh.ton}
+
+            def parse_dt_cell(s: str) -> Optional[dt.datetime]:
+                if not s:
+                    return None
+                try:
+                    return dt.datetime.strptime(s.strip(), "%y/%m/%d %H:%M")
+                except Exception:
+                    return None
+
+            def key_for(col_idx: int):
+                col_name = self.base_headers[col_idx]
+                if col_name in time_cols:
+                    return lambda row: ((parse_dt_cell(str(row[col_idx])) is None),
+                                        parse_dt_cell(str(row[col_idx])) or dt.datetime.min)
+                elif col_name in num_cols:
+                    def _kn(row):
+                        try:
+                            return (False, float(row[col_idx]))
+                        except Exception:
+                            return (True, float("inf"))
+
+                    return _kn
+                else:
+                    return lambda row: (False, ("" if row[col_idx] is None else str(row[col_idx])).casefold())
+
+            for col_idx, direction in reversed(specs):
+                rows.sort(key=key_for(col_idx), reverse=(direction == "desc"))
+
+            # 直接 set，不再递归调用 _render_rows
+            self.sheet.set_sheet_data(rows)
+            if hasattr(self, "gantt_sheet"):
+                self._render_gantt_rows_from_left()
+            if getattr(self, "hidden_column_indices", None):
+                self.sheet.hide_columns(self.hidden_column_indices)
+            self.sheet.redraw()
 
     # -------------------------
     # 刷新 OO 订单
@@ -1141,6 +1410,7 @@ class OrderPopupUI:
             current = self.sheet.get_sheet_data()
             current.extend(oo_rows)
             self._render_rows(current)
+            self._reapply_saved_sort_if_any()
 
             self._update_filter_options()
             messagebox.showinfo(title="提示", message="OO订单刷新成功！", parent=self.window)
