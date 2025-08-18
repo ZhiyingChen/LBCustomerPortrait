@@ -686,6 +686,25 @@ class OrderPopupUI:
         except Exception as e:
             print("调整列宽失败：", e)
 
+    # === 工具：安全按基础列名取值（不会受隐藏列影响） ===
+    def _row_value(self, row_index: int, header_name: str):
+        """始终用全宽行数据 + base_headers 索引取值，避免隐藏列导致的显示列错位"""
+        row = self.sheet.get_row_data(row_index)  # 全列宽
+        return row[self._idx(header_name)]
+
+    # === 工具：把“显示列索引”翻译成“基础列名/基础列索引” ===
+    def _display_col_to_base_col(self, display_col: int):
+        """
+        输入：当前 UI 下的显示列索引（如 end_edit_cell 事件里的 column）
+        输出：(基础列名, 基础列索引)
+        说明：会清理排序箭头后缀，比如 '订单开始↑1' -> '订单开始'
+        """
+        hdrs = self.sheet.headers()  # 当前显示的表头（可能带箭头、且已去除隐藏列）
+        if display_col < 0 or display_col >= len(hdrs):
+            raise IndexError("display_col 超出范围")
+        import re as _re
+        clean_name = _re.sub(r"\s*[↑↓]\d+$", "", hdrs[display_col])
+        return clean_name, self._idx(clean_name)
 
     # -------------------------
     # 筛选（基于全量数据）
@@ -859,22 +878,26 @@ class OrderPopupUI:
     # 单元格编辑
     # -------------------------
     def _on_cell_edit(self, event):
-        row, col, new_val = event["row"], event["column"], event["value"]
-        col_name = self.base_headers[col]
-        order_id = self.sheet.get_cell_data(row, self._idx(foh.order_id))
-        order_type = self.sheet.get_cell_data(row, self._idx(foh.order_type))
+        row, display_col, new_val = event["row"], event["column"], event["value"]
+
+        # 将“显示列索引”映射为“基础列名/基础列索引”
+        col_name, base_col = self._display_col_to_base_col(display_col)
+
+        # 用全宽行数据 + 基础列索引获取其他列值（不受隐藏列影响）
+        row_data = self.sheet.get_row_data(row)
+        order_id = row_data[self._idx(foh.order_id)]
+        order_type = row_data[self._idx(foh.order_type)]
 
         # 禁止修改 OO 订单
         if order_type == enums.OrderType.OO:
             messagebox.showerror("错误", "OO 订单不允许修改任何属性！", parent=self.window)
-            self._restore_cell(row, col, order_id, order_type, col_name)
+            self._restore_cell(row, display_col, order_id, order_type, col_name)
             return
 
         order = self.order_data_manager.forecast_order_dict.get(order_id)
         if not order:
             messagebox.showerror("错误", "未找到对应订单！", parent=self.window)
             return
-
         try:
             attr = constant.ORDER_ATTR_MAP.get(col_name)
             if col_name in [foh.order_from, foh.order_to]:
@@ -901,18 +924,18 @@ class OrderPopupUI:
             else:
                 raise ValueError(f"{col_name} 列不支持编辑")
 
-            # 更新数据和 UI
+            # 更新数据和 UI（注意：set_cell_data 用显示列索引）
             self.order_data_manager.update_order_in_list(order)
-            self.sheet.set_cell_data(row, col, new_val)
+            self.sheet.set_cell_data(row, display_col, new_val)
 
-            # === 新增：只重绘该行甘特 ===
+            # 仅重绘该行甘特
             if hasattr(self, "gantt_sheet"):
-                row_data = self.sheet.get_row_data(row)
-                self._render_one_gantt_row(row, row_data)
+                fresh_row_data = self.sheet.get_row_data(row)  # 拿最新的全宽行
+                self._render_one_gantt_row(row, fresh_row_data)
                 self.gantt_sheet.redraw()
 
         except Exception as e:
-            self._restore_cell(row, col, order_id, order_type, col_name)
+            self._restore_cell(row, display_col, order_id, order_type, col_name)
             messagebox.showerror("错误", str(e), parent=self.window)
 
     def _restore_cell(self, row, col, order_id, order_type, col_name):
@@ -938,16 +961,14 @@ class OrderPopupUI:
         if not confirm:
             return
 
-        order_id_col = self._idx(foh.order_id)
-        order_type_col = self._idx(foh.order_type)
-
-        # 收集全部行（从大到小删除）
         to_delete = []
         for row_index in range(self.sheet.get_total_rows()):
-            order_id = self.sheet.get_cell_data(row_index, order_id_col)
-            order_type = self.sheet.get_cell_data(row_index, order_type_col)
+            row_data = self.sheet.get_row_data(row_index)  # 全列宽
+            order_id = row_data[self._idx(foh.order_id)]
+            order_type = row_data[self._idx(foh.order_type)]
             to_delete.append((order_id, order_type, row_index))
 
+        # 从底部删，避免索引位移
         for order_id, order_type, row_index in sorted(to_delete, key=lambda x: x[2], reverse=True):
             self.delete_order(order_id, order_type, row_index)
 
@@ -958,12 +979,12 @@ class OrderPopupUI:
         if not selected_row:
             return
 
-        order_id_col = self._idx(foh.order_id)
-        order_type_col = self._idx(foh.order_type)
         selected_order_lt = sorted([
-            (self.sheet.get_cell_data(row_index, order_id_col),
-             self.sheet.get_cell_data(row_index, order_type_col),
-             row_index)
+            (
+                self.sheet.get_row_data(row_index)[self._idx(foh.order_id)],
+                self.sheet.get_row_data(row_index)[self._idx(foh.order_type)],
+                row_index
+            )
             for row_index in selected_row
         ], key=lambda x: x[2], reverse=True)
 
@@ -1398,22 +1419,28 @@ class OrderPopupUI:
         try:
             self.order_data_manager.refresh_oo_list()
 
-            # 删除 UI 中 order_type = OO 的行
+            # 1) 删除 UI 中 order_type = OO 的行 —— 用“全宽行 + 基础索引”判定
             order_type_col = self._idx(foh.order_type)
             for row_index in reversed(range(self.sheet.get_total_rows())):
-                order_type = self.sheet.get_cell_data(row_index, order_type_col)
-                if order_type == enums.OrderType.OO:
+                row_data = self.sheet.get_row_data(row_index)  # ✅ 全列宽
+                order_type_val = row_data[order_type_col]
+                if order_type_val == enums.OrderType.OO:
                     self.sheet.delete_row(row_index)
 
-            # 插入新的 OO 行
-            oo_rows = self._order_to_rows(list(self.order_data_manager.order_order_dict.values()))
-            # 在现有数据末尾追加
-            current = self.sheet.get_sheet_data()
-            current.extend(oo_rows)
-            self._render_rows(current)
-            self._reapply_saved_sort_if_any()
+            # 2) 取剩余 UI 顺序的“全宽数据”
+            current_full_rows = [self.sheet.get_row_data(i) for i in range(self.sheet.get_total_rows())]
 
+            # 3) 生成新的 OO 行（全列宽）
+            oo_rows = self._order_to_rows(list(self.order_data_manager.order_order_dict.values()))
+
+            # 4) 合并并渲染（列宽一致，不会吞列）
+            current_full_rows.extend(oo_rows)
+            self._render_rows(current_full_rows)
+
+            # 5) 排序 + 下拉刷新
+            self._reapply_saved_sort_if_any()
             self._update_filter_options()
+
             messagebox.showinfo(title="提示", message="OO订单刷新成功！", parent=self.window)
         except Exception as e:
             messagebox.showerror(title="错误", message='刷新OO数据失败：' + str(e), parent=self.window)
