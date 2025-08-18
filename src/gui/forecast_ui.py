@@ -1508,9 +1508,14 @@ class LBForecastUI:
 
         # Step 11: 获取预测时间点
         if not self.df_forecast.empty:
-            TR_time = self.df_forecast.iloc[0].TargetRefillDate
-            Risk_time = self.df_forecast.iloc[0].TargetRiskDate
-            RO_time = self.df_forecast.iloc[0].TargetRunoutDate
+            TR_time = self.df_forecast['TargetRefillDate'].max()
+            Risk_time = self.df_forecast['TargetRiskDate'].max()
+            RO_time = self.df_forecast['TargetRunoutDate'].max()
+
+            # 如果需要把 NaT 转换成 None
+            TR_time = None if pd.isna(TR_time) else TR_time
+            Risk_time = None if pd.isna(Risk_time) else Risk_time
+            RO_time = None if pd.isna(RO_time) else RO_time
         else:
             TR_time = Risk_time = RO_time = None
 
