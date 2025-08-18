@@ -45,15 +45,13 @@ class OrderPopupUI:
 
         tk.Label(filter_frame, text="开始日期").grid(row=0, column=0, padx=5)
         self.start_date_var = tk.StringVar()
-        self.start_date_picker = DateEntry(filter_frame, textvariable=self.start_date_var,
-                                           date_pattern="yyyy-mm-dd", width=12)
-        self.start_date_picker.grid(row=0, column=1, padx=5)
+        self.start_date_entry = tk.Entry(filter_frame, textvariable=self.start_date_var, width=12)
+        self.start_date_entry.grid(row=0, column=1, padx=5)
 
         tk.Label(filter_frame, text="结束日期").grid(row=0, column=2, padx=5)
         self.end_date_var = tk.StringVar()
-        self.end_date_picker = DateEntry(filter_frame, textvariable=self.end_date_var,
-                                         date_pattern="yyyy-mm-dd", width=12)
-        self.end_date_picker.grid(row=0, column=3, padx=5)
+        self.end_date_entry = tk.Entry(filter_frame, textvariable=self.end_date_var, width=12)
+        self.end_date_entry.grid(row=0, column=3, padx=5)
 
         self.filter_vars = {
             foh.corporate_id: tk.StringVar(value="全部"),
@@ -799,15 +797,13 @@ class OrderPopupUI:
                     combo.current(0)
 
     def _apply_dropdown_filter(self) -> None:
-        """根据日期和下拉条件筛选订单"""
         try:
-            # ✅ 修改后（四位年）
-            start_date = dt.datetime.strptime(self.start_date_var.get(), DATE_FMT_UI).date()
-            end_date = dt.datetime.strptime(self.end_date_var.get(), DATE_FMT_UI).date()
+            start_date = dt.datetime.strptime(self.start_date_var.get().strip(), DATE_FMT_UI).date()
+            end_date = dt.datetime.strptime(self.end_date_var.get().strip(), DATE_FMT_UI).date()
             if end_date < start_date:
                 raise ValueError("结束日期不能早于开始日期")
         except ValueError:
-            messagebox.showerror("错误", "日期格式不正确", parent=self.window)
+            messagebox.showerror("错误", f"请输入正确的日期格式：{DATE_FMT_UI}", parent=self.window)
             return
 
         # 下拉条件
