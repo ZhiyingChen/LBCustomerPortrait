@@ -708,19 +708,20 @@ class OrderPopupUI:
 
     def _current_display_headers(self) -> List[str]:
         # 以“当前UI显示的头部”作为列顺序与集合的唯一来源
-        return [self._clean_header_text(h) for h in (self.sheet.headers() or []) if h not in self.hidden_column_indices]
+        return [self._clean_header_text(h) for h in (self.sheet.headers() or [])]
+
 
     def _get_target_width(self, col_name: str) -> int:
         # 用户覆盖优先，否则用默认
         return int(self._user_col_widths.get(col_name, self._default_col_widths.get(col_name, 80)))
 
     def _reapply_column_widths(self):
-        """按当前可见列顺序，应用目标宽度（用户覆盖 > 默认）"""
+        if not self.window.winfo_exists():
+            return
+
         try:
             headers_display = self._current_display_headers()
             for idx, col_name in enumerate(headers_display):
-                if idx in self.hidden_column_indices:
-                    continue
                 self.sheet.column_width(column=idx, width=self._get_target_width(col_name))
             # 甘特图固定
             if hasattr(self, "gantt_sheet"):
