@@ -458,11 +458,12 @@ class OrderPopupUI:
                 self._render_one_gantt_row(r, row)
             self.gantt_sheet.redraw()
 
-            # 同步选中状态
             sel = self.sheet.get_selected_rows()
             self.gantt_sheet.deselect("all")
+            right_total = self.gantt_sheet.get_total_rows()
             for r in sel:
-                self.gantt_sheet.select_row(r, redraw=False)
+                if 0 <= r < right_total:  # ✅ 防止越界
+                    self.gantt_sheet.select_row(r, redraw=False)
             self.gantt_sheet.redraw()
 
             # 刷新共享滚动条
@@ -579,13 +580,13 @@ class OrderPopupUI:
                 try:
                     cur = _left_order_digest()
                     if self._last_left_digest is None:
-                        # 首次记录
                         self._last_left_digest = cur
                     elif cur != self._last_left_digest:
                         _sync_from_left("poll")
                     else:
-                        # 保持外置滚动条状态更新的稳定性
                         self._update_shared_vbar()
+                except Exception as e:
+                    print(f"[WARN] _poll_changes error: {e}")  # ✅ 打印警告但不中断
                 finally:
                     if not getattr(self, "closed", False):
                         self.window.after(POLL_MS, _poll_changes)
@@ -637,13 +638,14 @@ class OrderPopupUI:
         oo_rows = self._order_to_rows(list(self.order_data_manager.order_order_dict.values()))
         return fo_rows + oo_rows
 
-    def _render_rows(self, rows: List[List]):
+    def _render_rows(self, rows: List[List], keep_sort: bool = False):
         """统一渲染入口：设置数据 -> 应用现有排序 -> 刷新箭头表头"""
         self.sheet.set_sheet_data(rows)
         self._auto_adjust_column_widths()
-        # === 新增：右侧甘特图按左侧当前数据重绘 ===
         if hasattr(self, "gantt_sheet"):
             self._render_gantt_rows_from_left()
+        if keep_sort:
+            self._reapply_saved_sort_if_any()
 
     def _adjust_frame_widths(self):
         total_width = self.window.winfo_width()
@@ -813,7 +815,8 @@ class OrderPopupUI:
             if dt_obj and start_date <= dt_obj.date() <= end_date:
                 filtered.append(row)
 
-        self._render_rows(filtered)
+        self._render_rows(filtered, keep_sort=True)
+
 
     def _clear_filter(self):
         # 下拉重置
@@ -831,7 +834,7 @@ class OrderPopupUI:
         self.end_date_var.set(end_default.strftime("%y-%m-%d"))
 
         # 渲染全量
-        self._render_rows(self._get_all_rows_from_source())
+        self._render_rows(self._get_all_rows_from_source(), keep_sort=True)
         self._update_filter_options()
 
 
