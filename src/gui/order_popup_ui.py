@@ -395,49 +395,189 @@ class OrderPopupUI:
     # 跨表同步（新增）
     # -------------------------
     def _bind_cross_sheet_sync(self) -> None:
-        """绑定左->右的选择同步，以及共享纵向滚动条的滚动同步"""
+        """
+        1) 左->右 行选择同步
+        2) 纵向滚动同步（鼠标/键盘/外置滚动条）
+        3) 行拖拽完成 -> 等待 idle 后按左表“当前 UI 顺序”重绘右侧甘特
+        4) 轮询兜底（跨版本/事件不触发时仍确保同步）
+        """
 
-        # —— 行选择同步（左驱右）
-        def on_row_select(_=None):
-            rows = self.sheet.get_selected_rows()
+        # --------------------------
+        # 调试/兜底配置
+        # --------------------------
+        DEBUG = False  # 打开后打印触发日志与当前顺序
+        SAFE_POLL = True  # 兜底轮询，确保无论如何都能同步
+        POLL_MS = 250  # 轮询间隔（毫秒）
+
+        # 保存上次“左表顺序的指纹”，用于判断是否变化
+        self._last_left_digest = None
+
+        # 计算当前左表“顺序指纹”（优先用订单ID列；没有就退化为整行内容）
+        def _left_order_digest():
+            try:
+                oid_col = self._idx(foh.order_id)
+                return tuple(self.sheet.get_cell_data(i, oid_col)
+                             for i in range(self.sheet.get_total_rows()))
+            except Exception:
+                # 退化方案：比较整行值（更重但更稳）
+                return tuple(
+                    tuple(self.sheet.get_row_data(i))
+                    for i in range(self.sheet.get_total_rows())
+                )
+
+        # 统一的“按左表当前 UI 顺序重绘右侧甘特”的函数
+        def _sync_from_left(reason: str = "manual"):
+            # 关键点：**逐行**按当前显示顺序读取
+            rows = [self.sheet.get_row_data(i) for i in range(self.sheet.get_total_rows())]
+
+            # 调整右侧行数
+            left_n = len(rows)
+            right_n = self.gantt_sheet.get_total_rows()
+            if right_n < left_n:
+                self.gantt_sheet.insert_rows(left_n - right_n)
+            elif right_n > left_n:
+                for r in range(right_n - 1, left_n - 1, -1):
+                    self.gantt_sheet.delete_row(r)
+
+            # 逐行重绘
+            for r, row in enumerate(rows):
+                self._render_one_gantt_row(r, row)
+            self.gantt_sheet.redraw()
+
+            # 同步选中状态
+            sel = self.sheet.get_selected_rows()
             self.gantt_sheet.deselect("all")
-            for r in rows:
+            for r in sel:
                 self.gantt_sheet.select_row(r, redraw=False)
             self.gantt_sheet.redraw()
 
+            # 刷新共享滚动条
+            self._update_shared_vbar()
+
+            # 刷新当前顺序指纹
+            self._last_left_digest = _left_order_digest()
+
+            if DEBUG:
+                print(f"[DEBUG] gantt synced ({reason}), rows={left_n}")
+
+        # --------------------------
+        # 1) 行选择同步（左驱右）
+        # --------------------------
+        def on_row_select(_=None):
+            sel = self.sheet.get_selected_rows()
+            self.gantt_sheet.deselect("all")
+            for r in sel:
+                self.gantt_sheet.select_row(r, redraw=False)
+            self.gantt_sheet.redraw()
+            if DEBUG:
+                print(f"[DEBUG] on_row_select -> {sel}")
+
         self.sheet.extra_bindings("row_select", func=on_row_select)
 
-        # —— 鼠标滚轮（Windows/macOS）
+        # --------------------------
+        # 2) 纵向滚动同步（鼠标/键盘）
+        # --------------------------
         def _on_mouse_wheel(event):
-            # event.delta > 0 表示向上；按行滚动一步
             step = -1 if getattr(event, "delta", 0) > 0 else 1
             self._y_scroll_units(step)
+            # 异步刷新外置滚动条显示区间
+            self.window.after_idle(self._update_shared_vbar)
             return "break"
 
+        # Windows/macOS
         self.sheet.bind("<MouseWheel>", _on_mouse_wheel)
         self.gantt_sheet.bind("<MouseWheel>", _on_mouse_wheel)
+        # Linux
+        self.sheet.bind("<Button-4>",
+                        lambda e: (self._y_scroll_units(-1), self.window.after_idle(self._update_shared_vbar), "break"))
+        self.sheet.bind("<Button-5>",
+                        lambda e: (self._y_scroll_units(+1), self.window.after_idle(self._update_shared_vbar), "break"))
+        self.gantt_sheet.bind("<Button-4>", lambda e: (
+        self._y_scroll_units(-1), self.window.after_idle(self._update_shared_vbar), "break"))
+        self.gantt_sheet.bind("<Button-5>", lambda e: (
+        self._y_scroll_units(+1), self.window.after_idle(self._update_shared_vbar), "break"))
 
-        # —— 鼠标滚轮（Linux）
-        self.sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
-        self.sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
-        self.gantt_sheet.bind("<Button-4>", lambda e: (self._y_scroll_units(-1), "break"))
-        self.gantt_sheet.bind("<Button-5>", lambda e: (self._y_scroll_units(+1), "break"))
+        # 键盘
+        self.sheet.bind("<Up>", lambda e: (self._y_scroll_units(-1), self.window.after_idle(self._update_shared_vbar)))
+        self.sheet.bind("<Down>",
+                        lambda e: (self._y_scroll_units(+1), self.window.after_idle(self._update_shared_vbar)))
+        self.sheet.bind("<Prior>", lambda e: (
+        self._y_scroll_pages(-1), self.window.after_idle(self._update_shared_vbar)))  # PageUp
+        self.sheet.bind("<Next>", lambda e: (
+        self._y_scroll_pages(+1), self.window.after_idle(self._update_shared_vbar)))  # PageDown
 
-        # —— 键盘纵向滚动
-        self.sheet.bind("<Up>", lambda e: self._y_scroll_units(-1))
-        self.sheet.bind("<Down>", lambda e: self._y_scroll_units(+1))
-        self.sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))  # PageUp
-        self.sheet.bind("<Next>", lambda e: self._y_scroll_pages(+1))  # PageDown
+        self.gantt_sheet.bind("<Up>",
+                              lambda e: (self._y_scroll_units(-1), self.window.after_idle(self._update_shared_vbar)))
+        self.gantt_sheet.bind("<Down>",
+                              lambda e: (self._y_scroll_units(+1), self.window.after_idle(self._update_shared_vbar)))
+        self.gantt_sheet.bind("<Prior>",
+                              lambda e: (self._y_scroll_pages(-1), self.window.after_idle(self._update_shared_vbar)))
+        self.gantt_sheet.bind("<Next>",
+                              lambda e: (self._y_scroll_pages(+1), self.window.after_idle(self._update_shared_vbar)))
 
-        self.gantt_sheet.bind("<Up>", lambda e: self._y_scroll_units(-1))
-        self.gantt_sheet.bind("<Down>", lambda e: self._y_scroll_units(+1))
-        self.gantt_sheet.bind("<Prior>", lambda e: self._y_scroll_pages(-1))
-        self.gantt_sheet.bind("<Next>", lambda e: self._y_scroll_pages(+1))
+        # --------------------------
+        # 3) 行拖拽完成 -> 同步甘特（多事件名兼容）
+        # --------------------------
+        def on_row_drag_end(event=None):
+            # 有些版本拖拽后需要 redraw 一次才能保证 UI/数据一致
+            try:
+                self.sheet.redraw()
+            except Exception:
+                pass
+            # 等待 tksheet 完成内部重排后再读取数据
+            self.window.after_idle(lambda: _sync_from_left("row_drag_end"))
 
-        # —— 行拖拽后重绘右侧并刷新滚动条区间
-        self.sheet.extra_bindings("row_drag_and_drop", func=lambda e: (
-            self._render_gantt_rows_from_left(), self._update_shared_vbar()
-        ))
+            if DEBUG:
+                try:
+                    oid_col = self._idx(foh.order_id)
+                    left_ids = [self.sheet.get_cell_data(i, oid_col) for i in range(self.sheet.get_total_rows())]
+                    print(f"[DEBUG] after_drag order ids -> {left_ids}")
+                except Exception as ex:
+                    print(f"[DEBUG] after_drag: cannot dump ids: {ex}")
+
+        # 尝试绑定多个可能的事件名（不同版本 tksheet 命名不同）
+        def _try_bind_extra(name: str):
+            try:
+                self.sheet.extra_bindings(name, func=on_row_drag_end)
+                if DEBUG:
+                    print(f"[DEBUG] bound extra: {name}")
+            except Exception:
+                if DEBUG:
+                    print(f"[DEBUG] extra not available: {name}")
+
+        for evt_name in ("end_move_rows", "row_drag_and_drop", "end_row_move", "move_rows", "row_move"):
+            _try_bind_extra(evt_name)
+
+        # 一些版本提供虚拟事件（如果支持就顺手绑定）
+        try:
+            self.sheet.bind("<<SheetModified>>",
+                            lambda e: self.window.after_idle(lambda: _sync_from_left("<<SheetModified>>")))
+            if DEBUG:
+                print("[DEBUG] bound virtual <<SheetModified>>")
+        except Exception:
+            pass
+
+        # --------------------------
+        # 4) 轮询兜底（事件不触发也能同步）
+        # --------------------------
+        if SAFE_POLL:
+            def _poll_changes():
+                try:
+                    cur = _left_order_digest()
+                    if self._last_left_digest is None:
+                        # 首次记录
+                        self._last_left_digest = cur
+                    elif cur != self._last_left_digest:
+                        _sync_from_left("poll")
+                    else:
+                        # 保持外置滚动条状态更新的稳定性
+                        self._update_shared_vbar()
+                finally:
+                    if not getattr(self, "closed", False):
+                        self.window.after(POLL_MS, _poll_changes)
+
+            # 延迟启动，待窗口稳定后
+            self.window.after(300, _poll_changes)
 
     # -------------------------
     # 工具与渲染
