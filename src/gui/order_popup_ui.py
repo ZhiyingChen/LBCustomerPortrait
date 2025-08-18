@@ -112,6 +112,8 @@ class OrderPopupUI:
         self.right_frame = tk.Frame(self.main_frame, width=1050)  # 右侧宽度可按需
         self.right_frame.pack(side="left", fill="both", expand=True)
 
+        self._init_width_model()
+        self._bind_column_width_events()
         # === 左：原 sheet（保持不变） ===
         self.base_headers = [
             foh.order_id, foh.order_type, foh.corporate_id, foh.product,
@@ -151,6 +153,8 @@ class OrderPopupUI:
 
         # === 同步绑定（新增） ===
         self._bind_cross_sheet_sync()
+
+
 
     # -------------------------
     # 甘特图：初始化（新增）
@@ -648,41 +652,13 @@ class OrderPopupUI:
         self.right_frame.config(width=half_width)
 
     def _auto_adjust_column_widths(self, event=None):
-        """根据当前可见列名调整宽度，而不是按索引"""
+        """
+        以“当前UI可见列”作为单一真相来源，应用列宽模型（用户覆盖 > 默认）。
+        在窗口尺寸变化、数据重绘、隐藏/显示列之后都可以调用。
+        """
         try:
-            # 定义列宽规则
-            col_width_dict = {
-                foh.order_id: 100,
-                foh.order_type: 30,
-                foh.corporate_id: 40,
-                foh.product: 40,
-                foh.shipto: 70,
-                foh.cust_name: 140,
-                foh.order_from: 110,
-                foh.order_to: 110,
-                foh.ton: 40,
-                foh.comment: 120,
-                foh.target_date: 110,
-                foh.risk_date: 110,
-                foh.run_out_date: 110,
-            }
-            default_width = 80
-
-            # 获取当前显示的表头（去掉排序箭头）
-            hidden_headers = [self.base_headers[i] for i in self.hidden_column_indices]
-            headers_display = [h for h in self.base_headers if h not in hidden_headers]
-
-            # 按当前显示顺序设置宽度
-            for idx, col_name in enumerate(headers_display):
-                width = col_width_dict.get(col_name, default_width)
-                self.sheet.column_width(column=idx, width=width)
-
-            if hasattr(self, "gantt_sheet"):
-                # 甘特图列宽固定
-                gantt_col_width = 40
-                for c in range(len(self.gantt_hours)):
-                    self.gantt_sheet.column_width(column=c, width=gantt_col_width)
-
+            # 延迟到 idle，避免与 tksheet 内部刷新冲突
+            self.window.after_idle(self._reapply_column_widths)
         except Exception as e:
             print("调整列宽失败：", e)
 
@@ -705,6 +681,88 @@ class OrderPopupUI:
         import re as _re
         clean_name = _re.sub(r"\s*[↑↓]\d+$", "", hdrs[display_col])
         return clean_name, self._idx(clean_name)
+
+    # ========= 列宽模型 =========
+    def _init_width_model(self):
+        # 默认宽度
+        self._default_col_widths = {
+            foh.order_id: 100,
+            foh.order_type: 30,
+            foh.corporate_id: 40,
+            foh.product: 40,
+            foh.shipto: 70,
+            foh.cust_name: 140,
+            foh.order_from: 110,
+            foh.order_to: 110,
+            foh.ton: 40,
+            foh.comment: 120,
+            foh.target_date: 110,
+            foh.risk_date: 110,
+            foh.run_out_date: 110,
+        }
+        self._user_col_widths = {}  # {列名(无箭头): 宽度}
+
+    def _clean_header_text(self, h: str) -> str:
+        # 去掉排序箭头等后缀，保持与 base_headers 的名字一致
+        return re.sub(r"\s*[↑↓]\d+$", "", h or "")
+
+    def _current_display_headers(self) -> List[str]:
+        # 以“当前UI显示的头部”作为列顺序与集合的唯一来源
+        return [self._clean_header_text(h) for h in (self.sheet.headers() or []) if h not in self.hidden_column_indices]
+
+    def _get_target_width(self, col_name: str) -> int:
+        # 用户覆盖优先，否则用默认
+        return int(self._user_col_widths.get(col_name, self._default_col_widths.get(col_name, 80)))
+
+    def _reapply_column_widths(self):
+        """按当前可见列顺序，应用目标宽度（用户覆盖 > 默认）"""
+        try:
+            headers_display = self._current_display_headers()
+            for idx, col_name in enumerate(headers_display):
+                if idx in self.hidden_column_indices:
+                    continue
+                self.sheet.column_width(column=idx, width=self._get_target_width(col_name))
+            # 甘特图固定
+            if hasattr(self, "gantt_sheet"):
+                gantt_col_width = 40
+                for c in range(len(getattr(self, "gantt_hours", []))):
+                    self.gantt_sheet.column_width(column=c, width=gantt_col_width)
+            self.sheet.redraw()
+        except Exception as e:
+            print("应用列宽失败：", e)
+
+    def _capture_current_widths(self):
+        """
+        读取当前可见列的宽度，存储到 _user_col_widths（用于记住用户拖动后的宽度）。
+        """
+        try:
+            headers_display = self._current_display_headers()
+            for idx, col_name in enumerate(headers_display):
+                # tksheet 的 column_width(column=idx) 返回该列当前宽度
+                w = self.sheet.column_width(column=idx)
+                if isinstance(w, (int, float)) and w > 0:
+                    self._user_col_widths[col_name] = int(w)
+        except Exception as e:
+            print("读取列宽失败：", e)
+
+    def _bind_column_width_events(self):
+        """
+        监听列宽变化事件，自动记忆用户宽度。
+        不同版本 tksheet 事件名不同，做兼容尝试。
+        """
+
+        def on_width_change(_=None):
+            # 结束调整后记录，并再次应用（确保一致）
+            self._capture_current_widths()
+            # 延迟到 idle 再应用，避免被内部刷新覆盖
+            self.window.after_idle(self._reapply_column_widths)
+
+        for evt in ("end_resize_columns", "end_change_columns_width", "column_width_resize"):
+            try:
+                self.sheet.extra_bindings(evt, func=on_width_change)
+                # 绑定到一个事件即可；如果想多重兜底，也可以全绑定
+            except Exception:
+                pass
 
     # -------------------------
     # 筛选（基于全量数据）
@@ -780,7 +838,6 @@ class OrderPopupUI:
     # 列隐藏/显示
     # -------------------------
     def _hide_columns(self):
-        headers_display = self.sheet.headers()
         available_names = [h for i, h in enumerate(self.base_headers) if i not in self.hidden_column_indices]
         selected = self._ask_multiple_columns(available_names, "选择要隐藏的列")
         if selected:
@@ -790,7 +847,9 @@ class OrderPopupUI:
                 if idx not in self.hidden_column_indices:
                     self.hidden_column_indices.append(idx)
 
-            # ✅ 补一次宽度调整与重绘
+            # 记录一次当前（隐藏前后）宽度，再延迟应用
+            self._capture_current_widths()
+            self.window.after_idle(self._auto_adjust_column_widths)  # 用统一入口
             self.sheet.redraw()
 
     def _show_columns(self):
@@ -804,7 +863,9 @@ class OrderPopupUI:
             self.sheet.show_columns(indices)
             self.hidden_column_indices = [i for i in self.hidden_column_indices if i not in indices]
 
-            # ✅ 补一次宽度调整与重绘
+            # 同样：记录 -> 延迟应用 -> 重绘
+            self._capture_current_widths()
+            self.window.after_idle(self._auto_adjust_column_widths)
             self.sheet.redraw()
 
     def _ask_multiple_columns(self, options, title):
@@ -1366,6 +1427,7 @@ class OrderPopupUI:
                 pass
         # 可选：保存当前排序规格（便于刷新/过滤后重用）
         self._current_sort_specs = sort_specs
+        self.window.after_idle(self._auto_adjust_column_widths)
 
     def _reapply_saved_sort_if_any(self):
         specs = getattr(self, "_current_sort_specs", None)
@@ -1410,7 +1472,7 @@ class OrderPopupUI:
             if getattr(self, "hidden_column_indices", None):
                 self.sheet.hide_columns(self.hidden_column_indices)
             self.sheet.redraw()
-
+            self.window.after_idle(self._auto_adjust_column_widths)
 
     # -------------------------
     # 刷新 OO 订单
@@ -1440,6 +1502,7 @@ class OrderPopupUI:
             # 5) 排序 + 下拉刷新
             self._reapply_saved_sort_if_any()
             self._update_filter_options()
+            self.window.after_idle(self._auto_adjust_column_widths)
 
             messagebox.showinfo(title="提示", message="OO订单刷新成功！", parent=self.window)
         except Exception as e:
