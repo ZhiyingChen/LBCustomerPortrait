@@ -170,7 +170,7 @@ class OrderPopupUI:
         start = dt.datetime.combine(today + dt.timedelta(days=1), dt.time(0, 0))
         self.gantt_start_dt: dt.datetime = start
         self.gantt_hours: List[dt.datetime] = [start + dt.timedelta(hours=i) for i in range(48)]
-        headers = [h.strftime("%d %H") for h in self.gantt_hours]
+        headers = [h.strftime("%H") for h in self.gantt_hours]
 
         # ---- 容器：右侧包含 甘特sheet + 外置竖向滚动条（在最右侧） ----
         self.gantt_container = tk.Frame(self.right_frame)
@@ -731,7 +731,7 @@ class OrderPopupUI:
                 self.sheet.column_width(column=idx, width=self._get_target_width(col_name))
             # 甘特图固定
             if hasattr(self, "gantt_sheet"):
-                gantt_col_width = 40
+                gantt_col_width = 20
                 for c in range(len(getattr(self, "gantt_hours", []))):
                     self.gantt_sheet.column_width(column=c, width=gantt_col_width)
             self.sheet.redraw()
