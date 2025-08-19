@@ -4,7 +4,6 @@ import pandas as pd
 import datetime as dt
 import re
 from typing import List, Optional, Tuple
-from tkcalendar import DateEntry
 from tksheet import Sheet
 
 from .lb_order_data_manager import LBOrderDataManager
@@ -120,7 +119,7 @@ class OrderPopupUI:
         self._bind_column_width_events()
         # === 左：原 sheet（保持不变） ===
         self.base_headers = [
-            foh.order_id, foh.order_type, foh.corporate_id, foh.product,
+            foh.order_id, foh.order_type, foh.sub_region, foh.corporate_id, foh.product,
             foh.shipto, foh.cust_name, foh.order_from, foh.order_to,
             foh.ton, foh.comment, foh.target_date, foh.risk_date, foh.run_out_date
         ]
@@ -694,6 +693,7 @@ class OrderPopupUI:
         self._default_col_widths = {
             foh.order_id: 100,
             foh.order_type: 30,
+            foh.sub_region: 50,
             foh.corporate_id: 40,
             foh.product: 40,
             foh.shipto: 70,

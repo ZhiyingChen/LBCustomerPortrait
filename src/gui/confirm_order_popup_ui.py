@@ -122,6 +122,7 @@ class ConfirmOrderPopupUI:
             order_id=func.generate_new_forecast_order_id(),
             shipto=shipto,
             cust_name='{}, {}'.format(self.df_info.CustAcronym.values[0], self.df_info.TankAcronym.values[0]),
+            sub_region=str(self.df_info.SubRegion.values[0]),
             product=str(self.df_info.ProductClass.values[0]),
             corporate_idn=self.df_info.PrimaryTerminal.values[0],
             from_time=pd.to_datetime(self.from_time),

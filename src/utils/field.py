@@ -11,6 +11,7 @@ class OrderListHeader:
     order_id = "OrderID"
     shipto = "ShipTo"
     cust_name = "CustName"
+    sub_region = "SubRegion"
     corporate_idn = "CorporateIdn"
     product = "Product"
     from_time = "FromTime"
@@ -37,6 +38,7 @@ class CallLogHeader:
 class FOTableHeader:
     order_id = "订单"
     order_type = "类型"
+    sub_region = "区域"
     corporate_id = "DT"
     product = "产品"
     shipto = "ShipTo"

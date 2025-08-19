@@ -10,6 +10,7 @@ ORDER_ATTR_MAP = {
     FOTableHeader.po_number: 'po_number',
     FOTableHeader.order_id: "order_id",
     FOTableHeader.order_type: "order_type",
+    FOTableHeader.sub_region: "sub_region",
     FOTableHeader.corporate_id: "corporate_idn",
     FOTableHeader.product: "product",
     FOTableHeader.shipto: "shipto",

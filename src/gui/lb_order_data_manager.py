@@ -153,6 +153,7 @@ class LBOrderDataManager:
                     {} TEXT PRIMARY KEY,   -- order_id
                     {} TEXT NOT NULL, -- shipto
                     {} TEXT NOT NULL, -- cust_name
+                    {} TEXT NOT NULL, -- sub_region
                     {} TEXT NOT NULL, -- corporate_idn
                     {} TEXT NOT NULL, -- product
                     {} TEXT NOT NULL, -- from_time
@@ -173,6 +174,7 @@ class LBOrderDataManager:
                 oh.order_id,
                 oh.shipto,
                 oh.cust_name,
+                oh.sub_region,
                 oh.corporate_idn,
                 oh.product,
                 oh.from_time,
@@ -241,6 +243,7 @@ class LBOrderDataManager:
                 order_id=row[oh.order_id],
                 shipto=row[oh.shipto],
                 cust_name=row[oh.cust_name],
+                sub_region=row[oh.sub_region],
                 corporate_idn=row[oh.corporate_idn],
                 product=row[oh.product],
                 from_time=row[oh.from_time],
@@ -322,6 +325,7 @@ class LBOrderDataManager:
                        ?, -- order_id
                        ?, -- shipto
                        ?, -- cust_name
+                       ?, -- sub_region
                        ?, -- corporate_idn
                        ?, -- product
                        ?, -- from_time
@@ -344,6 +348,7 @@ class LBOrderDataManager:
                 order.order_id,
                 order.shipto,
                 order.cust_name,
+                order.sub_region,
                 order.corporate_idn,
                 order.product,
                 order.from_time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -520,10 +525,18 @@ class LBOrderDataManager:
                 'PONum': sh.po_number
             }
         )
+        view_demand_df[sh.sub_region] = view_demand_df['Name'].apply(
+            lambda x: 'CNNW' if 'CNNW' in x else
+            'CNCE' if 'CNCE' in x else
+            'CNS' if 'CNS' in x else
+            ''
+        )
+
         kept_columns = [
             sh.order_id,
             sh.shipto,
             sh.cust_name,
+            sh.sub_region,
             sh.corporate_idn,
             sh.product,
             sh.from_time,

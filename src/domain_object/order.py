@@ -7,6 +7,7 @@ class Order:
             order_id: str,
             shipto: str,
             cust_name: str,
+            sub_region: str,
             corporate_idn: str,
             product: str,
             from_time: pd.Timestamp,
@@ -23,6 +24,7 @@ class Order:
     ):
         self.order_id = order_id
         self.shipto = shipto
+        self.sub_region = sub_region
         self.cust_name = cust_name
         self.corporate_idn = corporate_idn
         self.product = product
