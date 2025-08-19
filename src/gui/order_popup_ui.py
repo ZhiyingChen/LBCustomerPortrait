@@ -42,6 +42,7 @@ class OrderPopupUI:
         filter_frame = tk.LabelFrame(top_frame, text="筛选")
         filter_frame.pack(side='left', padx=10)
 
+        # 日期
         tk.Label(filter_frame, text="开始日期").grid(row=0, column=0, padx=5)
         self.start_date_var = tk.StringVar()
         self.start_date_entry = tk.Entry(filter_frame, textvariable=self.start_date_var, width=12)
@@ -52,24 +53,44 @@ class OrderPopupUI:
         self.end_date_entry = tk.Entry(filter_frame, textvariable=self.end_date_var, width=12)
         self.end_date_entry.grid(row=0, column=3, padx=5)
 
+        # --- 新的筛选状态：subregion(单选)、corporate(多选)、product(单选) ---
+        # 注意：corporate_idn (DT) 对应 foh.corporate_id
         self.filter_vars = {
-            foh.corporate_id: tk.StringVar(value="全部"),
+            foh.sub_region: tk.StringVar(value="全部"),
             foh.product: tk.StringVar(value="全部"),
         }
-        for idx, label_text in enumerate([foh.corporate_id, foh.product]):
-            tk.Label(filter_frame, text=label_text).grid(row=1, column=idx * 2, padx=5)
-            combo = ttk.Combobox(filter_frame, textvariable=self.filter_vars[label_text],
-                                 state="readonly", width=12)
-            combo['values'] = ["全部"]
-            combo.grid(row=1, column=idx * 2 + 1, padx=5)
-            setattr(self, f"{label_text}_combo", combo)
+
+        # Subregion（单选）
+        tk.Label(filter_frame, text=foh.sub_region).grid(row=1, column=0, padx=5)
+        self.subregion_combo = ttk.Combobox(
+            filter_frame, textvariable=self.filter_vars[foh.sub_region],
+            state="readonly", width=12, values=["全部"]
+        )
+        self.subregion_combo.grid(row=1, column=1, padx=5)
+        self.subregion_combo.bind("<<ComboboxSelected>>", lambda e: self._on_subregion_changed())
+
+        # Corporate（多选：按钮 + 只读展示）
+        tk.Label(filter_frame, text=foh.corporate_id).grid(row=1, column=2, padx=5)
+        self.selected_corporates = set()  # 多选集合
+        self.corporate_display_var = tk.StringVar(value="全部")
+        corp_frame = tk.Frame(filter_frame)
+        corp_frame.grid(row=1, column=3, padx=5, sticky="w")
+        self.corp_entry = tk.Entry(corp_frame, textvariable=self.corporate_display_var, width=18, state="readonly")
+        self.corp_entry.pack(side="left")
+        tk.Button(corp_frame, text="选择...", command=self._open_corporate_multi_select).pack(side="left", padx=4)
+
+        # Product（单选，候选基于全量数据，不联动 subregion/corporate）
+        tk.Label(filter_frame, text=foh.product).grid(row=1, column=4, padx=5)
+        self.product_combo = ttk.Combobox(
+            filter_frame, textvariable=self.filter_vars[foh.product],
+            state="readonly", width=12, values=["全部"]
+        )
+        self.product_combo.grid(row=1, column=5, padx=5)
 
         # 默认日期：明日 0 点（显示 yyyy-mm-dd），结束 = 开始 + 1 天
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=1)
-
-        # ✅ 修改后（四位年）
         self.start_date_var.set(start_default.strftime(DATE_FMT_UI))
         self.end_date_var.set(end_default.strftime(DATE_FMT_UI))
 
@@ -90,7 +111,6 @@ class OrderPopupUI:
         # 3) 功能模块
         func_frame = tk.LabelFrame(top_frame, text="功能")
         func_frame.pack(side='right', padx=10)
-        # ✅ 新增：排序对话框按钮
         tk.Button(func_frame, text="排\n序", command=self._open_sort_dialog,
                   bg="#EEE8AA", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
 
@@ -775,28 +795,40 @@ class OrderPopupUI:
     # 筛选（基于全量数据）
     # -------------------------
     def _update_filter_options(self):
-        """始终基于全量数据生成下拉候选，不受当前表格过滤影响"""
+        """基于全量数据更新候选；仅 corporate 受 subregion 限制。"""
         all_rows = self._get_all_rows_from_source()
 
-        for col_name in [foh.corporate_id, foh.product]:
-            col_index = self._idx(col_name)
-            values = {self._safe_to_str(row[col_index]) for row in all_rows if self._safe_to_str(row[col_index])}
-            options = ["全部"] + sorted(values)
+        # 1) Subregion 候选（全量）
+        sub_opts = ["全部"] + self._unique_values(foh.sub_region, all_rows)
+        prev_sub = self.filter_vars[foh.sub_region].get()
+        self.subregion_combo["values"] = sub_opts
+        self.filter_vars[foh.sub_region].set(prev_sub if prev_sub in sub_opts else "全部")
+        self.subregion_combo.set(self.filter_vars[foh.sub_region].get())
 
-            prev_selected = self.filter_vars[col_name].get()
-            combo_attr = f"{col_name}_combo"
+        # 2) Product 候选（全量，不联动）
+        prod_opts = ["全部"] + self._unique_values(foh.product, all_rows)
+        prev_prod = self.filter_vars[foh.product].get()
+        self.product_combo["values"] = prod_opts
+        self.filter_vars[foh.product].set(prev_prod if prev_prod in prod_opts else "全部")
+        self.product_combo.set(self.filter_vars[foh.product].get())
 
-            if hasattr(self, combo_attr):
-                combo = getattr(self, combo_attr)
-                combo['values'] = options
-                if prev_selected in options:
-                    self.filter_vars[col_name].set(prev_selected)
-                    combo.set(prev_selected)
-                else:
-                    self.filter_vars[col_name].set("全部")
-                    combo.current(0)
+        # 3) Corporate 候选（仅受 subregion 限制）
+        chosen_sub = self.filter_vars[foh.sub_region].get()
+        if chosen_sub and chosen_sub != "全部":
+            candidates_rows = [r for r in all_rows if self._safe_to_str(r[self._idx(foh.sub_region)]) == chosen_sub]
+        else:
+            candidates_rows = all_rows
+        self._current_corporate_candidates = set(self._unique_values(foh.corporate_id, candidates_rows))
+
+        # 剔除不在候选集合里的已选 corporate
+        if self.selected_corporates:
+            self.selected_corporates &= self._current_corporate_candidates
+
+        # 更新 corporate 展示
+        self._set_corporate_display()
 
     def _apply_dropdown_filter(self) -> None:
+        # 日期校验
         try:
             start_date = dt.datetime.strptime(self.start_date_var.get().strip(), DATE_FMT_UI).date()
             end_date = dt.datetime.strptime(self.end_date_var.get().strip(), DATE_FMT_UI).date()
@@ -806,40 +838,159 @@ class OrderPopupUI:
             messagebox.showerror("错误", f"请输入正确的日期格式：{DATE_FMT_UI}", parent=self.window)
             return
 
-        # 下拉条件
-        criteria = {k: v.get() for k, v in self.filter_vars.items() if v.get() != "全部"}
+        sub_val = self.filter_vars[foh.sub_region].get()
+        prod_val = self.filter_vars[foh.product].get()
+        corp_sel = set(self.selected_corporates)
 
-        # 过滤逻辑
         filtered = []
         for row in self._get_all_rows_from_source():
-            if any(self._safe_to_str(row[self._idx(k)]) != val for k, val in criteria.items()):
-                continue
+            # subregion 等于
+            if sub_val and sub_val != "全部":
+                if self._safe_to_str(row[self._idx(foh.sub_region)]) != sub_val:
+                    continue
+            # product 等于
+            if prod_val and prod_val != "全部":
+                if self._safe_to_str(row[self._idx(foh.product)]) != prod_val:
+                    continue
+            # corporate in 选中集合（若集合非空）
+            if corp_sel:
+                if self._safe_to_str(row[self._idx(foh.corporate_id)]) not in corp_sel:
+                    continue
+            # 日期范围（基于 order_to）
             dt_obj = self._parse_display_dt(self._safe_to_str(row[self._idx(foh.order_to)]))
             if dt_obj and start_date <= dt_obj.date() <= end_date:
                 filtered.append(row)
 
         self._render_rows(filtered, keep_sort=True)
 
-
     def _clear_filter(self):
-        # 下拉重置
-        for k, var in self.filter_vars.items():
-            var.set("全部")
-            combo_attr = f"{k}_combo"
-            if hasattr(self, combo_attr):
-                getattr(self, combo_attr).current(0)
+        # 重置下拉
+        self.filter_vars[foh.sub_region].set("全部")
+        self.filter_vars[foh.product].set("全部")
 
-        # 日期重置
+        # 清空 corporate 多选
+        self.selected_corporates.clear()
+        self._set_corporate_display()
+
+        # 日期重置（保持与你原逻辑一致）
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
         end_default = start_default + dt.timedelta(days=2)
         self.start_date_var.set(start_default.strftime(DATE_FMT_UI))
         self.end_date_var.set(end_default.strftime(DATE_FMT_UI))
 
-        # 渲染全量
+        # 渲染全量 + 刷新候选
         self._render_rows(self._get_all_rows_from_source(), keep_sort=True)
         self._update_filter_options()
 
+    def _on_subregion_changed(self):
+        """Subregion 变更后，刷新 corporate 候选并剔除不合法的已选项。"""
+        self._update_filter_options()
+
+    def _unique_values(self, col_name: str, rows: list[list]) -> list[str]:
+        """从 rows 中提取某列的去重非空值并排序。"""
+        idx = self._idx(col_name)
+        vals = {self._safe_to_str(r[idx]) for r in rows if self._safe_to_str(r[idx])}
+        return sorted(vals)
+
+    def _set_corporate_display(self):
+        """根据已选 corporate 刷新 UI 展示。"""
+        if not self.selected_corporates:
+            self.corporate_display_var.set("全部")
+            return
+        names = sorted(self.selected_corporates)
+        joined = "; ".join(names)
+        if len(joined) > 30:
+            self.corporate_display_var.set(f"已选 {len(names)} 个")
+        else:
+            self.corporate_display_var.set(joined)
+
+    def _open_corporate_multi_select(self):
+        """打开 Corporate 多选弹窗；候选仅受当前 subregion 限制。"""
+        # 候选集合
+        if hasattr(self, "_current_corporate_candidates") and self._current_corporate_candidates:
+            candidates = sorted(self._current_corporate_candidates)
+        else:
+            candidates = sorted(self._unique_values(foh.corporate_id, self._get_all_rows_from_source()))
+
+        pre = set(self.selected_corporates)
+
+        # 居中
+        self.window.update_idletasks()
+        width, height = 380, 520
+        x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - height) // 3
+
+        dlg = tk.Toplevel(self.window)
+        dlg.title("选择 Corporate")
+        dlg.geometry(f"{width}x{height}+{x}+{y}")
+        dlg.transient(self.window)
+        dlg.grab_set()
+
+        # 搜索框
+        tk.Label(dlg, text="搜索：").pack(anchor="w", padx=10, pady=(10, 2))
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(dlg, textvariable=search_var)
+        search_entry.pack(fill="x", padx=10)
+
+        # 列表（带滚动）
+        frame = tk.Frame(dlg)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        canvas = tk.Canvas(frame, borderwidth=0)
+        scr = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        list_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=list_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scr.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scr.pack(side="right", fill="y")
+
+        def on_cfg(_):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        list_frame.bind("<Configure>", on_cfg)
+
+        items = []
+
+        def rebuild():
+            for w in list_frame.winfo_children():
+                w.destroy()
+            items.clear()
+            kw = (search_var.get() or "").strip().lower()
+            for name in candidates:
+                if kw and kw not in name.lower():
+                    continue
+                var = tk.BooleanVar(value=(name in pre))
+                cb = ttk.Checkbutton(list_frame, text=name, variable=var)
+                cb.pack(anchor="w")
+                items.append((name, var))
+
+        def select_all():
+            for _, v in items:
+                v.set(True)
+
+        def deselect_all():
+            for _, v in items:
+                v.set(False)
+
+        def confirm():
+            sel = {name for name, v in items if v.get()}
+            # 只保留候选集合中的项
+            self.selected_corporates = sel & set(candidates)
+            self._set_corporate_display()
+            dlg.destroy()
+
+        btns = tk.Frame(dlg)
+        btns.pack(fill="x", padx=10, pady=5)
+        ttk.Button(btns, text="全选", command=select_all).pack(side="left")
+        ttk.Button(btns, text="全不选", command=deselect_all).pack(side="left", padx=5)
+        ttk.Button(btns, text="确定", command=confirm).pack(side="right")
+
+        search_var.trace_add("write", lambda *_: rebuild())
+
+        rebuild()
+        search_entry.focus_set()
+        dlg.wait_window()
 
     # -------------------------
     # 列隐藏/显示
