@@ -906,18 +906,14 @@ class OrderPopupUI:
             self.corporate_display_var.set(joined)
 
     def _open_corporate_multi_select(self):
-        """打开 Corporate 多选弹窗；候选仅受当前 subregion 限制。"""
-        # 候选集合
-        if hasattr(self, "_current_corporate_candidates") and self._current_corporate_candidates:
-            candidates = sorted(self._current_corporate_candidates)
-        else:
-            candidates = sorted(self._unique_values(foh.corporate_id, self._get_all_rows_from_source()))
-
+        """Corporate 多选弹窗（真正可滚动 + 搜索 + 鼠标滚轮）"""
+        candidates = sorted(getattr(self, "_current_corporate_candidates", set()) or
+                            set(self._unique_values(foh.corporate_id, self._get_all_rows_from_source())))
         pre = set(self.selected_corporates)
 
-        # 居中
+        # 弹窗居中
         self.window.update_idletasks()
-        width, height = 380, 520
+        width, height = 400, 500
         x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
         y = self.window.winfo_y() + (self.window.winfo_height() - height) // 3
 
@@ -926,44 +922,88 @@ class OrderPopupUI:
         dlg.geometry(f"{width}x{height}+{x}+{y}")
         dlg.transient(self.window)
         dlg.grab_set()
+        dlg.minsize(360, 320)  # 防止过小
+
+        ttk.Label(dlg, text="请选择 Corporate（支持搜索）：", font=("Arial", 11, "bold")).pack(anchor="w", padx=10,
+                                                                                            pady=(10, 5))
 
         # 搜索框
-        tk.Label(dlg, text="搜索：").pack(anchor="w", padx=10, pady=(10, 2))
         search_var = tk.StringVar()
-        search_entry = tk.Entry(dlg, textvariable=search_var)
-        search_entry.pack(fill="x", padx=10)
+        search_frame = ttk.Frame(dlg)
+        search_frame.pack(fill="x", padx=10, pady=(0, 8))
+        ttk.Label(search_frame, text="搜索：").pack(side="left")
+        search_entry = ttk.Entry(search_frame, textvariable=search_var)
+        search_entry.pack(side="left", fill="x", expand=True)
 
-        # 列表（带滚动）
-        frame = tk.Frame(dlg)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        # ===== 滚动区域（Canvas + Scrollbar）=====
+        list_container = ttk.Frame(dlg)
+        list_container.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        canvas = tk.Canvas(frame, borderwidth=0)
-        scr = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        list_frame = tk.Frame(canvas)
-        canvas.create_window((0, 0), window=list_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scr.set)
+        canvas = tk.Canvas(list_container, highlightthickness=0)
+        vbar = ttk.Scrollbar(list_container, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
+
+        # 把 frame 作为一个“窗口”挂在 canvas 上，并保存其 item id 以便宽度同步
+        win = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=vbar.set)
+
         canvas.pack(side="left", fill="both", expand=True)
-        scr.pack(side="right", fill="y")
+        vbar.pack(side="right", fill="y")
 
-        def on_cfg(_):
+        # 1) 内容尺寸变化 -> 更新 scrollregion
+        def _on_frame_configure(_):
             canvas.configure(scrollregion=canvas.bbox("all"))
 
-        list_frame.bind("<Configure>", on_cfg)
+        scroll_frame.bind("<Configure>", _on_frame_configure)
 
+        # 2) Canvas 改变宽度 -> 同步内部窗口宽度（避免出现水平滚动）
+        def _on_canvas_configure(event):
+            canvas.itemconfig(win, width=event.width)
+
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        # 3) 绑定鼠标滚轮（Windows/macOS/Linux）
+        def _on_mousewheel(event):
+            # Windows: event.delta=±120; macOS: ±(小值); Linux: 使用 Button-4/5
+            delta = event.delta
+            if delta == 0:
+                return
+            step = -1 if delta > 0 else 1
+            canvas.yview_scroll(step, "units")
+            return "break"
+
+        def _on_linux_scroll_up(_):
+            canvas.yview_scroll(-1, "units")
+            return "break"
+
+        def _on_linux_scroll_down(_):
+            canvas.yview_scroll(+1, "units")
+            return "break"
+
+        for w in (dlg, canvas, scroll_frame):
+            w.bind("<MouseWheel>", _on_mousewheel)  # Windows / macOS
+        for w in (dlg, canvas, scroll_frame):
+            w.bind("<Button-4>", _on_linux_scroll_up)  # Linux
+            w.bind("<Button-5>", _on_linux_scroll_down)
+
+        # 列表内容
         items = []
 
         def rebuild():
-            for w in list_frame.winfo_children():
-                w.destroy()
+            for child in scroll_frame.winfo_children():
+                child.destroy()
             items.clear()
-            kw = (search_var.get() or "").strip().lower()
+            keyword = (search_var.get() or "").strip().lower()
             for name in candidates:
-                if kw and kw not in name.lower():
+                if keyword and keyword not in name.lower():
                     continue
                 var = tk.BooleanVar(value=(name in pre))
-                cb = ttk.Checkbutton(list_frame, text=name, variable=var)
-                cb.pack(anchor="w")
+                ttk.Checkbutton(scroll_frame, text=name, variable=var).pack(anchor="w", pady=2)
                 items.append((name, var))
+
+        # 底部按钮
+        btn_frame = ttk.Frame(dlg)
+        btn_frame.pack(fill="x", padx=10, pady=8)
 
         def select_all():
             for _, v in items:
@@ -975,19 +1015,15 @@ class OrderPopupUI:
 
         def confirm():
             sel = {name for name, v in items if v.get()}
-            # 只保留候选集合中的项
             self.selected_corporates = sel & set(candidates)
             self._set_corporate_display()
             dlg.destroy()
 
-        btns = tk.Frame(dlg)
-        btns.pack(fill="x", padx=10, pady=5)
-        ttk.Button(btns, text="全选", command=select_all).pack(side="left")
-        ttk.Button(btns, text="全不选", command=deselect_all).pack(side="left", padx=5)
-        ttk.Button(btns, text="确定", command=confirm).pack(side="right")
+        ttk.Button(btn_frame, text="全选", command=select_all).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="全不选", command=deselect_all).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="确定", command=confirm).pack(side="right", padx=4)
 
         search_var.trace_add("write", lambda *_: rebuild())
-
         rebuild()
         search_entry.focus_set()
         dlg.wait_window()
@@ -1029,7 +1065,7 @@ class OrderPopupUI:
     def _ask_multiple_columns(self, options, title):
         # 弹窗居中
         self.window.update_idletasks()
-        width, height = 320, 500
+        width, height = 360, 480
         x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
         y = self.window.winfo_y() + (self.window.winfo_height() - height) // 3
 
@@ -1038,41 +1074,83 @@ class OrderPopupUI:
         popup.geometry(f"{width}x{height}+{x}+{y}")
         popup.transient(self.window)
         popup.grab_set()
+        popup.minsize(320, 320)
 
-        # 标题
-        tk.Label(popup, text="请选择列：", font=("Arial", 12, "bold")).pack(pady=10)
+        ttk.Label(popup, text="请选择列：", font=("Arial", 11, "bold")).pack(pady=(10, 5))
 
-        # 滚动区域
-        frame_container = tk.Frame(popup)
-        frame_container.pack(fill="both", expand=True, padx=10)
+        # 搜索框
+        search_var = tk.StringVar()
+        search_frame = ttk.Frame(popup)
+        search_frame.pack(fill="x", padx=10, pady=(0, 8))
+        ttk.Label(search_frame, text="搜索：").pack(side="left")
+        search_entry = ttk.Entry(search_frame, textvariable=search_var)
+        search_entry.pack(side="left", fill="x", expand=True)
 
-        canvas = tk.Canvas(frame_container, borderwidth=0)
-        scrollbar = tk.Scrollbar(frame_container, orient="vertical", command=canvas.yview)
-        scroll_frame = tk.Frame(canvas)
+        # ===== 滚动区域（Canvas + Scrollbar）=====
+        container = ttk.Frame(popup)
+        container.pack(fill="both", expand=True, padx=10)
 
-        def _on_cfg(_):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas = tk.Canvas(container, highlightthickness=0)
+        vbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
 
-        scroll_frame.bind("<Configure>", _on_cfg)
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        win = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=vbar.set)
 
         canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        vbar.pack(side="right", fill="y")
 
-        # 复选框
+        # 关键：更新 scrollregion + 同步宽度 + 鼠标滚轮
+        def _on_frame_configure(_):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        scroll_frame.bind("<Configure>", _on_frame_configure)
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(win, width=event.width)
+
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(event):
+            delta = event.delta
+            if delta == 0:
+                return
+            step = -1 if delta > 0 else 1
+            canvas.yview_scroll(step, "units")
+            return "break"
+
+        def _on_linux_scroll_up(_):
+            canvas.yview_scroll(-1, "units")
+            return "break"
+
+        def _on_linux_scroll_down(_):
+            canvas.yview_scroll(+1, "units")
+            return "break"
+
+        for w in (popup, canvas, scroll_frame):
+            w.bind("<MouseWheel>", _on_mousewheel)
+            w.bind("<Button-4>", _on_linux_scroll_up)
+            w.bind("<Button-5>", _on_linux_scroll_down)
+
+        # 复选框 + 结果
         selected_vars = []
-        for opt in options:
-            var = tk.BooleanVar()
-            chk = ttk.Checkbutton(scroll_frame, text=opt, variable=var)
-            chk.pack(anchor="w", pady=2)
-            selected_vars.append((opt, var))
+        result = []
 
-        # 按钮区域
-        btn_frame = tk.Frame(popup)
+        def rebuild():
+            for child in scroll_frame.winfo_children():
+                child.destroy()
+            selected_vars.clear()
+            kw = (search_var.get() or "").strip().lower()
+            for opt in options:
+                if kw and kw not in opt.lower():
+                    continue
+                var = tk.BooleanVar()
+                ttk.Checkbutton(scroll_frame, text=opt, variable=var).pack(anchor="w", pady=2)
+                selected_vars.append((opt, var))
+
+        # 底部按钮
+        btn_frame = ttk.Frame(popup)
         btn_frame.pack(pady=10)
-
-        result: List[str] = []
 
         def select_all():
             for _, var in selected_vars:
@@ -1090,6 +1168,9 @@ class OrderPopupUI:
         ttk.Button(btn_frame, text="全不选", command=deselect_all).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="确认", command=confirm).pack(side="left", padx=5)
 
+        search_var.trace_add("write", lambda *_: rebuild())
+        rebuild()
+        search_entry.focus_set()
         popup.wait_window()
         return result
 
