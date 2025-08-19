@@ -100,12 +100,12 @@ class OrderPopupUI:
                   bg="#D3D3D3", relief="raised", font=("Arial", 10)).grid(row=1, column=6, padx=5)
 
         # 2) 列操作
-        hide_frame = tk.LabelFrame(top_frame, text="列操作")
-        hide_frame.pack(side='left', padx=10)
-        tk.Button(hide_frame, text="隐藏列", command=self._hide_columns,
-                  bg="#FFA07A", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
-        tk.Button(hide_frame, text="显示列", command=self._show_columns,
-                  bg="#90EE90", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
+        # hide_frame = tk.LabelFrame(top_frame, text="列操作")
+        # hide_frame.pack(side='left', padx=10)
+        # tk.Button(hide_frame, text="隐藏列", command=self._hide_columns,
+        #           bg="#FFA07A", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
+        # tk.Button(hide_frame, text="显示列", command=self._show_columns,
+        #           bg="#90EE90", relief="raised", font=("Arial", 10)).pack(side='left', padx=5, pady=5)
         self.hidden_column_indices: List[int] = []
 
         # 3) 功能模块
