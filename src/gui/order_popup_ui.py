@@ -64,10 +64,10 @@ class OrderPopupUI:
             combo.grid(row=1, column=idx * 2 + 1, padx=5)
             setattr(self, f"{label_text}_combo", combo)
 
-        # 默认日期：明日 0 点（显示 yyyy-mm-dd），结束 = 开始 + 2 天
+        # 默认日期：明日 0 点（显示 yyyy-mm-dd），结束 = 开始 + 1 天
         today = dt.date.today()
         start_default = today + dt.timedelta(days=1)
-        end_default = start_default + dt.timedelta(days=2)
+        end_default = start_default + dt.timedelta(days=1)
 
         # ✅ 修改后（四位年）
         self.start_date_var.set(start_default.strftime(DATE_FMT_UI))
